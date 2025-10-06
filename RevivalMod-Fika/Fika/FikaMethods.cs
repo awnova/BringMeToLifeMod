@@ -1,8 +1,5 @@
 ﻿using Comfort.Common;
-using EFT;
 using EFT.Communications;
-using Fika.Core.Coop.Custom;
-using Fika.Core.Coop.HostClasses;
 using Fika.Core.Coop.Utils;
 using Fika.Core.Modding;
 using Fika.Core.Modding.Events;
@@ -18,11 +15,9 @@ namespace RevivalMod.FikaModule.Common
 {
     internal class FikaMethods
     {
-        
-
         public static void SendPlayerPositionPacket(string playerId, DateTime timeOfDeath, Vector3 position)
         {
-            PlayerPositionPacket packet = new PlayerPositionPacket
+            PlayerPositionPacket packet = new ()
             {
                 playerId = playerId,
                 timeOfDeath = timeOfDeath,
@@ -46,17 +41,17 @@ namespace RevivalMod.FikaModule.Common
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
            
-        }
+        }        
         public static void SendRemovePlayerFromCriticalPlayersListPacket(string playerId)
         {
-            RemovePlayerFromCriticalPlayersListPacket packet = new RemovePlayerFromCriticalPlayersListPacket()
+            RemovePlayerFromCriticalPlayersListPacket packet = new()
             {
                 playerId = playerId
             };
 
             if (Singleton<FikaServer>.Instantiated)
             {
-              
+
                 try
                 {
                     Singleton<FikaServer>.Instance.SendDataToAll(ref packet, DeliveryMethod.ReliableOrdered);
@@ -68,16 +63,14 @@ namespace RevivalMod.FikaModule.Common
             }
             else if (Singleton<FikaClient>.Instantiated)
             {
-              
+
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
-            
-           
         }
 
         public static void SendReviveMePacket(string reviveeId, string reviverId)
         {
-            ReviveMePacket packet = new ReviveMePacket()
+            ReviveMePacket packet = new()
             {
                 reviverId = reviverId,
                 reviveeId = reviveeId
@@ -104,30 +97,30 @@ namespace RevivalMod.FikaModule.Common
             {
                
             }
-
         }
+        
         public static void SendRevivedPacket(string reviverId, NetPeer peer)
         {
-            RevivedPacket packet = new RevivedPacket()
+            RevivedPacket packet = new()
             {
                 reviverId = reviverId
             };
 
             if (Singleton<FikaServer>.Instantiated)
             {
-               
+
                 try
                 {
                     Singleton<FikaServer>.Instance.SendDataToPeer(peer, ref packet, DeliveryMethod.ReliableOrdered);
                 }
                 catch (Exception ex)
                 {
-                   
+
                 }
             }
             else if (Singleton<FikaClient>.Instantiated)
             {
-               
+
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
 
@@ -142,31 +135,38 @@ namespace RevivalMod.FikaModule.Common
             else
             {
                 RMSession.AddToCriticalPlayers(packet.playerId, packet.position);
-                //FikaHealthBar fikaHealthBar = Singleton<FikaHealthBar>.Instance;
-                //PlayerPlateUI playerPlateUI = Singleton<PlayerPlateUI>.Instance;
-                
-                //playerPlateUI.SetNameText("Revive your teammate if you can!");
             }
         }
-        private static void OnRemovePlayerFromCriticalPlayersListPacketReceived(RemovePlayerFromCriticalPlayersListPacket packet,  NetPeer peer)
+        
+        private static void OnRemovePlayerFromCriticalPlayersListPacketReceived(RemovePlayerFromCriticalPlayersListPacket packet, NetPeer peer)
         {
             if (Singleton<FikaServer>.Instantiated && FikaBackendUtils.IsHeadless)
             {
                 SendRemovePlayerFromCriticalPlayersListPacket(packet.playerId);
             }
             else
-            { 
+            {
                 RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
             }
         }
+        
+        /// <summary>
+        /// Handles the reception of a <see cref="ReviveMePacket"/> from a network peer.
+        /// Depending on the server state and backend configuration, either forwards the revive request
+        /// or attempts to perform a revival by a teammate. If the revival is successful, sends a notification
+        /// packet to the reviver.
+        /// </summary>
+        /// <param name="packet">The <see cref="ReviveMePacket"/> containing revivee and reviver IDs.</param>
+        /// <param name="peer">The <see cref="NetPeer"/> that sent the packet.</param>
         private static void OnReviveMePacketReceived(ReviveMePacket packet, NetPeer peer)
         {
             if (Singleton<FikaServer>.Instantiated && FikaBackendUtils.IsHeadless)
             {
                 SendReviveMePacket(packet.reviveeId, packet.reviverId);
             }
-            else { 
-                bool revived = Features.RevivalFeatures.TryPerformRevivalByTeammate(packet.reviveeId);
+            else
+            {
+                bool revived = RevivalFeatures.TryPerformRevivalByTeammate(packet.reviveeId);
                 if (revived)
                 {
                     SendRevivedPacket(packet.reviverId, peer);
@@ -180,14 +180,14 @@ namespace RevivalMod.FikaModule.Common
             {
                 SendRevivedPacket(packet.reviverId, peer);
             }
-            else { 
+            else
+            {
                 NotificationManagerClass.DisplayMessageNotification(
                         $"Succesfully revived your teammate!",
                         ENotificationDurationType.Long,
                         ENotificationIconType.Friend,
                         Color.green);
             }
-
         }
 
         public static void OnFikaNetManagerCreated(FikaNetworkManagerCreatedEvent managerCreatedEvent)
@@ -197,9 +197,9 @@ namespace RevivalMod.FikaModule.Common
             managerCreatedEvent.Manager.RegisterPacket<ReviveMePacket, NetPeer>(OnReviveMePacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<RevivedPacket, NetPeer>(OnRevivedPacketReceived);
         }
-
+        
         public static void InitOnPluginEnabled()
-        {        
+        {
             FikaEventDispatcher.SubscribeEvent<FikaNetworkManagerCreatedEvent>(OnFikaNetManagerCreated);
         }
     }

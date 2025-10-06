@@ -1,8 +1,10 @@
 ﻿using System;
-using System.Text;
+using EFT.UI;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Threading;
+using System.Runtime.ConstrainedExecution;
 
 namespace RevivalMod.Helpers
 {
@@ -36,8 +38,6 @@ namespace RevivalMod.Helpers
         private TimerPosition timerPosition;
 
         // UI components
-        private GameObject timerObject;
-        private TextMeshProUGUI timerText;
         private TextMeshProUGUI titleText;
 
         public CustomTimer()
@@ -84,7 +84,7 @@ namespace RevivalMod.Helpers
         /// </summary>
         public void Update()
         {
-            if (!isRunning || timerText == null)
+            if (!isRunning || titleText == null)
                 return;
 
             TimeSpan timeSpan = GetTimeSpan();
@@ -92,7 +92,7 @@ namespace RevivalMod.Helpers
             // Check if countdown complete
             if (isCountdown && timeSpan.TotalSeconds <= 0)
             {
-                timerText.text = "00:00";
+                titleText.text = "00:00.000";
 
                 // Auto-stop if countdown finished
                 StopTimer();
@@ -100,7 +100,7 @@ namespace RevivalMod.Helpers
             }
 
             // Update the display
-            timerText.text = GetFormattedTime();
+            titleText.text = "Critical State: " + GetFormattedTime();
         }
 
         /// <summary>
@@ -109,14 +109,7 @@ namespace RevivalMod.Helpers
         public void StopTimer()
         {
             isRunning = false;
-
-            if (timerObject != null)
-            {
-                GameObject.Destroy(timerObject);
-                timerObject = null;
-                timerText = null;
-                titleText = null;
-            }
+            MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.Close();
         }
 
         /// <summary>
@@ -143,9 +136,9 @@ namespace RevivalMod.Helpers
             TimeSpan timeSpan = GetTimeSpan();
 
             if (isCountdown && timeSpan.TotalSeconds <= 0)
-                return "00:00";
+                return "00:00:000";
 
-            return string.Format("{0:00}:{1:00}", (int)timeSpan.TotalMinutes, timeSpan.Seconds);
+            return string.Format("{0:00}:{1:00}:{2:000}", (int)timeSpan.TotalMinutes, timeSpan.Seconds, timeSpan.Milliseconds);
         }
 
         /// <summary>
@@ -155,74 +148,19 @@ namespace RevivalMod.Helpers
         {
             try
             {
-                // Find the main canvas
-                Canvas mainCanvas = FindMainCanvas();
-                if (mainCanvas == null)
-                {
-                    Plugin.LogSource.LogError("Could not find main canvas");
-                    return;
-                }
+                MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.Display();
 
-                // Create timer object
-                timerObject = new GameObject($"RevivalMod_{timerName}");
-                timerObject.transform.SetParent(mainCanvas.transform, false);
+                RectTransform panel = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.transform.GetChild(0) as RectTransform;
 
-                // Add RectTransform (required for UI elements)
-                RectTransform rectTransform = timerObject.AddComponent<RectTransform>();
+                panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                panel.sizeDelta = new Vector2(318, 51);
+                panel.GetComponent<Image>().color = Color.red;
 
-                // Set position based on the specified timer position
-                ApplyTimerPosition(rectTransform);
+                titleText = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.GetComponentInChildren<TextMeshProUGUI>();
 
-                // Set size
-                rectTransform.sizeDelta = new Vector2(200, 60);
-
-                // Add a background image
-                GameObject backgroundObj = new GameObject("Background");
-                backgroundObj.transform.SetParent(timerObject.transform, false);
-                RectTransform bgRectTransform = backgroundObj.AddComponent<RectTransform>();
-                bgRectTransform.anchorMin = Vector2.zero;
-                bgRectTransform.anchorMax = Vector2.one;
-                bgRectTransform.offsetMin = Vector2.zero;
-                bgRectTransform.offsetMax = Vector2.zero;
-
-                Image bgImage = backgroundObj.AddComponent<Image>();
-                bgImage.color = new Color(0, 0, 0, 0.5f);  // Semi-transparent black
-
-                // Create title text
-                GameObject titleObj = new GameObject("Title");
-                titleObj.transform.SetParent(timerObject.transform, false);
-                RectTransform titleRect = titleObj.AddComponent<RectTransform>();
-                titleRect.anchorMin = new Vector2(0, 1);
-                titleRect.anchorMax = new Vector2(1, 1);
-                titleRect.pivot = new Vector2(0.5f, 1);
-                titleRect.offsetMin = new Vector2(10, -25);
-                titleRect.offsetMax = new Vector2(-10, 0);
-
-                titleText = titleObj.AddComponent<TextMeshProUGUI>();
-                titleText.text = timerName;
-                titleText.fontSize = 16;
-                titleText.alignment = TextAlignmentOptions.Center;
-                titleText.color = Color.white;
-
-                // Create timer text
-                GameObject textObj = new GameObject("TimerText");
-                textObj.transform.SetParent(timerObject.transform, false);
-                RectTransform textRect = textObj.AddComponent<RectTransform>();
-                textRect.anchorMin = new Vector2(0, 0);
-                textRect.anchorMax = new Vector2(1, 1);
-                textRect.pivot = new Vector2(0.5f, 0.5f);
-                textRect.offsetMin = new Vector2(10, 10);
-                textRect.offsetMax = new Vector2(-10, -25);
-
-                timerText = textObj.AddComponent<TextMeshProUGUI>();
-                timerText.text = GetFormattedTime();
-                timerText.fontSize = 24;
-                timerText.fontStyle = FontStyles.Bold;
-                timerText.alignment = TextAlignmentOptions.Center;
-                timerText.color = isCountdown ? Color.yellow : Color.green;
-
-                // Make sure the object is active
-                timerObject.SetActive(true);
+                titleText.text = "Critical State: " + GetFormattedTime();
+                titleText.autoSizeTextContainer = true;
+                titleText.fontSize = 22;
 
                 Plugin.LogSource.LogDebug($"Created custom timer UI for {timerName} at position {timerPosition}");
             }
@@ -230,116 +168,6 @@ namespace RevivalMod.Helpers
             {
                 Plugin.LogSource.LogError($"Error creating custom timer UI: {ex.Message}\n{ex.StackTrace}");
             }
-        }
-
-        /// <summary>
-        /// Apply positioning to the timer based on the selected position enum
-        /// </summary>
-        private void ApplyTimerPosition(RectTransform rectTransform)
-        {
-            // Set anchors and position based on the selected position
-            switch (timerPosition)
-            {
-                case TimerPosition.TopLeft:
-                    rectTransform.anchorMin = new Vector2(0, 1);
-                    rectTransform.anchorMax = new Vector2(0, 1);
-                    rectTransform.pivot = new Vector2(0, 1);
-                    rectTransform.anchoredPosition = new Vector2(20, -20);
-                    break;
-
-                case TimerPosition.TopCenter:
-                    rectTransform.anchorMin = new Vector2(0.5f, 1);
-                    rectTransform.anchorMax = new Vector2(0.5f, 1);
-                    rectTransform.pivot = new Vector2(0.5f, 1);
-                    rectTransform.anchoredPosition = new Vector2(0, -20);
-                    break;
-
-                case TimerPosition.TopRight:
-                    rectTransform.anchorMin = new Vector2(1, 1);
-                    rectTransform.anchorMax = new Vector2(1, 1);
-                    rectTransform.pivot = new Vector2(1, 1);
-                    rectTransform.anchoredPosition = new Vector2(-20, -20);
-                    break;
-
-                case TimerPosition.MiddleLeft:
-                    rectTransform.anchorMin = new Vector2(0, 0.5f);
-                    rectTransform.anchorMax = new Vector2(0, 0.5f);
-                    rectTransform.pivot = new Vector2(0, 0.5f);
-                    rectTransform.anchoredPosition = new Vector2(20, 0);
-                    break;
-
-                case TimerPosition.MiddleCenter:
-                    rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-                    rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-                    rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                    rectTransform.anchoredPosition = new Vector2(0, 0);
-                    break;
-
-                case TimerPosition.MiddleRight:
-                    rectTransform.anchorMin = new Vector2(1, 0.5f);
-                    rectTransform.anchorMax = new Vector2(1, 0.5f);
-                    rectTransform.pivot = new Vector2(1, 0.5f);
-                    rectTransform.anchoredPosition = new Vector2(-20, 0);
-                    break;
-
-                case TimerPosition.BottomLeft:
-                    rectTransform.anchorMin = new Vector2(0, 0);
-                    rectTransform.anchorMax = new Vector2(0, 0);
-                    rectTransform.pivot = new Vector2(0, 0);
-                    rectTransform.anchoredPosition = new Vector2(20, 20);
-                    break;
-
-                case TimerPosition.BottomCenter:
-                    rectTransform.anchorMin = new Vector2(0.5f, 0);
-                    rectTransform.anchorMax = new Vector2(0.5f, 0);
-                    rectTransform.pivot = new Vector2(0.5f, 0);
-                    rectTransform.anchoredPosition = new Vector2(0, 80);
-                    break;
-
-                case TimerPosition.BottomRight:
-                    rectTransform.anchorMin = new Vector2(1, 0);
-                    rectTransform.anchorMax = new Vector2(1, 0);
-                    rectTransform.pivot = new Vector2(1, 0);
-                    rectTransform.anchoredPosition = new Vector2(-20, 20);
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Find the main canvas in the scene
-        /// </summary>
-        private Canvas FindMainCanvas()
-        {
-            // Try to find the main HUD canvas first
-            Canvas[] canvases = GameObject.FindObjectsOfType<Canvas>();
-
-            // Look for specific canvases in order of preference
-            foreach (Canvas canvas in canvases)
-            {
-                // Check for common EFT canvas names
-                if (canvas.name.Contains("HUD") || canvas.name.Contains("UI") ||
-                    canvas.name.Contains("Menu") || canvas.name.Contains("GameUI"))
-                {
-                    return canvas;
-                }
-            }
-
-            // Fall back to any canvas with screen space overlay mode
-            foreach (Canvas canvas in canvases)
-            {
-                if (canvas.renderMode == RenderMode.ScreenSpaceOverlay)
-                {
-                    return canvas;
-                }
-            }
-
-            // Last resort - just use the first canvas
-            if (canvases.Length > 0)
-            {
-                return canvases[0];
-            }
-
-            return null;
         }
     }
 }

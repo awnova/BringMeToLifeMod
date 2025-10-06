@@ -2,6 +2,7 @@
 using EFT;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace RevivalMod.Components
@@ -16,7 +17,7 @@ namespace RevivalMod.Components
         public GamePlayerOwner GamePlayerOwner { get; private set; }
 
         // Dictionary to track players with revival items
-        public Dictionary<string, Vector3> CriticalPlayers = new Dictionary<string, Vector3>();
+        public Dictionary<string, Vector3> CriticalPlayers = [];
 
         public static RMSession Instance
         {
@@ -27,9 +28,11 @@ namespace RevivalMod.Components
                     if (!Singleton<GameWorld>.Instantiated)
                     {
                         Plugin.LogSource.LogError("Can't get ModSession Instance when GameWorld is not instantiated!");
+
                         // Create a temporary instance for error resistance
-                        GameObject go = new GameObject("RMSessionTemp");
+                        GameObject go = new("RMSessionTemp");
                         _instance = go.AddComponent<RMSession>();
+
                         return _instance;
                     }
 
@@ -40,7 +43,7 @@ namespace RevivalMod.Components
                     catch (Exception ex)
                     {
                         Plugin.LogSource.LogError($"Error creating RMSession: {ex.Message}");
-                        GameObject go = new GameObject("RMSessionError");
+                        GameObject go = new("RMSessionError");
                         _instance = go.AddComponent<RMSession>();
                     }
                 }
@@ -86,6 +89,7 @@ namespace RevivalMod.Components
         public static void RemovePlayerFromCriticalPlayers(string playerId)
         {
             if (string.IsNullOrEmpty(playerId)) return;
+
             if (Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) return;
 
             Instance.CriticalPlayers.Remove(playerId);
@@ -102,6 +106,17 @@ namespace RevivalMod.Components
         public static Dictionary<string, Vector3> GetCriticalPlayers()
         {
             return Instance.CriticalPlayers;
+        }
+
+        // Not sure yet
+        public static int GetTotalPlayers()
+        {
+            return Singleton<GameWorld>.Instance.allObservedPlayersByID.Count;
+        }
+
+        public static List<Player> GetAllAlivePlayerList()
+        {
+            return Singleton<GameWorld>.Instance.AllAlivePlayersList;
         }
     }
 }

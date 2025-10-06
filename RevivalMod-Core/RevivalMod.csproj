@@ -37,41 +37,52 @@
   <ItemGroup>
     <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\Assembly-CSharp.dll</HintPath>
+      <HintPath>D:\ref\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="DissonanceVoip">
-      <HintPath>..\..\..\EscapeFromTarkov_Data\Managed\DissonanceVoip.dll</HintPath>
+      <HintPath>D:\ref\DissonanceVoip.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="ItemComponent.Types, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null" />
     <Reference Include="PhysicsModule">
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>..\..\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>D:\ref\0Harmony.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="spt-common">
-      <HintPath>..\..\BepInEx\plugins\spt\spt-common.dll</HintPath>
+      <HintPath>D:\ref\spt-common.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="spt-reflection">
-      <HintPath>..\..\BepInEx\plugins\spt\spt-reflection.dll</HintPath>
+      <HintPath>D:\ref\spt-reflection.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>..\..\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>D:\ref\BepInEx.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="Comfort">
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\Comfort.dll</HintPath>
+      <HintPath>D:\ref\Comfort.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="Comfort.Unity, Version=1.0.0.4, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\Comfort.Unity.dll</HintPath>
+      <HintPath>D:\ref\Comfort.Unity.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <HintPath>D:\ref\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="Sirenix.Serialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\Sirenix.Serialization.dll</HintPath>
+      <HintPath>D:\ref\Sirenix.Serialization.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -83,48 +94,63 @@
     <Reference Include="System.Xml" />
     <Reference Include="Unity.TextMeshPro, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <HintPath>D:\ref\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>..\..\..\EscapeFromTarkov_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UIModule">
-      <HintPath>..\..\..\EscapeFromTarkov_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      <HintPath>D:\ref\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Components\InteractableBuilder.cs" />
+    <Compile Include="Components\BodyInteractable.cs" />
     <Compile Include="Helpers\CustomTimer.cs" />
     <Compile Include="Components\RMSession.cs" />
+    <Compile Include="Components\RevivalModPlayer.cs" />
     <Compile Include="Constants\Constants.cs" />
     <Compile Include="Fika\FikaBridge.cs" />
     <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
-    <Compile Include="Helpers\Settings.cs" />
+    <Compile Include="Helpers\RevivalModSettings.cs" />
     <Compile Include="Patches\DeathPatch.cs" />
+    <Compile Include="Patches\OnPlayerCreatedPatch.cs" />
+    <Compile Include="Patches\AvailableActionsPatch.cs" />
     <Compile Include="Features\Features.cs" />
     <Compile Include="Helpers\Utils.cs" />
     <Compile Include="Patches\GameStartedPatch.cs" />
@@ -132,7 +158,16 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy "$(TargetPath)" "C:\SPT3.11-Fresh\BepInEx\plugins\$(TargetFileName)"</PostBuildEvent>
-  </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy 
+      SourceFiles="$(TargetDir)$(TargetName).dll" 
+      DestinationFolder="C:\Users\kobethuy\Documents\EFT\BepInEx\plugins" 
+      SkipUnchangedFiles="true" />
+      
+    <Copy 
+      SourceFiles="$(TargetDir)$(TargetName).dll" 
+      DestinationFolder="C:\Users\kobethuy\Documents\MO2\SPT-Live\mods\RevivalMod\BepInEx\plugins" 
+      SkipUnchangedFiles="true" />
+  </Target>
 </Project>

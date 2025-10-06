@@ -1,12 +1,10 @@
-﻿using EFT;
-using EFT.Communications;
-using Comfort.Common;
-using RevivalMod;
-using RevivalMod.Features;
+﻿using Comfort.Common;
 using SPT.Reflection.Patching;
 using System;
 using System.Reflection;
 using UnityEngine;
+using EFT;
+using EFT.Communications;
 using EFT.InventoryLogic;
 using System.Linq;
 using RevivalMod.Helpers;
@@ -35,16 +33,16 @@ namespace RevivalMod.Patches
                 }
 
                 // Initialize player client directly
-                Player playerClient = Singleton<GameWorld>.Instance.MainPlayer;
-                if (playerClient == null)
+                Player player = Singleton<GameWorld>.Instance.MainPlayer;
+                if (player == null)
                 {
                     Plugin.LogSource.LogError("MainPlayer is null");
                     return;
                 }
 
                 // Check if player has revival item
-                string playerId = playerClient.ProfileId;
-                var inRaidItems = playerClient.Inventory.GetPlayerItems(EPlayerItems.Equipment);
+                string playerId = player.ProfileId;
+                var inRaidItems = player.Inventory.GetPlayerItems(EPlayerItems.Equipment);
                 bool hasItem = false;
 
                 try
@@ -58,11 +56,8 @@ namespace RevivalMod.Patches
 
                 Plugin.LogSource.LogInfo($"Player {playerId} has revival item: {hasItem}");
 
-                // Send packet if Fika is installed
-
-
                 // Display notification about revival item status
-                if (Settings.TESTING.Value)
+                if (RevivalModSettings.TESTING.Value)
                 {
                     NotificationManagerClass.DisplayMessageNotification(
                     $"Revival System: {(hasItem ? "Revival item found" : "No revival item found")}",
@@ -70,11 +65,13 @@ namespace RevivalMod.Patches
                     ENotificationIconType.Default,
                     hasItem ? Color.green : Color.yellow);
                 }
+
             }
             catch (Exception ex)
             {
                 Plugin.LogSource.LogError($"Error in GameStartedPatch: {ex.Message}");
             }
         }
+
     }
 }

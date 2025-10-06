@@ -3,13 +3,12 @@ using UnityEngine;
 
 namespace RevivalMod.Helpers
 {
-    internal class Settings
+    internal class RevivalModSettings
     {
         #region Settings Properties
 
         // Key Bindings
         public static ConfigEntry<KeyCode> SELF_REVIVAL_KEY;
-        public static ConfigEntry<KeyCode> TEAM_REVIVAL_KEY;
         public static ConfigEntry<KeyCode> GIVE_UP_KEY;
 
         // Revival Mechanics
@@ -20,6 +19,9 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<float> REVIVAL_COOLDOWN;
         public static ConfigEntry<float> TIME_TO_REVIVE;
         public static ConfigEntry<bool> RESTORE_DESTROYED_BODY_PARTS;
+        public static ConfigEntry<float> RESTORE_DESTROYED_BODY_PARTS_AMOUNT;
+        public static ConfigEntry<bool> CONTUSION_EFFECT;
+        public static ConfigEntry<bool> STUN_EFFECT;
 
         // Hardcore Mode
         public static ConfigEntry<bool> HARDCORE_MODE;
@@ -40,13 +42,6 @@ namespace RevivalMod.Helpers
                 "Self Revival Key",
                 KeyCode.F5,
                 "The key to press and hold to revive yourself when in critical state"
-            );
-
-            TEAM_REVIVAL_KEY = config.Bind(
-                "1. Key Bindings",
-                "Team Revival Key",
-                KeyCode.F6,
-                "The key to press and hold to revive a teammate in critical state"
             );
 
             GIVE_UP_KEY = config.Bind(
@@ -106,7 +101,28 @@ namespace RevivalMod.Helpers
                 "2. Revival Mechanics",
                 "Restore Destroyed Body Parts",
                 false,
-                "When enabled, destroyed body parts will be restored after revival (ignored in Hardcore Mode)"
+                "When enabled, destroyed body parts will be restored after revival"
+            );
+
+            RESTORE_DESTROYED_BODY_PARTS_AMOUNT = config.Bind(
+                "2. Revival Mechanics",
+                "Restore Destroyed Body Parts percentage",
+                0f,
+                "The percentage of Body Part's health to be restored (i.e 50%)"
+            );
+
+            CONTUSION_EFFECT = config.Bind(
+                "2. Revival Mechanics",
+                "Contusion effect",
+                true,
+                ""
+            );
+
+            STUN_EFFECT = config.Bind(
+                "2. Revival Mechanics",
+                "Stun effect",
+                true,
+                ""
             );
 
             #endregion

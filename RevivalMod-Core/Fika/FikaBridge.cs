@@ -1,7 +1,4 @@
-﻿using EFT.Interactive;
-using EFT.InventoryLogic;
-using RevivalMod;
-using SPT.Reflection.Utils;
+﻿using SPT.Reflection.Utils;
 using System;
 using UnityEngine;
 
@@ -14,15 +11,15 @@ namespace RevivalMod.Fika
         public delegate string SimpleStringReturnEvent();
 
         public static event SimpleEvent PluginEnableEmitted;
-        public static void PluginEnable() { 
+        public static void PluginEnable()
+        {
             PluginEnableEmitted?.Invoke(); 
+            
             if (PluginEnableEmitted != null)
             {
-               Plugin.LogSource.LogInfo("RevivalMod-Fika plugin loaded!");
+                Plugin.LogSource.LogInfo("RevivalMod-Fika plugin loaded!");
             }
         }
-
-
         public static event SimpleBoolReturnEvent IAmHostEmitted;
         public static bool IAmHost()
         {
@@ -37,8 +34,6 @@ namespace RevivalMod.Fika
                 return eventResponse.Value;
             }
         }
-
-
         public static event SimpleStringReturnEvent GetRaidIdEmitted;
         public static string GetRaidId()
         {

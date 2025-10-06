@@ -1,14 +1,13 @@
 ﻿using EFT;
 using EFT.Communications;
+using EFT.InventoryLogic;
 using Comfort.Common;
-using RevivalMod;
-using RevivalMod.Features;
 using SPT.Reflection.Patching;
 using System;
 using System.Reflection;
-using UnityEngine;
-using EFT.InventoryLogic;
 using System.Linq;
+using UnityEngine;
+using TMPro;
 using RevivalMod.Helpers;
 
 namespace RevivalMod.Patches
@@ -62,7 +61,7 @@ namespace RevivalMod.Patches
 
 
                 // Display notification about revival item status
-                if (Settings.TESTING.Value)
+                if (RevivalModSettings.TESTING.Value)
                 {
                     NotificationManagerClass.DisplayMessageNotification(
                     $"Revival System: {(hasItem ? "Revival item found" : "No revival item found")}",
@@ -70,6 +69,17 @@ namespace RevivalMod.Patches
                     ENotificationIconType.Default,
                     hasItem ? Color.green : Color.yellow);
                 }
+
+                // Enable interactables
+                Plugin.LogSource.LogInfo("Enabling body interactables");
+                foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>()
+                     .Where(obj => obj.name.Contains("Body Interactable")))
+                {
+                    Plugin.LogSource.LogInfo($"Found interactable: {interact.name}");
+                    interact.layer = LayerMask.NameToLayer("Interactive");
+                    interact.GetComponent<BoxCollider>().enabled = true;
+                }
+                Utils.MainPlayer = playerClient;
             }
             catch (Exception ex)
             {

@@ -8,19 +8,21 @@ namespace RevivalMod.Helpers
 {
     internal class Utils
     {
-        public static T ServerRoute<T>(string url, object data = default(object))
+        public static T ServerRoute<T>(string url, object data = default)
         {
             string json = JsonConvert.SerializeObject(data);
             var req = RequestHandler.PostJson(url, json);
             return JsonConvert.DeserializeObject<T>(req);
         }
-        public static string ServerRoute(string url, object data = default(object))
+        public static string ServerRoute(string url, object data = default)
         {
             string json;
-            if (data is string)
+            if (data is string v)
             {
-                Dictionary<string, string> dataDict = new Dictionary<string, string>();
-                dataDict.Add("data", (string)data);
+                Dictionary<string, string> dataDict = new()
+                {
+                    { "data", v }
+                };
                 json = JsonConvert.SerializeObject(dataDict);
             }
             else

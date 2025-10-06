@@ -11,6 +11,7 @@ using RevivalMod.Fika;
 using RevivalMod.Patches;
 using RevivalMod.Helpers;
 using System.Reflection;
+using RevivalMod.Components;
 
 namespace RevivalMod
 {
@@ -25,20 +26,25 @@ namespace RevivalMod
         public static bool IAmDedicatedClient { get; private set; }
         public const string DataToServerURL = "/kaikinoodles/revivalmod/data_to_server";
         public const string DataToClientURL = "/kaikinoodles/revivalmod/data_to_client";
+        public static RevivalModPlayer revivalModPlayer;
 
         // BaseUnityPlugin inherits MonoBehaviour, so you can use base unity functions like Awake() and Update()
         private void Awake()
         {
             FikaInstalled = Chainloader.PluginInfos.ContainsKey("com.fika.core");
-            IAmDedicatedClient = Chainloader.PluginInfos.ContainsKey("com.fika.dedicated");
+            IAmDedicatedClient = Chainloader.PluginInfos.ContainsKey("com.fika.headless");
+
             // save the Logger to variable so we can use it elsewhere in the project
             LogSource = Logger;
             LogSource.LogInfo("Revival plugin loaded!");
-            Settings.Init(Config);
+            RevivalModSettings.Init(Config);
+
             // Enable patches
             new DeathPatch().Enable();
             new RevivalFeatures().Enable();
             new GameStartedPatch().Enable();
+            new OnPlayerCreatedPatch().Enable();
+            new AvailableActionsPatch().Enable();
 
             LogSource.LogInfo("Revival plugin initialized! Press F5 to use your defibrillator when in critical state.");
             TryInitFikaAssembly();
@@ -52,6 +58,7 @@ namespace RevivalMod
         void TryInitFikaAssembly()
         {
             if (!FikaInstalled) return;
+
             try
             {
                 Assembly fikaModuleAssembly = Assembly.Load("RevivalMod-Fika");
