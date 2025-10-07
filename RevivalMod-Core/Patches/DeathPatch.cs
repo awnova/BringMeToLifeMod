@@ -30,18 +30,18 @@ namespace RevivalMod.Patches
 
                 // Get the Player instance
                 Player player = playerField.GetValue(__instance) as Player;
-                if (player == null) return true;
 
-                // Only handle player deaths, not AI
-                if (player.IsAI) return true;
-
-                // Check for explicit kill override 
+                // Skip if player is null and is AI
+                if (player == null || player.IsAI) return true;
+ 
                 string playerId = player.ProfileId;
-                if (RevivalFeatures.KillOverridePlayers.ContainsKey(playerId) && RevivalFeatures.KillOverridePlayers[playerId] == true) { return true; }
+
+                // Check for explicit kill override
+                if (RevivalFeatures.KillOverridePlayers.TryGetValue(playerId, out bool isOverridden) && isOverridden) { return true; }
 
                 // Kill normally if already in critical state
-                if (RevivalFeatures.IsPlayerInvulnerable(playerId) && RMSession.GetCriticalPlayers().TryGetValue(player.ProfileId, out _))
-                    return true;
+                //if (RMSession.GetCriticalPlayers().TryGetValue(player.ProfileId, out _)) 
+                //    return true;
 
                 // Check if player is invulnerable from recent revival
                 if (RevivalFeatures.IsPlayerInvulnerable(playerId))
@@ -61,13 +61,14 @@ namespace RevivalMod.Patches
                 {
                     // Check for headshot instant death
                     if (RevivalModSettings.HARDCORE_HEADSHOT_DEFAULT_DEAD.Value &&
-                        __instance.GetBodyPartHealth(EBodyPart.Head, true).Current < 1)
+                        __instance.GetBodyPartHealth(EBodyPart.Head, true).Current < 1 &&
+                        damageType == EDamageType.Bullet)
                     {
 
                         // Handle random chance of critical state.
-                        float randomNumber = UnityEngine.Random.Range(0f, 100f) / 100f;
+                        float randomNumber = UnityEngine.Random.Range(0f, 100f);
 
-                        if (RevivalModSettings.HARDCORE_CHANCE_OF_CRITICAL_STATE.Value < randomNumber)
+                        if (randomNumber < RevivalModSettings.HARDCORE_CHANCE_OF_CRITICAL_STATE.Value)
                         {
                             Plugin.LogSource.LogInfo($"DEATH PREVENTED: Player was lucky. Random Number was: {randomNumber}");
 

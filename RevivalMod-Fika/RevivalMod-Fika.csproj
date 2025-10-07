@@ -152,7 +152,6 @@
     
     <Compile Include="Fika\FikaMethods.cs" />
     <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
-    <Compile Include="Helpers\RevivalModSettings.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Packets\Packets.cs" />
     <Compile Include="Patches\DeathPatch.cs" />  

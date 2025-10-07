@@ -47,7 +47,7 @@ namespace RevivalMod.Features
         private static readonly Dictionary<string, EDamageType> _playerDamageTypes = [];
         private static readonly Dictionary<string, bool> _playerIsInvulnerable = [];
         private static readonly Dictionary<string, float> _playerInvulnerabilityTimers = [];
-        private static readonly Dictionary<string, float> _playerCriticalStateTimers = [];
+        public static readonly Dictionary<string, float> _playerCriticalStateTimers = [];
 
         // Player original state storage for restoration
         private static readonly Dictionary<string, float> _originalAwareness = [];
@@ -89,9 +89,10 @@ namespace RevivalMod.Features
                 ProcessCriticalState(__instance, playerId);
 
                 // Send position updates if in critical state (regardless of local player status)
-                if (RMSession.GetCriticalPlayers().TryGetValue(playerId, out Vector3 position))
+                if (RMSession.GetCriticalPlayers().TryGetValue(playerId, out Vector3 position) &&
+                    position != __instance.Position)
                 {
-                    // Send position update on every tick for critical players
+                    // Send position update if position changed
                     FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), __instance.Position);
                 }
             }
@@ -378,13 +379,9 @@ namespace RevivalMod.Features
                 if (PlayerClient == null)
                 {
                     if (Singleton<GameWorld>.Instantiated)
-                    {
                         PlayerClient = Singleton<GameWorld>.Instance.MainPlayer;
-                    }
                     else
-                    {
                         return new KeyValuePair<string, bool>(string.Empty, false);
-                    }
                 }
 
                 if (PlayerClient == null)
@@ -418,6 +415,7 @@ namespace RevivalMod.Features
             // Set the critical state timer
             _playerCriticalStateTimers[playerId] = RevivalModSettings.TIME_TO_REVIVE.Value;
             _playerIsInvulnerable[playerId] = true;
+            //_playerIsInvulnerable[playerId] = false;
 
             // Apply effects and make player revivable
             ApplyCriticalEffects(player);
@@ -432,6 +430,8 @@ namespace RevivalMod.Features
                 criticalStateMainTimer = new CustomTimer();
                 criticalStateMainTimer.StartCountdown(RevivalModSettings.TIME_TO_REVIVE.Value, "Critical State Timer", TimerPosition.MiddleCenter);
             }
+
+            //RMSession.AddToCriticalPlayers(playerId, player.Position);
 
             // Send initial position packet for multiplayer sync
             FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), player.Position);
@@ -511,7 +511,7 @@ namespace RevivalMod.Features
 
             if (hasDefib || RevivalModSettings.TESTING.Value)
             {
-                return PerformRevival(player, playerId, hasDefib);
+                return PerformRevival(player, playerId);
             }
             else
             {
@@ -557,13 +557,10 @@ namespace RevivalMod.Features
         /// <summary>
         /// Performs the actual revival process
         /// </summary>
-        private static bool PerformRevival(Player player, string playerId, bool hasDefib)
+        private static bool PerformRevival(Player player, string playerId)
         {
             // Consume the item if not in test mode
-            if (hasDefib && !RevivalModSettings.TESTING.Value)
-            {
-                ConsumeDefibItem(player);
-            }
+            ConsumeDefibItem(player);
 
             // Remove from critical players list for multiplayer sync
             FikaBridge.SendRemovePlayerFromCriticalPlayersListPacket(playerId);
@@ -598,7 +595,7 @@ namespace RevivalMod.Features
         /// <summary>
         /// Revives a teammate by a player with a defibrillator
         /// </summary>
-        public static bool PerformTeammateRevival(string targetPlayerId, Player reviver)
+        public static bool PerformTeammateRevival(string targetPlayerId, Player player)
         {
             try
             {
@@ -608,11 +605,12 @@ namespace RevivalMod.Features
                    ENotificationIconType.Friend,
                    Color.green);
 
-                ConsumeDefibItem(reviver);
+                ConsumeDefibItem(player);
+
                 RMSession.RemovePlayerFromCriticalPlayers(targetPlayerId);
 
                 FikaBridge.SendRemovePlayerFromCriticalPlayersListPacket(targetPlayerId);
-                FikaBridge.SendReviveMePacket(targetPlayerId, reviver.ProfileId);
+                FikaBridge.SendReviveMePacket(targetPlayerId, player.ProfileId);
 
                 return true;
             }
@@ -739,7 +737,7 @@ namespace RevivalMod.Features
                 _originalAwareness[playerId] = player.Awareness;
 
                 // Configure player for revivable state
-                //player.Awareness = 0f; 
+                player.Awareness = 0f; 
                 player.PlayDeathSound();
                 player.HandsController.IsAiming = false;
                 player.MovementContext.EnableSprint(false);
@@ -748,8 +746,9 @@ namespace RevivalMod.Features
                 player.SetEmptyHands(null);
 
                 // Make player invisible to AI and mark as dead
-                // But for hardcore mode, we want them to still be targetable ?                
-                if (RevivalModSettings.HARDCORE_MODE.Value) player.ActiveHealthController.IsAlive = true;
+                // But for hardcore mode, we want them to still be targetable ?
+                player.ActiveHealthController.IsAlive = true;                
+                //if (RevivalModSettings.HARDCORE_MODE.Value) player.ActiveHealthController.IsAlive = true;
 
                 GClass3756.ReleaseBeginSample("Player.OnDead.SoundWork", "OnDead");
                 if (player.ShouldVocalizeDeath(player.LastDamagedBodyPart))
@@ -762,7 +761,7 @@ namespace RevivalMod.Features
                     }
                     catch (Exception ex)
                     {
-                        UnityEngine.Debug.LogError(ex.Message);
+                        Debug.LogError(ex.Message);
                         goto IL_12F;
                     }
                 }
@@ -878,10 +877,10 @@ namespace RevivalMod.Features
                             HealthValue health = bodyPartState.Health;
                             bodyPartState.IsDestroyed = false;
 
-                            float restorePercent = 100/RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS_AMOUNT.Value;
-                            float newMax = bodyPartState.Health.Maximum * restorePercent;
+                            float restorePercent = RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS_AMOUNT.Value/100f;
+                            float newCurrentHealth = bodyPartState.Health.Maximum * restorePercent;
 
-                            bodyPartState.Health = new HealthValue(newMax, bodyPartState.Health.Maximum, 0f);
+                            bodyPartState.Health = new HealthValue(newCurrentHealth, bodyPartState.Health.Maximum, 0f);
 
                             healthController.method_43(bodyPart, EDamageType.Medicine);
                             healthController.method_35(bodyPart);
@@ -913,8 +912,8 @@ namespace RevivalMod.Features
                 }
 
                 // Apply disorientation effects
-                healthController.DoContusion(RevivalModSettings.REVIVAL_DURATION.Value, 1f);
-                healthController.DoStun(RevivalModSettings.REVIVAL_DURATION.Value / 2, 1f);
+                if (RevivalModSettings.CONTUSION_EFFECT.Value) healthController.DoContusion(RevivalModSettings.REVIVAL_DURATION.Value, 1f);
+                if (RevivalModSettings.STUN_EFFECT.Value) healthController.DoStun(RevivalModSettings.REVIVAL_DURATION.Value / 2, 1f);
 
                 Plugin.LogSource.LogInfo("Applied revival effects to player");
             }

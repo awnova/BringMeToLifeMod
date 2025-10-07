@@ -36,7 +36,7 @@ namespace RevivalMod.Patches
 
                 string playerId = player.ProfileId;
                 
-                if (RevivalFeatures.KillOverridePlayers.ContainsKey(playerId) && RevivalFeatures.KillOverridePlayers[playerId] == true) { return true; }
+                if (RevivalFeatures.KillOverridePlayers.TryGetValue(playerId, out bool isOverridden) && isOverridden) { return true; }
 
                 Plugin.LogSource.LogDebug("GetCriticalPlayers: " + RMSession.GetCriticalPlayers().TryGetValue(player.ProfileId, out _));
 
@@ -88,9 +88,7 @@ namespace RevivalMod.Patches
                         }
                     }    
                 }
-
-                
-                    
+                   
                 // At this point, we want the player to enter critical state
                 RevivalFeatures.SetPlayerCriticalState(player, true, damageType);
 

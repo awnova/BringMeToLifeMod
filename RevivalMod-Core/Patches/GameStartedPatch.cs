@@ -9,6 +9,7 @@ using System.Linq;
 using UnityEngine;
 using TMPro;
 using RevivalMod.Helpers;
+using RevivalMod.Features;
 
 namespace RevivalMod.Patches
 {
@@ -57,8 +58,8 @@ namespace RevivalMod.Patches
 
                 Plugin.LogSource.LogInfo($"Player {playerId} has revival item: {hasItem}");
 
-                // Send packet if Fika is installed
-
+                // Clears the override kill list
+                RevivalFeatures.KillOverridePlayers.Clear();
 
                 // Display notification about revival item status
                 if (RevivalModSettings.TESTING.Value)
@@ -73,7 +74,7 @@ namespace RevivalMod.Patches
                 // Enable interactables
                 Plugin.LogSource.LogInfo("Enabling body interactables");
                 foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>()
-                     .Where(obj => obj.name.Contains("Body Interactable")))
+                        .Where(obj => obj.name.Contains("Body Interactable")))
                 {
                     Plugin.LogSource.LogInfo($"Found interactable: {interact.name}");
                     interact.layer = LayerMask.NameToLayer("Interactive");

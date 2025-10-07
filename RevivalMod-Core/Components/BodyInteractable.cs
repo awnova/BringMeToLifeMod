@@ -43,6 +43,9 @@ namespace RevivalMod.Components
                     targetId = Revivee.ProfileId
                 };
 
+                // Stop timer
+                //RevivalFeatures.criticalStateMainTimer.StopTimer();
+
                 Action<bool> action = new(actionCompleteHandler.Complete);
                 currentManagedState.Plant(true, false, reviveTime, action);
             }
@@ -54,7 +57,10 @@ namespace RevivalMod.Components
 
         public ActionsReturnClass GetActions(GamePlayerOwner owner)
         {
-            bool playerCritState = RMSession.GetCriticalPlayers().TryGetValue(Revivee.ProfileId, out Vector3 position);
+            
+            bool hasDefib = RevivalFeatures.CheckRevivalItemInRaidInventory().Value;        
+            bool playerCritState = RMSession.GetCriticalPlayers().TryGetValue(Revivee.ProfileId, out _);
+            bool reviveButtonEnabled = playerCritState && (hasDefib || RevivalModSettings.TESTING.Value);
 
             ActionsReturnClass actionsReturnClass = new();
 
@@ -64,7 +70,7 @@ namespace RevivalMod.Components
             {
                 Action = () => OnRevive(owner),
                 Name = "Revive",
-                Disabled = !playerCritState
+                Disabled = !reviveButtonEnabled
             });
 
             return actionsReturnClass;
@@ -79,13 +85,16 @@ namespace RevivalMod.Components
             public void Complete(bool result)
             {
                 owner.CloseObjectivesPanel();
+                
                 if (result)
                 {
                     RevivalFeatures.PerformTeammateRevival(targetId, owner.Player);
+
                     Plugin.LogSource.LogInfo($"Revive completed !");
                 }
                 else
                 {
+                    //RevivalFeatures.criticalStateMainTimer.StartCountdown(RevivalFeatures._playerCriticalStateTimers[targetId]);
                     Plugin.LogSource.LogInfo($"Revive not completed !");
                 }
             }

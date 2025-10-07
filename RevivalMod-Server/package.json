@@ -1,9 +1,9 @@
 {
     "name": "revival-mod",
     "version": "1.1.0",
-    "main": "mod.js",
+    "main": "src/mod.js",
     "license": "MIT",
-   "author": "KaikiNoodles",
+    "author": "KaikiNoodles",
     "sptVersion": "~3.11",
     "serverMod": true,
     "scripts": {
@@ -13,7 +13,7 @@
         "copy-files": "copyfiles -u 1 src/**/*.json build",
         "postbuild": "npm run copy-files",
         "dev:watch": "tsc --watch",
-        "deploy": "npm run build && copyfiles build/**/* \"<YOUR_SPT_FOLDER_PATH>/user/mods/RevivalSyringe/\""
+        "deploy": "npm run build"
       },
     "devDependencies": {
         "@eslint/js": "^8.57.0",
