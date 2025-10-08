@@ -63,6 +63,7 @@ namespace RevivalMod.Features
         public static CustomTimer criticalStateMainTimer;
 
         private static CustomTimer selfRevivalTimer;
+        private static float _nextActionTime = 0;
 
         #region Core Patch Implementation
 
@@ -89,8 +90,11 @@ namespace RevivalMod.Features
                 ProcessCriticalState(PlayerClient, playerId);
 
                 // Send position updates if in critical state (regardless of local player status)
-                if (IsPlayerInCriticalState(playerId))
+                if (IsPlayerInCriticalState(playerId) && Time.time >= _nextActionTime)
+                {
+                    _nextActionTime = Time.time + 0.05f;
                     FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), PlayerClient.Position);
+                }
             }
             catch (Exception ex)
             {
@@ -808,7 +812,7 @@ namespace RevivalMod.Features
                 } */
 
                 // Send initial position for multiplayer sync
-                FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), player.Position);
+                //FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), player.Position);
 
                 Plugin.LogSource.LogDebug($"Applied revivable state to player {playerId}");
                 Plugin.LogSource.LogDebug($"Revivable State Variables - Awareness: {player.Awareness}, IsAlive: {player.ActiveHealthController.IsAlive}");
