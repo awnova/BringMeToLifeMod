@@ -23,20 +23,19 @@ namespace RevivalMod.FikaModule.Common
                 timeOfDeath = timeOfDeath,
                 position = position
             };
-
-            if (Singleton<FikaServer>.Instantiated)
+            
+            if (FikaBackendUtils.IsServer)
             {
-
                 try
                 {
                     Singleton<FikaServer>.Instance.SendDataToAll(ref packet, DeliveryMethod.ReliableOrdered);
                 }
                 catch (Exception ex)
                 {
-                   
+                    Plugin.LogSource.LogError(ex);
                 }
             }
-            else if (Singleton<FikaClient>.Instantiated)
+            else if (FikaBackendUtils.IsClient)
             {
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
@@ -49,21 +48,19 @@ namespace RevivalMod.FikaModule.Common
                 playerId = playerId
             };
 
-            if (Singleton<FikaServer>.Instantiated)
+            if (FikaBackendUtils.IsServer)
             {
-
                 try
                 {
                     Singleton<FikaServer>.Instance.SendDataToAll(ref packet, DeliveryMethod.ReliableOrdered);
                 }
                 catch (Exception ex)
                 {
-
+                    Plugin.LogSource.LogError(ex);
                 }
             }
-            else if (Singleton<FikaClient>.Instantiated)
+            else if (FikaBackendUtils.IsClient)
             {
-
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
         }
@@ -76,26 +73,20 @@ namespace RevivalMod.FikaModule.Common
                 reviveeId = reviveeId
             };
 
-            if (Singleton<FikaServer>.Instantiated)
-            {
-               
+            if (FikaBackendUtils.IsServer)
+            {               
                 try
                 {
                     Singleton<FikaServer>.Instance.SendDataToAll(ref packet, DeliveryMethod.ReliableOrdered);
                 }
                 catch (Exception ex)
                 {
-                   
+                    Plugin.LogSource.LogError(ex);
                 }
             }
-            else if (Singleton<FikaClient>.Instantiated)
-            {
-               
+            else if (FikaBackendUtils.IsClient)
+            {              
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
-            }
-            else
-            {
-               
             }
         }
         
@@ -106,21 +97,19 @@ namespace RevivalMod.FikaModule.Common
                 reviverId = reviverId
             };
 
-            if (Singleton<FikaServer>.Instantiated)
+            if (FikaBackendUtils.IsServer)
             {
-
                 try
                 {
                     Singleton<FikaServer>.Instance.SendDataToPeer(peer, ref packet, DeliveryMethod.ReliableOrdered);
                 }
                 catch (Exception ex)
                 {
-
+                    Plugin.LogSource.LogError(ex);
                 }
             }
-            else if (Singleton<FikaClient>.Instantiated)
+            else if (FikaBackendUtils.IsClient)
             {
-
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
 
@@ -128,7 +117,7 @@ namespace RevivalMod.FikaModule.Common
 
         private static void OnPlayerPositionPacketReceived(PlayerPositionPacket packet, NetPeer peer)
         {
-            if (Singleton<FikaServer>.Instantiated && FikaBackendUtils.IsHeadless)
+            if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
             {
                 SendPlayerPositionPacket(packet.playerId, packet.timeOfDeath, packet.position);
             }
@@ -140,7 +129,7 @@ namespace RevivalMod.FikaModule.Common
         
         private static void OnRemovePlayerFromCriticalPlayersListPacketReceived(RemovePlayerFromCriticalPlayersListPacket packet, NetPeer peer)
         {
-            if (Singleton<FikaServer>.Instantiated && FikaBackendUtils.IsHeadless)
+            if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
             {
                 SendRemovePlayerFromCriticalPlayersListPacket(packet.playerId);
             }
@@ -160,7 +149,7 @@ namespace RevivalMod.FikaModule.Common
         /// <param name="peer">The <see cref="NetPeer"/> that sent the packet.</param>
         private static void OnReviveMePacketReceived(ReviveMePacket packet, NetPeer peer)
         {
-            if (Singleton<FikaServer>.Instantiated && FikaBackendUtils.IsHeadless)
+            if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
             {
                 SendReviveMePacket(packet.reviveeId, packet.reviverId);
             }
@@ -176,7 +165,7 @@ namespace RevivalMod.FikaModule.Common
 
         private static void OnRevivedPacketReceived(RevivedPacket packet, NetPeer peer)
         {
-            if (Singleton<FikaServer>.Instantiated && FikaBackendUtils.IsHeadless)
+            if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
             {
                 SendRevivedPacket(packet.reviverId, peer);
             }

@@ -7,7 +7,6 @@ using System;
 using System.Reflection;
 using System.Linq;
 using UnityEngine;
-using TMPro;
 using RevivalMod.Helpers;
 using RevivalMod.Features;
 
@@ -36,6 +35,7 @@ namespace RevivalMod.Patches
 
                 // Initialize player client directly
                 Player playerClient = Singleton<GameWorld>.Instance.MainPlayer;
+
                 if (playerClient == null)
                 {
                     Plugin.LogSource.LogError("MainPlayer is null");
@@ -72,11 +72,11 @@ namespace RevivalMod.Patches
                 }
 
                 // Enable interactables
-                Plugin.LogSource.LogInfo("Enabling body interactables");
+                Plugin.LogSource.LogDebug("Enabling body interactables");
                 foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>()
                         .Where(obj => obj.name.Contains("Body Interactable")))
                 {
-                    Plugin.LogSource.LogInfo($"Found interactable: {interact.name}");
+                    Plugin.LogSource.LogDebug($"Found interactable: {interact.name}");
                     interact.layer = LayerMask.NameToLayer("Interactive");
                     interact.GetComponent<BoxCollider>().enabled = true;
                 }

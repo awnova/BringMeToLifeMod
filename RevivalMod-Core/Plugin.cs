@@ -1,10 +1,6 @@
 ﻿using BepInEx;
 using BepInEx.Logging;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using RevivalMod.Features;
 using BepInEx.Bootstrap;
 using RevivalMod.Fika;
@@ -45,6 +41,7 @@ namespace RevivalMod
             new GameStartedPatch().Enable();
             new OnPlayerCreatedPatch().Enable();
             new AvailableActionsPatch().Enable();
+            new ApplyDamagePatch().Enable();
 
             LogSource.LogInfo("Revival plugin initialized! Press F5 to use your defibrillator when in critical state.");
             TryInitFikaAssembly();

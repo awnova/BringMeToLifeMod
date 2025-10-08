@@ -6,7 +6,6 @@ using System;
 using System.Reflection;
 using RevivalMod.Features;
 using RevivalMod.Helpers;
-using RevivalMod.Components;
 using UnityEngine;
 using EFT.Communications;
 
@@ -28,28 +27,27 @@ namespace RevivalMod.Patches
                 FieldInfo playerField = AccessTools.Field(typeof(ActiveHealthController), "Player");
                 if (playerField == null) return true;
 
+                // Get the Player instance
                 Player player = playerField.GetValue(__instance) as Player;
-                if (player == null) return true;
 
-                // Only handle player deaths, not AI
-                if (player.IsAI) return true;
+                // Skip if player is null and is AI
+                if (player == null || player.IsAI) return true;
 
                 string playerId = player.ProfileId;
-                
+
+                // Check for explicit kill override
                 if (RevivalFeatures.KillOverridePlayers.TryGetValue(playerId, out bool isOverridden) && isOverridden) { return true; }
-
-                Plugin.LogSource.LogDebug("GetCriticalPlayers: " + RMSession.GetCriticalPlayers().TryGetValue(player.ProfileId, out _));
-
-                // Kill normally if already in critical state
-                if (RevivalFeatures.IsPlayerInvulnerable(playerId) && RMSession.GetCriticalPlayers().TryGetValue(player.ProfileId, out _))
-                    return true;
 
                 // Check if player is invulnerable from recent revival
                 if (RevivalFeatures.IsPlayerInvulnerable(playerId))
                 {
-                    Plugin.LogSource.LogInfo($"Player {playerId} is invulnerable, blocking death completely");
+                    Plugin.LogSource.LogDebug($"Player {playerId} is invulnerable, blocking death completely");
                     return false; // Block the kill completely
                 }
+
+                // If player dies again too fast, kill them.
+                if (RevivalFeatures.IsRevivalOnCooldown(playerId))
+                    return true;
 
                 Plugin.LogSource.LogInfo($"DEATH PREVENTION: Player {player.ProfileId} about to die from {damageType}");
 
@@ -58,13 +56,14 @@ namespace RevivalMod.Patches
                 {
                     // Check for headshot instant death
                     if (RevivalModSettings.HARDCORE_HEADSHOT_DEFAULT_DEAD.Value &&
-                        __instance.GetBodyPartHealth(EBodyPart.Head, true).Current < 1)
+                        __instance.GetBodyPartHealth(EBodyPart.Head, true).Current < 1 &&
+                        damageType == EDamageType.Bullet)
                     {
 
                         // Handle random chance of critical state.
-                        float randomNumber = UnityEngine.Random.Range(0f, 100f) / 100f;
+                        float randomNumber = UnityEngine.Random.Range(0f, 100f);
 
-                        if (RevivalModSettings.HARDCORE_CHANCE_OF_CRITICAL_STATE.Value < randomNumber)
+                        if (randomNumber < RevivalModSettings.HARDCORE_CHANCE_OF_CRITICAL_STATE.Value)
                         {
                             Plugin.LogSource.LogInfo($"DEATH PREVENTED: Player was lucky. Random Number was: {randomNumber}");
 
@@ -86,9 +85,9 @@ namespace RevivalMod.Patches
 
                             return true; // Allow death to happen normally
                         }
-                    }    
+                    }
                 }
-                   
+
                 // At this point, we want the player to enter critical state
                 RevivalFeatures.SetPlayerCriticalState(player, true, damageType);
 

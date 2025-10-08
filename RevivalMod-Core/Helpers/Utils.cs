@@ -34,10 +34,13 @@ namespace RevivalMod.Helpers
             return RequestHandler.PutJson(url, json);
         }
 
-        public static Player GetYourPlayer() {
+        public static Player GetYourPlayer()
+        {
             Player player = Singleton<GameWorld>.Instance.MainPlayer;
-            if (player == null) return null;          
-            if (!player.IsYourPlayer) return null;
+
+            if (player == null || !player.IsYourPlayer)
+                return null;
+
             return player;
         }
 

@@ -24,12 +24,13 @@ namespace RevivalMod.Patches
             {
                 BodyInteractable revive = interactive as BodyInteractable;
 
-                Plugin.LogSource.LogDebug($"BodyInteractable.Revivee is player {revive.Revivee.PlayerId} and interactor is {owner.Player.PlayerId}");
-                
+                Plugin.LogSource.LogDebug($"BodyInteractable.Revivee is player {revive.Revivee.ProfileId} and interactor is {owner.Player.ProfileId}");
+
                 ActionsReturnClass newResult = revive.GetActions(owner);
                 __result = newResult;
                 return false;                             
             }
+
             return true;
         }
     }

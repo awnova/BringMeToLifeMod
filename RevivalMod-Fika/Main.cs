@@ -3,8 +3,6 @@ using Fika.Core.Coop.Utils;
 using Fika.Core.Networking;
 using RevivalMod.FikaModule.Common;
 using RevivalMod.Fika;
-using RevivalMod.Patches;
-using BepInEx.Logging;
 
 namespace RevivalMod.FikaModule
 {

@@ -73,7 +73,7 @@ namespace RevivalMod.Features
         }
 
         [PatchPostfix]
-        static void Postfix(Player __instance)
+        static void PatchPostfix(Player __instance)
         {
             try
             {
@@ -81,20 +81,16 @@ namespace RevivalMod.Features
                 PlayerClient = __instance;
 
                 // Only process for the local player
-                if (!__instance.IsYourPlayer)
+                if (!PlayerClient.IsYourPlayer)
                     return;
 
                 // Process player states
-                ProcessInvulnerabilityState(__instance, playerId);
-                ProcessCriticalState(__instance, playerId);
+                ProcessInvulnerabilityState(PlayerClient, playerId);
+                ProcessCriticalState(PlayerClient, playerId);
 
                 // Send position updates if in critical state (regardless of local player status)
-                if (RMSession.GetCriticalPlayers().TryGetValue(playerId, out Vector3 position) &&
-                    position != __instance.Position)
-                {
-                    // Send position update if position changed
-                    FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), __instance.Position);
-                }
+                if (IsPlayerInCriticalState(playerId))
+                    FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), PlayerClient.Position);
             }
             catch (Exception ex)
             {
@@ -208,7 +204,7 @@ namespace RevivalMod.Features
             }
 
             // Check for self-revival if player has the item
-            CheckForSelfRevival(player, criticalTimer);
+            CheckForSelfRevival(player);
 
             // Check for "give up" key press
             if (Input.GetKeyDown(RevivalModSettings.GIVE_UP_KEY.Value))
@@ -220,7 +216,7 @@ namespace RevivalMod.Features
         /// <summary>
         /// Checks if self-revival is possible and processes key input with hold-to-revive behavior
         /// </summary>
-        private static void CheckForSelfRevival(Player player, float remainingTime)
+        private static void CheckForSelfRevival(Player player)
         {
             var revivalItemCheck = CheckRevivalItemInRaidInventory();
             if (revivalItemCheck.Value && RevivalModSettings.SELF_REVIVAL_ENABLED.Value)
@@ -431,7 +427,7 @@ namespace RevivalMod.Features
                 criticalStateMainTimer.StartCountdown(RevivalModSettings.TIME_TO_REVIVE.Value, "Critical State Timer", TimerPosition.MiddleCenter);
             }
 
-            //RMSession.AddToCriticalPlayers(playerId, player.Position);
+            RMSession.AddToCriticalPlayers(playerId, player.Position);
 
             // Send initial position packet for multiplayer sync
             FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), player.Position);
@@ -639,13 +635,16 @@ namespace RevivalMod.Features
 
                 Plugin.LogSource.LogDebug($"Found defib item: {defibItem.TemplateId}");
 
-                // Deplete the item and remove it
-                ItemAddress itemAddress = defibItem.CurrentAddress;
-                itemAddress.RemoveWithoutRestrictions(defibItem);
+                InventoryController inventoryController = player.InventoryController;
+                GStruct454 discardResult = InteractionsHandlerClass.Discard(defibItem, inventoryController, true);
 
-                // Use the item through UI context
-                ItemUiContext context = ItemUiContext.Instance;
-                context.UseAll(defibItem);
+                if (discardResult.Failed)
+                {
+                    Logger.LogError($"Couldn't remove item: {discardResult.Error}");
+                    return;
+                }
+
+                inventoryController.TryRunNetworkTransaction(discardResult, null);
             }
             catch (Exception ex)
             {
@@ -866,7 +865,10 @@ namespace RevivalMod.Features
                 if (RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS.Value)
                 {
                     foreach (EBodyPart bodyPart in Enum.GetValues(typeof(EBodyPart)))
-                    {
+                    {  
+                        if (bodyPart == EBodyPart.Common)
+                            continue;
+
                         GClass2814<ActiveHealthController.GClass2813>.BodyPartState bodyPartState = healthController.Dictionary_0[bodyPart];
 
                         Plugin.LogSource.LogDebug($"{bodyPart} is at {healthController.GetBodyPartHealth(bodyPart).Current} health");

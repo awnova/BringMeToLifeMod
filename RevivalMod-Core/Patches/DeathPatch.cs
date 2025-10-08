@@ -6,7 +6,6 @@ using System;
 using System.Reflection;
 using RevivalMod.Features;
 using RevivalMod.Helpers;
-using RevivalMod.Components;
 using UnityEngine;
 using EFT.Communications;
 
@@ -33,20 +32,16 @@ namespace RevivalMod.Patches
 
                 // Skip if player is null and is AI
                 if (player == null || player.IsAI) return true;
- 
+
                 string playerId = player.ProfileId;
 
                 // Check for explicit kill override
                 if (RevivalFeatures.KillOverridePlayers.TryGetValue(playerId, out bool isOverridden) && isOverridden) { return true; }
 
-                // Kill normally if already in critical state
-                //if (RMSession.GetCriticalPlayers().TryGetValue(player.ProfileId, out _)) 
-                //    return true;
-
                 // Check if player is invulnerable from recent revival
                 if (RevivalFeatures.IsPlayerInvulnerable(playerId))
                 {
-                    Plugin.LogSource.LogInfo($"Player {playerId} is invulnerable, blocking death completely");
+                    Plugin.LogSource.LogDebug($"Player {playerId} is invulnerable, blocking death completely");
                     return false; // Block the kill completely
                 }
 
@@ -90,7 +85,7 @@ namespace RevivalMod.Patches
 
                             return true; // Allow death to happen normally
                         }
-                    }    
+                    }
                 }
 
                 // At this point, we want the player to enter critical state
