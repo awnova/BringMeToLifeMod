@@ -15,6 +15,7 @@ using RevivalMod.Helpers;
 using RevivalMod.Fika;
 using RevivalMod.Components;
 using EFT.UI;
+using System.Runtime.InteropServices;
 
 namespace RevivalMod.Features
 {
@@ -404,7 +405,7 @@ namespace RevivalMod.Features
                 // Check for revival item
                 string playerId = PlayerClient.ProfileId;
                 var inRaidItems = PlayerClient.Inventory.GetPlayerItems(EPlayerItems.Equipment);
-                bool hasItem = inRaidItems.Any(item => item.TemplateId == Constants.Constants.ITEM_ID);
+                bool hasItem = HasDefib(inRaidItems);
 
                 return new KeyValuePair<string, bool>(playerId, hasItem);
             }
@@ -413,6 +414,17 @@ namespace RevivalMod.Features
                 Plugin.LogSource.LogError($"Error checking revival item: {ex.Message}");
                 return new KeyValuePair<string, bool>(string.Empty, false);
             }
+        }
+
+        private static bool HasDefib(IEnumerable<Item> inRaidItems)
+        {
+            foreach(Item item in inRaidItems)
+            {
+                if (item.TemplateId == Constants.Constants.ITEM_ID)
+                    return true;
+            }
+
+            return false;
         }
 
         #endregion
@@ -638,7 +650,13 @@ namespace RevivalMod.Features
             try
             {
                 var inRaidItems = player.Inventory.GetPlayerItems(EPlayerItems.Equipment);
-                Item defibItem = inRaidItems.FirstOrDefault(item => item.TemplateId == Constants.Constants.ITEM_ID);
+                Item defibItem = null;
+
+                foreach (Item item in inRaidItems)
+                {
+                    if (item.TemplateId == Constants.Constants.ITEM_ID)
+                        defibItem = item;
+                }
 
                 if (defibItem == null)
                 {
