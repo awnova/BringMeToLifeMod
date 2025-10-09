@@ -24,7 +24,7 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<bool> STUN_EFFECT;
 
         // Hardcore Mode
-        public static ConfigEntry<bool> HARDCORE_MODE;
+        public static ConfigEntry<bool> PLAYER_ALIVE;
         public static ConfigEntry<bool> HARDCORE_HEADSHOT_DEFAULT_DEAD;
         public static ConfigEntry<float> HARDCORE_CHANCE_OF_CRITICAL_STATE;
 
@@ -129,11 +129,11 @@ namespace RevivalMod.Helpers
 
             #region Hardcore Mode Settings
 
-            HARDCORE_MODE = config.Bind(
-                "3. Hardcore Mode",
-                "Enable Hardcore Mode",
+            PLAYER_ALIVE = config.Bind(
+                "3. Ghost Mode",
+                "Enable Ghost Mode",
                 false,
-                "Enables a more challenging revival experience with additional restrictions"
+                "Makes players not targetable by AI BUT will not be able to move or look around"
             );
 
             HARDCORE_HEADSHOT_DEFAULT_DEAD = config.Bind(

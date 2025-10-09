@@ -173,9 +173,11 @@ namespace RevivalMod.Features
             // Force player to crouch
             if (player.MovementContext != null)
             {
+                player.HandsController.IsAiming = false;
                 player.MovementContext.SetPoseLevel(0f, true);
                 player.MovementContext.IsInPronePose = true;
                 player.ActiveHealthController.SetStaminaCoeff(1f);
+                player.SetEmptyHands(null);
             }
             else
             {
@@ -198,7 +200,7 @@ namespace RevivalMod.Features
 
             //Plugin.LogSource.LogDebug("isLastManStanding:" + isLastManStanding);
 
-            if (criticalTimer <= 0 || (RevivalModSettings.HARDCORE_MODE.Value && isLastManStanding))
+            if (criticalTimer <= 0 || (RevivalModSettings.PLAYER_ALIVE.Value && isLastManStanding))
             {
                 criticalStateMainTimer?.StopTimer();
                 criticalStateMainTimer = null;
@@ -758,9 +760,11 @@ namespace RevivalMod.Features
                 // Make player invisible to AI and mark as dead
                 // But for hardcore mode, we want them to still be targetable ?
                 player.ActiveHealthController.IsAlive = true;                
-                //if (RevivalModSettings.HARDCORE_MODE.Value) player.ActiveHealthController.IsAlive = true;
+                
+                if (RevivalModSettings.PLAYER_ALIVE.Value) player.ActiveHealthController.IsAlive = false;
 
                 GClass3756.ReleaseBeginSample("Player.OnDead.SoundWork", "OnDead");
+                
                 if (player.ShouldVocalizeDeath(player.LastDamagedBodyPart))
                 {
                     EPhraseTrigger trigger = player.LastDamageType.IsWeaponInduced() ? EPhraseTrigger.OnDeath : EPhraseTrigger.OnAgony;
@@ -871,6 +875,9 @@ namespace RevivalMod.Features
                     Plugin.LogSource.LogError("Could not get ActiveHealthController");
                     return;
                 }
+
+                // Make player targetable by AI
+                healthController.IsAlive = true;
 
                 // Restore destroyed body parts if setting enabled
                 if (RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS.Value)

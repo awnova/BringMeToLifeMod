@@ -52,7 +52,7 @@ namespace RevivalMod.Patches
                 Plugin.LogSource.LogInfo($"DEATH PREVENTION: Player {player.ProfileId} about to die from {damageType}");
 
                 // Check for hardcore mode conditions first
-                if (RevivalModSettings.HARDCORE_MODE.Value)
+                if (RevivalModSettings.PLAYER_ALIVE.Value)
                 {
                     // Check for headshot instant death
                     if (RevivalModSettings.HARDCORE_HEADSHOT_DEFAULT_DEAD.Value &&
