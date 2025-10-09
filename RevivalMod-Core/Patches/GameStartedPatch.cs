@@ -9,6 +9,7 @@ using System.Linq;
 using UnityEngine;
 using RevivalMod.Helpers;
 using RevivalMod.Features;
+using HarmonyLib;
 
 namespace RevivalMod.Patches
 {
@@ -58,14 +59,8 @@ namespace RevivalMod.Patches
 
                 Plugin.LogSource.LogInfo($"Player {playerId} has revival item: {hasItem}");
 
-                // Clears the override kill list
-                RevivalFeatures.KillOverridePlayers.Clear();
-
-                // Clears the Critical State list
-                RevivalFeatures.ClearPlayerInCriticalState();
-
-                // Clears the Player Critical State Timer list
-                RevivalFeatures.ClearPlayerCritcalStateTimer();
+                // Cleanup on game start
+                CleanUp();
 
                 // Display notification about revival item status
                 if (RevivalModSettings.TESTING.Value)
@@ -92,6 +87,17 @@ namespace RevivalMod.Patches
             {
                 Plugin.LogSource.LogError($"Error in GameStartedPatch: {ex.Message}");
             }
+        }
+
+        private static void CleanUp() {
+            // Clears the override kill list
+            RevivalFeatures.KillOverridePlayers.Clear();
+
+            // Clears the Critical State list
+            RevivalFeatures.ClearPlayerInCriticalState();
+
+            // Clears the Player Critical State Timer list
+            RevivalFeatures.ClearPlayerCritcalStateTimer();
         }
     }
 }
