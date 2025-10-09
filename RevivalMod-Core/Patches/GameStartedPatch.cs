@@ -61,6 +61,12 @@ namespace RevivalMod.Patches
                 // Clears the override kill list
                 RevivalFeatures.KillOverridePlayers.Clear();
 
+                // Clears the Critical State list
+                RevivalFeatures.ClearPlayerInCriticalState();
+
+                // Clears the Player Critical State Timer list
+                RevivalFeatures.ClearPlayerCritcalStateTimer();
+
                 // Display notification about revival item status
                 if (RevivalModSettings.TESTING.Value)
                 {

@@ -289,6 +289,16 @@ namespace RevivalMod.Features
             return _playerInCriticalState.TryGetValue(playerId, out bool inCritical) && inCritical;
         }
 
+        public static void ClearPlayerCritcalStateTimer()
+        {
+            _playerCriticalStateTimers.Clear();
+        }
+
+        public static void ClearPlayerInCriticalState()
+        {
+            _playerInCriticalState.Clear();
+        }
+
         /// <summary>
         /// Checks if a player is currently invulnerable
         /// </summary>
@@ -477,11 +487,8 @@ namespace RevivalMod.Features
             _playerCriticalStateTimers.Remove(playerId);
 
             // Stop the main critical state timer
-            if (criticalStateMainTimer != null)
-            {
-                criticalStateMainTimer.StopTimer();
-                criticalStateMainTimer = null;
-            }
+            criticalStateMainTimer?.StopTimer();
+            criticalStateMainTimer = null;
 
             // If player is leaving critical state without revival, clean up
             if (!_playerInvulnerabilityTimers.ContainsKey(playerId))
