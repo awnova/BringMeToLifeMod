@@ -777,9 +777,14 @@ namespace RevivalMod.Features
 
                 // Make player invisible to AI and mark as dead
                 // But for hardcore mode, we want them to still be targetable ?
-                player.ActiveHealthController.IsAlive = true;                
+                player.ActiveHealthController.IsAlive = true;
+
+                // Enable God mode
+                if (RevivalModSettings.PLAYER_ALIVE.Value)
+                    player.ActiveHealthController.IsAlive = false;
                 
-                if (RevivalModSettings.PLAYER_ALIVE.Value) player.ActiveHealthController.IsAlive = false;
+                if (RevivalModSettings.GOD_MODE.Value)
+                    player.ActiveHealthController.SetDamageCoeff(0);
 
                 GClass3756.ReleaseBeginSample("Player.OnDead.SoundWork", "OnDead");
                 
@@ -896,6 +901,10 @@ namespace RevivalMod.Features
 
                 // Make player targetable by AI
                 healthController.IsAlive = true;
+
+                // Disable God mode
+                if (RevivalModSettings.GOD_MODE.Value)
+                    healthController.SetDamageCoeff(1);
 
                 // Restore destroyed body parts if setting enabled
                 if (RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS.Value)

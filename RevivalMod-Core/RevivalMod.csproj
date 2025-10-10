@@ -149,7 +149,6 @@
     <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
     <Compile Include="Helpers\RevivalModSettings.cs" />
     <Compile Include="Patches\DeathPatch.cs" />
-    <Compile Include="Patches\ApplyDamagePatch.cs" />
     <Compile Include="Patches\OnPlayerCreatedPatch.cs" />
     <Compile Include="Patches\AvailableActionsPatch.cs" />
     <Compile Include="Features\Features.cs" />

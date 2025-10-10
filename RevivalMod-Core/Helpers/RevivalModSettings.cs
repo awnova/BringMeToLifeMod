@@ -25,6 +25,7 @@ namespace RevivalMod.Helpers
 
         // Hardcore Mode
         public static ConfigEntry<bool> PLAYER_ALIVE;
+        public static ConfigEntry<bool> GOD_MODE;
         public static ConfigEntry<bool> HARDCORE_HEADSHOT_DEFAULT_DEAD;
         public static ConfigEntry<float> HARDCORE_CHANCE_OF_CRITICAL_STATE;
 
@@ -130,10 +131,17 @@ namespace RevivalMod.Helpers
             #region Hardcore Mode Settings
 
             PLAYER_ALIVE = config.Bind(
-                "3. Ghost Mode",
+                "3. Ghost/God Mode",
                 "Enable Ghost Mode",
                 false,
                 "Makes players not targetable by AI BUT will not be able to move or look around"
+            );
+
+            GOD_MODE = config.Bind(
+                "3. Ghost/ God Mode",
+                "Enable God Mode",
+                false,
+                "Makes players invulnerable while in Critical State"
             );
 
             HARDCORE_HEADSHOT_DEFAULT_DEAD = config.Bind(
