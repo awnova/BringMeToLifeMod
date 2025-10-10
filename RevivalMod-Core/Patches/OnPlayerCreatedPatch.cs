@@ -36,7 +36,9 @@ namespace RevivalMod.Patches
             GameObject obj = InteractableBuilder<BodyInteractable>.Build(
                 "Body Interactable",
                 new Vector3(0.0f, 0.0f, 0.0f),
-                new Vector3(0.8f, 0.8f, 0.8f),
+                new Vector3(RevivalModSettings.REVIVAL_RANGE_X.Value,
+                            RevivalModSettings.REVIVAL_RANGE_Y.Value,
+                            RevivalModSettings.REVIVAL_RANGE_Z.Value),
                 backTransform,
                 __instance,
                 RevivalModSettings.TESTING.Value);

@@ -22,6 +22,9 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<float> RESTORE_DESTROYED_BODY_PARTS_AMOUNT;
         public static ConfigEntry<bool> CONTUSION_EFFECT;
         public static ConfigEntry<bool> STUN_EFFECT;
+        public static ConfigEntry<float> REVIVAL_RANGE_X;
+        public static ConfigEntry<float> REVIVAL_RANGE_Y; 
+        public static ConfigEntry<float> REVIVAL_RANGE_Z;
 
         // Hardcore Mode
         public static ConfigEntry<bool> PLAYER_ALIVE;
@@ -126,6 +129,27 @@ namespace RevivalMod.Helpers
                 ""
             );
 
+            REVIVAL_RANGE_X = config.Bind(
+                "2. Revival Mechanics",
+                "Hitbox X dimension (requires restart raid)",
+                0.3f,
+                ""
+            );
+
+            REVIVAL_RANGE_Y = config.Bind(
+                "2. Revival Mechanics",
+                "Hitbox Y dimension (requires restart raid)",
+                0.3f,
+                ""
+            );
+
+            REVIVAL_RANGE_Z = config.Bind(
+                "2. Revival Mechanics",
+                "Hitbox Z dimension (requires restart raid)",
+                0.3f,
+                ""
+            );
+
             #endregion
 
             #region Hardcore Mode Settings
@@ -138,7 +162,7 @@ namespace RevivalMod.Helpers
             );
 
             GOD_MODE = config.Bind(
-                "3. Ghost/ God Mode",
+                "3. Ghost/God Mode",
                 "Enable God Mode",
                 false,
                 "Makes players invulnerable while in Critical State"
