@@ -175,7 +175,7 @@
       
     <Copy 
       SourceFiles="$(TargetDir)$(TargetName).dll" 
-      DestinationFolder="C:\Users\kobethuy\Documents\MO2\SPT-Live\mods\RevivalMod\BepInEx\plugins" 
+      DestinationFolder="C:\Users\kobethuy\Documents\MO2\SPT-Live\mods\RevivalMod - Test\BepInEx\plugins" 
       SkipUnchangedFiles="true" />
   </Target>
 </Project>

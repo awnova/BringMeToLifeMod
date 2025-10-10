@@ -17,7 +17,8 @@ namespace RevivalMod.Patches
         static bool PatchPrefix(GamePlayerOwner owner, GInterface150 interactive, ref ActionsReturnClass __result)
         {
 
-            if (interactive == null) return true; // Proceed with original method if no interactive object
+            if (interactive == null) 
+                return true; // Proceed with original method if no interactive object
 
             // Add the interactions to the list. 
             if (interactive is BodyInteractable)
