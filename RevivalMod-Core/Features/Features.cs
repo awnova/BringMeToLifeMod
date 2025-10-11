@@ -874,6 +874,7 @@ namespace RevivalMod.Features
 
                             healthController.method_43(bodyPart, EDamageType.Medicine);
                             healthController.method_35(bodyPart);
+                            healthController.RemoveNegativeEffects(bodyPart);
 
                             var eventField = typeof(ActiveHealthController)
                                 .GetField("BodyPartRestoredEvent", BindingFlags.Instance | BindingFlags.NonPublic);
