@@ -147,9 +147,7 @@ namespace RevivalMod.Features
 
             // Store original movement speed if not already stored
             if (_playerList[playerId].OriginalMovementSpeed < 0)
-            {
                 _playerList[playerId].OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
-            }
 
             // Severely restrict movement
             player.Physical.WalkSpeedLimit = MOVEMENT_SPEED_MULTIPLIER;
@@ -643,7 +641,8 @@ namespace RevivalMod.Features
                 string playerId = player.ProfileId;
 
                 // Store original movement speed if not already stored
-                 _playerList[playerId].OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
+                if (_playerList[playerId].OriginalMovementSpeed < 0)
+                    _playerList[playerId].OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
 
                 // Apply visual and movement effects
                 if (RevivalModSettings.CONTUSION_EFFECT.Value)
@@ -677,6 +676,8 @@ namespace RevivalMod.Features
 
                 // Restore original movement speed if we stored it
                 player.Physical.WalkSpeedLimit = _playerList[playerId].OriginalMovementSpeed;
+
+                Plugin.LogSource.LogDebug($"Player WalkSpeedLimit: {player.Physical.WalkSpeedLimit}");
 
                 // Reset pose to standing
                 player.MovementContext.SetPoseLevel(1f);
