@@ -53,7 +53,7 @@ namespace RevivalMod.Fika
         public static event SendPlayerPositionPacketEvent SendPlayerPositionPacketEmitted;
         public static void SendPlayerPositionPacket(string playerId, DateTime timeOfDeath, Vector3 position)
         { 
-            Plugin.LogSource.LogDebug("Sending player position packet");
+            //Plugin.LogSource.LogDebug("Sending player position packet");
             SendPlayerPositionPacketEmitted?.Invoke(playerId, timeOfDeath, position); 
         }
 
