@@ -1,15 +1,11 @@
 ﻿using EFT;
-using EFT.Communications;
-using EFT.InventoryLogic;
 using Comfort.Common;
 using SPT.Reflection.Patching;
 using System;
 using System.Reflection;
-using System.Linq;
 using UnityEngine;
-using RevivalMod.Helpers;
 using RevivalMod.Features;
-using HarmonyLib;
+using RevivalMod.Components;
 
 namespace RevivalMod.Patches
 {
@@ -25,7 +21,7 @@ namespace RevivalMod.Patches
         {
             try
             {
-                Plugin.LogSource.LogInfo("Game started, checking revival item");
+                Plugin.LogSource.LogInfo("Game started");
 
                 // Make sure GameWorld is instantiated
                 if (!Singleton<GameWorld>.Instantiated)
@@ -43,61 +39,26 @@ namespace RevivalMod.Patches
                     return;
                 }
 
-                // Check if player has revival item
-                string playerId = playerClient.ProfileId;
-                var inRaidItems = playerClient.Inventory.GetPlayerItems(EPlayerItems.Equipment);
-                bool hasItem = false;
-
-                try
-                {
-                    hasItem = inRaidItems.Any(item => item.TemplateId == Constants.Constants.ITEM_ID);
-                }
-                catch (Exception ex)
-                {
-                    Plugin.LogSource.LogError($"Error checking player items: {ex.Message}");
-                }
-
-                Plugin.LogSource.LogInfo($"Player {playerId} has revival item: {hasItem}");
-
-                // Cleanup on game start
-                CleanUp();
-
-                // Display notification about revival item status
-                if (RevivalModSettings.TESTING.Value)
-                {
-                    NotificationManagerClass.DisplayMessageNotification(
-                    $"Revival System: {(hasItem ? "Revival item found" : "No revival item found")}",
-                    ENotificationDurationType.Default,
-                    ENotificationIconType.Default,
-                    hasItem ? Color.green : Color.yellow);
-                }
+                RevivalFeatures._playerList[playerClient.ProfileId] = new RMPlayer();
 
                 // Enable interactables
                 Plugin.LogSource.LogDebug("Enabling body interactables");
-                foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>()
-                        .Where(obj => obj.name.Contains("Body Interactable")))
+
+                foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>())
                 {
-                    Plugin.LogSource.LogDebug($"Found interactable: {interact.name}");
-                    interact.layer = LayerMask.NameToLayer("Interactive");
-                    interact.GetComponent<BoxCollider>().enabled = true;
+                    if (interact.name.Contains("Body Interactable"))
+                    {
+                        Plugin.LogSource.LogDebug($"Found interactable: {interact.name}");
+                    
+                        interact.layer = LayerMask.NameToLayer("Interactive");
+                        interact.GetComponent<BoxCollider>().enabled = true;
+                    }
                 }
-                Utils.MainPlayer = playerClient;
             }
             catch (Exception ex)
             {
                 Plugin.LogSource.LogError($"Error in GameStartedPatch: {ex.Message}");
             }
-        }
-
-        private static void CleanUp() {
-            // Clears the override kill list
-            RevivalFeatures.KillOverridePlayers.Clear();
-
-            // Clears the Critical State list
-            RevivalFeatures.ClearPlayerInCriticalState();
-
-            // Clears the Player Critical State Timer list
-            RevivalFeatures.ClearPlayerCritcalStateTimer();
         }
     }
 }

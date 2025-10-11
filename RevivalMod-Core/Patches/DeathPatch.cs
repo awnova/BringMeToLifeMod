@@ -36,7 +36,8 @@ namespace RevivalMod.Patches
                 string playerId = player.ProfileId;
 
                 // Check for explicit kill override
-                if (RevivalFeatures.KillOverridePlayers.TryGetValue(playerId, out bool isOverridden) && isOverridden) { return true; }
+                if (RevivalFeatures._playerList[playerId].KillOverride)
+                    return true;
 
                 // Check if player is invulnerable from recent revival
                 if (RevivalFeatures.IsPlayerInvulnerable(playerId))

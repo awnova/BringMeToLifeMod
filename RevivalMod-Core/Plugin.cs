@@ -22,7 +22,6 @@ namespace RevivalMod
         public static bool IAmDedicatedClient { get; private set; }
         public const string DataToServerURL = "/kaikinoodles/revivalmod/data_to_server";
         public const string DataToClientURL = "/kaikinoodles/revivalmod/data_to_client";
-        public static RevivalModPlayer revivalModPlayer;
 
         // BaseUnityPlugin inherits MonoBehaviour, so you can use base unity functions like Awake() and Update()
         private void Awake()
@@ -36,10 +35,10 @@ namespace RevivalMod
             RevivalModSettings.Init(Config);
 
             // Enable patches
-            new DeathPatch().Enable();
             new RevivalFeatures().Enable();
-            new GameStartedPatch().Enable();
             new OnPlayerCreatedPatch().Enable();
+            new GameStartedPatch().Enable();
+            new DeathPatch().Enable();
             new AvailableActionsPatch().Enable();
 
             LogSource.LogInfo("Revival plugin initialized! Press F5 to use your defibrillator when in critical state.");

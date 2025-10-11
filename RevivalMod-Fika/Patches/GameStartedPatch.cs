@@ -1,13 +1,9 @@
-﻿using Comfort.Common;
+﻿using EFT;
+using Comfort.Common;
 using SPT.Reflection.Patching;
 using System;
 using System.Reflection;
 using UnityEngine;
-using EFT;
-using EFT.Communications;
-using EFT.InventoryLogic;
-using System.Linq;
-using RevivalMod.Helpers;
 
 namespace RevivalMod.Patches
 {
@@ -23,7 +19,7 @@ namespace RevivalMod.Patches
         {
             try
             {
-                Plugin.LogSource.LogInfo("Game started, checking revival item");
+                Plugin.LogSource.LogInfo("Game started");
 
                 // Make sure GameWorld is instantiated
                 if (!Singleton<GameWorld>.Instantiated)
@@ -33,45 +29,32 @@ namespace RevivalMod.Patches
                 }
 
                 // Initialize player client directly
-                Player player = Singleton<GameWorld>.Instance.MainPlayer;
-                if (player == null)
+                Player playerClient = Singleton<GameWorld>.Instance.MainPlayer;
+
+                if (playerClient == null)
                 {
                     Plugin.LogSource.LogError("MainPlayer is null");
                     return;
                 }
 
-                // Check if player has revival item
-                string playerId = player.ProfileId;
-                var inRaidItems = player.Inventory.GetPlayerItems(EPlayerItems.Equipment);
-                bool hasItem = false;
+                // Enable interactables
+                Plugin.LogSource.LogDebug("Enabling body interactables");
 
-                try
+                foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>())
                 {
-                    hasItem = inRaidItems.Any(item => item.TemplateId == Constants.Constants.ITEM_ID);
+                    if (interact.name.Contains("Body Interactable"))
+                    {
+                        Plugin.LogSource.LogDebug($"Found interactable: {interact.name}");
+                    
+                        interact.layer = LayerMask.NameToLayer("Interactive");
+                        interact.GetComponent<BoxCollider>().enabled = true;
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Plugin.LogSource.LogError($"Error checking player items: {ex.Message}");
-                }
-
-                Plugin.LogSource.LogInfo($"Player {playerId} has revival item: {hasItem}");
-
-                // Display notification about revival item status
-                if (RevivalModSettings.TESTING.Value)
-                {
-                    NotificationManagerClass.DisplayMessageNotification(
-                    $"Revival System: {(hasItem ? "Revival item found" : "No revival item found")}",
-                    ENotificationDurationType.Default,
-                    ENotificationIconType.Default,
-                    hasItem ? Color.green : Color.yellow);
-                }
-
             }
             catch (Exception ex)
             {
                 Plugin.LogSource.LogError($"Error in GameStartedPatch: {ex.Message}");
             }
         }
-
     }
 }

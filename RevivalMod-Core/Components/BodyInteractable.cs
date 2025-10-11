@@ -1,9 +1,9 @@
 using EFT;
 using EFT.Interactive;
+using EFT.InventoryLogic;
 using System;
 using RevivalMod.Helpers;
 using RevivalMod.Features;
-using UnityEngine;
 
 namespace RevivalMod.Components
 {
@@ -58,7 +58,7 @@ namespace RevivalMod.Components
         public ActionsReturnClass GetActions(GamePlayerOwner owner)
         {
             
-            bool hasDefib = RevivalFeatures.CheckRevivalItemInRaidInventory().Value;        
+            bool hasDefib = RevivalFeatures.HasDefib(owner.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment));        
             bool playerCritState = RMSession.GetCriticalPlayers().TryGetValue(Revivee.ProfileId, out _);
             bool reviveButtonEnabled = playerCritState && (hasDefib || RevivalModSettings.TESTING.Value);
 

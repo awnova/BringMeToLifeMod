@@ -8,7 +8,6 @@ namespace RevivalMod.Helpers
 {
     internal class Utils
     {
-        public static Player MainPlayer { get; set; }
         public static T ServerRoute<T>(string url, object data = default)
         {
             string json = JsonConvert.SerializeObject(data);
