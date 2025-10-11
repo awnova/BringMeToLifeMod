@@ -20,7 +20,8 @@ namespace RevivalMod.FikaModule
             FikaBridge.SendPlayerPositionPacketEmitted += FikaMethods.SendPlayerPositionPacket;
             FikaBridge.SendRemovePlayerFromCriticalPlayersListPacketEmitted += FikaMethods.SendRemovePlayerFromCriticalPlayersListPacket;
             FikaBridge.SendReviveMePacketEmitted += FikaMethods.SendReviveMePacket;
-            
+            FikaBridge.SendReviveStartedPacketEmitted += FikaMethods.SendReviveStartedPacket;
+            FikaBridge.SendReviveCanceledPacketEmitted += FikaMethods.SendReviveCanceledPacket;
         }
 
         public static void PluginAwake()

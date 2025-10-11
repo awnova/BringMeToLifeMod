@@ -168,7 +168,8 @@ namespace RevivalMod.Features
                 Plugin.LogSource.LogError("player.MovementContext is null!");
             }
 
-            _playerList[playerId].CriticalTimer -= Time.deltaTime;
+            if (criticalStateMainTimer.IsRunning)
+                _playerList[playerId].CriticalTimer -= Time.deltaTime;
 
             // Update the main critical state timer
             criticalStateMainTimer?.Update();

@@ -1,5 +1,6 @@
 ﻿using Comfort.Common;
 using EFT.Communications;
+using EFT.UI;
 using Fika.Core.Coop.Utils;
 using Fika.Core.Modding;
 using Fika.Core.Modding.Events;
@@ -8,8 +9,10 @@ using LiteNetLib;
 using RevivalMod.Components;
 using RevivalMod.Features;
 using RevivalMod.FikaModule.Packets;
+using RevivalMod.Helpers;
 using System;
 using UnityEngine;
+using TMPro;
 
 namespace RevivalMod.FikaModule.Common
 {
@@ -17,13 +20,13 @@ namespace RevivalMod.FikaModule.Common
     {
         public static void SendPlayerPositionPacket(string playerId, DateTime timeOfDeath, Vector3 position)
         {
-            PlayerPositionPacket packet = new ()
+            PlayerPositionPacket packet = new()
             {
                 playerId = playerId,
                 timeOfDeath = timeOfDeath,
                 position = position
             };
-            
+
             if (FikaBackendUtils.IsServer)
             {
                 try
@@ -39,8 +42,9 @@ namespace RevivalMod.FikaModule.Common
             {
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
-           
-        }        
+
+        }
+                
         public static void SendRemovePlayerFromCriticalPlayersListPacket(string playerId)
         {
             RemovePlayerFromCriticalPlayersListPacket packet = new()
@@ -89,7 +93,7 @@ namespace RevivalMod.FikaModule.Common
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
         }
-        
+
         public static void SendRevivedPacket(string reviverId, NetPeer peer)
         {
             RevivedPacket packet = new()
@@ -113,6 +117,56 @@ namespace RevivalMod.FikaModule.Common
                 Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
             }
 
+        }
+
+        public static void SendReviveStartedPacket(string reviveeId, string reviverId)
+        {
+            ReviveStartedPacket packet = new()
+            {
+                reviverId = reviverId,
+                reviveeId = reviveeId
+            };
+
+            if (FikaBackendUtils.IsServer)
+            {
+                try
+                {
+                    Singleton<FikaServer>.Instance.SendDataToAll(ref packet, DeliveryMethod.ReliableOrdered);
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogError(ex);
+                }
+            }
+            else if (FikaBackendUtils.IsClient)
+            {
+                Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
+            }
+        }
+        
+        public static void SendReviveCanceledPacket(string reviveeId, string reviverId)
+        {
+            ReviveCanceledPacket packet = new()
+            {
+                reviverId = reviverId,
+                reviveeId = reviveeId
+            };
+
+            if (FikaBackendUtils.IsServer)
+            {               
+                try
+                {
+                    Singleton<FikaServer>.Instance.SendDataToAll(ref packet, DeliveryMethod.ReliableOrdered);
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogError(ex);
+                }
+            }
+            else if (FikaBackendUtils.IsClient)
+            {
+                Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced);
+            }
         }
 
         private static void OnPlayerPositionPacketReceived(PlayerPositionPacket packet, NetPeer peer)
@@ -159,6 +213,7 @@ namespace RevivalMod.FikaModule.Common
                 if (revived)
                 {
                     SendRevivedPacket(packet.reviverId, peer);
+                    Singleton<GameUI>.Instance.BattleUiPanelExtraction.Close();
                 }
             }
         }
@@ -179,12 +234,55 @@ namespace RevivalMod.FikaModule.Common
             }
         }
 
+        private static void OnReviveStartedPacketReceived(ReviveStartedPacket packet, NetPeer peer)
+        {
+            if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
+            {
+                SendReviveStartedPacket(packet.reviveeId, packet.reviverId);
+            }
+            else
+            {
+                if (FikaBackendUtils.Profile.ProfileId != packet.reviveeId)
+                    return;
+
+                Plugin.LogSource.LogDebug("ReviveStarted packet received");
+                
+                RevivalFeatures.criticalStateMainTimer.StopTimer();
+                Singleton<GameUI>.Instance.BattleUiPanelExtraction.Display();
+                TextMeshProUGUI textTimerPanel = MonoBehaviourSingleton<GameUI>.Instance.BattleUiPanelExtraction.GetComponentInChildren<TextMeshProUGUI>();
+                
+                textTimerPanel.SetText("Being revived...");
+            }
+        }
+
+        private static void OnReviveCanceledPacketReceived(ReviveCanceledPacket packet, NetPeer peer)
+        {
+            if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
+            {
+                SendReviveCanceledPacket(packet.reviveeId, packet.reviverId);
+            }
+            else
+            {
+                if (FikaBackendUtils.Profile.ProfileId != packet.reviveeId)
+                    return;
+                    
+                Plugin.LogSource.LogDebug("ReviveCanceled packet received");
+
+                Singleton<GameUI>.Instance.BattleUiPanelExtraction.Close();
+
+                RevivalFeatures.criticalStateMainTimer.StartCountdown(RevivalFeatures._playerList[packet.reviveeId].CriticalTimer,
+                                                                    "Critical State Timer", TimerPosition.MiddleCenter);
+            }
+        }
+
         public static void OnFikaNetManagerCreated(FikaNetworkManagerCreatedEvent managerCreatedEvent)
         {
             managerCreatedEvent.Manager.RegisterPacket<PlayerPositionPacket, NetPeer>(OnPlayerPositionPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<RemovePlayerFromCriticalPlayersListPacket, NetPeer>(OnRemovePlayerFromCriticalPlayersListPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<ReviveMePacket, NetPeer>(OnReviveMePacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<RevivedPacket, NetPeer>(OnRevivedPacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<ReviveStartedPacket, NetPeer>(OnReviveStartedPacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<ReviveCanceledPacket, NetPeer>(OnReviveCanceledPacketReceived);
         }
         
         public static void InitOnPluginEnabled()

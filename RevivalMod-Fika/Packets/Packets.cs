@@ -4,6 +4,41 @@ using UnityEngine;
 
 namespace RevivalMod.FikaModule.Packets
 {
+    public struct ReviveStartedPacket : INetSerializable
+    {
+        public string reviveeId;
+        public string reviverId;
+
+        public void Deserialize(NetDataReader reader)
+        {
+            reviveeId = reader.GetString();
+            reviverId = reader.GetString();
+        }
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(reviveeId);
+            writer.Put(reviverId);
+        }
+    }
+
+    public struct ReviveCanceledPacket : INetSerializable
+    {
+        public string reviveeId;
+        public string reviverId;
+
+        public void Deserialize(NetDataReader reader)
+        {
+            reviveeId = reader.GetString();
+            reviverId = reader.GetString();
+        }
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(reviveeId);
+            writer.Put(reviverId);
+        }
+    }
 
     public struct ReviveMePacket : INetSerializable
     {

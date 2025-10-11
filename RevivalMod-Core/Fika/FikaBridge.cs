@@ -70,7 +70,23 @@ namespace RevivalMod.Fika
         public static void SendReviveMePacket(string reviveeId, string reviverId)
         {
             Plugin.LogSource.LogDebug("Sending revive me packet");
-            SendReviveMePacketEmitted?.Invoke(reviveeId, reviverId); 
+            SendReviveMePacketEmitted?.Invoke(reviveeId, reviverId);
+        }
+        
+        public delegate void SendReviveStartedPacketEvent(string reviveeId, string reviverId);
+        public static event SendReviveStartedPacketEvent SendReviveStartedPacketEmitted;
+        public static void SendReviveStartedPacket(string reviveeId, string reviverId)
+        {
+            Plugin.LogSource.LogDebug("Sending revive started packet");
+            SendReviveStartedPacketEmitted?.Invoke(reviveeId, reviverId);
+        }
+
+        public delegate void SendReviveCanceledPacketEvent(string reviveeId, string reviverId);
+        public static event SendReviveCanceledPacketEvent SendReviveCanceledPacketEmitted;
+        public static void SendReviveCanceledPacket(string reviveeId, string reviverId)
+        {
+            Plugin.LogSource.LogDebug("Sending revive canceled packet");
+            SendReviveCanceledPacketEmitted?.Invoke(reviveeId, reviverId);
         }
 
         //public delegate void SendRevivedPacketEvent(string reviverId, NetPeer peer);

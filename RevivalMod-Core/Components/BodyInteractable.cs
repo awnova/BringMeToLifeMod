@@ -4,6 +4,7 @@ using EFT.InventoryLogic;
 using System;
 using RevivalMod.Helpers;
 using RevivalMod.Features;
+using RevivalMod.Fika;
 
 namespace RevivalMod.Components
 {
@@ -47,7 +48,10 @@ namespace RevivalMod.Components
                 //RevivalFeatures.criticalStateMainTimer.StopTimer();
 
                 Action<bool> action = new(actionCompleteHandler.Complete);
+
                 currentManagedState.Plant(true, false, reviveTime, action);
+
+                FikaBridge.SendReviveStartedPacket(Revivee.ProfileId, owner.Player.ProfileId);
             }
             else
             {
@@ -94,7 +98,8 @@ namespace RevivalMod.Components
                 }
                 else
                 {
-                    //RevivalFeatures.criticalStateMainTimer.StartCountdown(RevivalFeatures._playerCriticalStateTimers[targetId]);
+                    FikaBridge.SendReviveCanceledPacket(targetId, owner.Player.ProfileId);
+
                     Plugin.LogSource.LogInfo($"Revive not completed !");
                 }
             }

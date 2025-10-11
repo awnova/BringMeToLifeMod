@@ -33,7 +33,7 @@ namespace RevivalMod.Helpers
         private DateTime targetEndTime;
         private DateTime startTime;
         private bool isCountdown;
-        private bool isRunning;
+        public bool IsRunning { get; set; }
         private string timerName;
         private TimerPosition timerPosition;
 
@@ -50,7 +50,7 @@ namespace RevivalMod.Helpers
         public void StartCountdown(float durationInSeconds, string name = "Countdown", TimerPosition position = TimerPosition.BottomCenter)
         {
             isCountdown = true;
-            isRunning = true;
+            IsRunning = true;
             timerName = name;
             timerPosition = position;
 
@@ -68,7 +68,7 @@ namespace RevivalMod.Helpers
         public void StartStopwatch(string name = "Stopwatch", TimerPosition position = TimerPosition.TopCenter)
         {
             isCountdown = false;
-            isRunning = true;
+            IsRunning = true;
             timerName = name;
             timerPosition = position;
 
@@ -84,7 +84,7 @@ namespace RevivalMod.Helpers
         /// </summary>
         public void Update()
         {
-            if (!isRunning || titleText == null)
+            if (!IsRunning || titleText == null)
                 return;
 
             TimeSpan timeSpan = GetTimeSpan();
@@ -108,7 +108,7 @@ namespace RevivalMod.Helpers
         /// </summary>
         public void StopTimer()
         {
-            isRunning = false;
+            IsRunning = false;
             MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.Close();
         }
 
