@@ -1,7 +1,7 @@
-﻿using Comfort.Common;
-using EFT;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Comfort.Common;
+using EFT;
 using UnityEngine;
 
 namespace RevivalMod.Components
@@ -97,8 +97,9 @@ namespace RevivalMod.Components
 
         public static Vector3 GetPosition(string playerId)
         {
-            if (string.IsNullOrEmpty(playerId)) { return Vector3.zero; }
-            if (Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) return Vector3.zero;
+            if (string.IsNullOrEmpty(playerId) || Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId)
+                return Vector3.zero;
+
             return Instance.CriticalPlayers[playerId];
         }
 

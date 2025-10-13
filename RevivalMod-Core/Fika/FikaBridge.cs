@@ -25,28 +25,14 @@ namespace RevivalMod.Fika
         {
             bool? eventResponse = IAmHostEmitted?.Invoke();
 
-            if (eventResponse == null)
-            {
-                return true;
-            }
-            else
-            {
-                return eventResponse.Value;
-            }
+            return eventResponse == null || eventResponse.Value;
         }
         public static event SimpleStringReturnEvent GetRaidIdEmitted;
         public static string GetRaidId()
         {
             string eventResponse = GetRaidIdEmitted?.Invoke();
 
-            if (eventResponse == null)
-            {
-                return ClientAppUtils.GetMainApp().GetClientBackEndSession().Profile.ProfileId;
-            }
-            else
-            {
-                return eventResponse;
-            }
+            return eventResponse ?? ClientAppUtils.GetMainApp().GetClientBackEndSession().Profile.ProfileId;
         }
 
         public delegate void SendPlayerPositionPacketEvent(string playerId, DateTime timeOfDeath, Vector3 position);

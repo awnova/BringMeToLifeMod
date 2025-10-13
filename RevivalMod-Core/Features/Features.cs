@@ -76,11 +76,11 @@ namespace RevivalMod.Features
                 ProcessCriticalState(PlayerClient, playerId);
 
                 // Send position updates if in critical state (regardless of local player status)
-                if (IsPlayerInCriticalState(playerId) && Time.time >= _nextActionTime)
-                {
-                    _nextActionTime = Time.time + 0.05f;
-                    FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), PlayerClient.Position);
-                }
+                if (!IsPlayerInCriticalState(playerId) || !(Time.time >= _nextActionTime)) 
+                    return;
+                
+                _nextActionTime = Time.time + 0.05f;
+                FikaBridge.SendPlayerPositionPacket(playerId, new DateTime(), PlayerClient.Position);
             }
             catch (Exception ex)
             {
@@ -102,19 +102,19 @@ namespace RevivalMod.Features
 
             float timer = _playerList[playerId].InvulnerabilityTimer;
 
-            if (timer > 0)
+            if (!(timer > 0)) 
+                return;
+            
+            timer -= Time.deltaTime;
+            _playerList[playerId].InvulnerabilityTimer = timer;
+
+            // Apply invulnerability restrictions
+            ApplyInvulnerabilityRestrictions(player);
+
+            // End invulnerability if timer is up
+            if (timer <= 0)
             {
-                timer -= Time.deltaTime;
-                _playerList[playerId].InvulnerabilityTimer = timer;
-
-                // Apply invulnerability restrictions
-                ApplyInvulnerabilityRestrictions(player);
-
-                // End invulnerability if timer is up
-                if (timer <= 0)
-                {
-                    EndInvulnerability(player);
-                }
+                EndInvulnerability(player);
             }
         }
 
@@ -208,58 +208,55 @@ namespace RevivalMod.Features
         {
             bool revivalItemCheck = HasDefib(player.Inventory.GetPlayerItems(EPlayerItems.Equipment));
 
-            if (revivalItemCheck && RevivalModSettings.SELF_REVIVAL_ENABLED.Value)
+            if (!revivalItemCheck || !RevivalModSettings.SELF_REVIVAL_ENABLED.Value) 
+                return;
+            
+            KeyCode revivalKey = RevivalModSettings.SELF_REVIVAL_KEY.Value;
+
+            // Start key hold tracking when key is first pressed
+            if (Input.GetKeyDown(revivalKey))
             {
-                KeyCode revivalKey = RevivalModSettings.SELF_REVIVAL_KEY.Value;
+                _selfRevivalKeyHoldDuration[revivalKey] = 0f;
 
-                // Start key hold tracking when key is first pressed
-                if (Input.GetKeyDown(revivalKey))
+                // Initialize timers
+                selfRevivalTimer = new CustomTimer();
+                selfRevivalTimer.StartCountdown(RevivalModSettings.REVIVAL_HOLD_DURATION.Value, "Self Revival Timer");
+            }
+
+            // Update hold duration while key is held
+            if (Input.GetKey(revivalKey) && _selfRevivalKeyHoldDuration.ContainsKey(revivalKey))
+            {
+                _selfRevivalKeyHoldDuration[revivalKey] += Time.deltaTime;
+
+                float holdDuration = _selfRevivalKeyHoldDuration[revivalKey];
+                float requiredDuration = RevivalModSettings.REVIVAL_HOLD_DURATION.Value;           
+
+                // Trigger revival when key is held long enough
+                if (holdDuration >= requiredDuration)
                 {
-                    _selfRevivalKeyHoldDuration[revivalKey] = 0f;
+                    _selfRevivalKeyHoldDuration.Remove(revivalKey);
 
-                    // Initialize timers
-                    selfRevivalTimer = new CustomTimer();
-                    selfRevivalTimer.StartCountdown(RevivalModSettings.REVIVAL_HOLD_DURATION.Value, "Self Revival Timer");
-                }
+                    // Stop timers
+                    selfRevivalTimer?.StopTimer();
 
-                // Update hold duration while key is held
-                if (Input.GetKey(revivalKey) && _selfRevivalKeyHoldDuration.ContainsKey(revivalKey))
-                {
-                    _selfRevivalKeyHoldDuration[revivalKey] += Time.deltaTime;
-
-                    float holdDuration = _selfRevivalKeyHoldDuration[revivalKey];
-                    float requiredDuration = RevivalModSettings.REVIVAL_HOLD_DURATION.Value;           
-
-                    // Trigger revival when key is held long enough
-                    if (holdDuration >= requiredDuration)
-                    {
-                        _selfRevivalKeyHoldDuration.Remove(revivalKey);
-
-                        // Stop timers
-                        selfRevivalTimer?.StopTimer();
-
-                        TryPerformManualRevival(player);
-                    }
-                }
-
-                // Reset when key is released
-                if (Input.GetKeyUp(revivalKey))
-                {
-                    if (_selfRevivalKeyHoldDuration.ContainsKey(revivalKey))
-                    {
-                        // Stop timers
-                        selfRevivalTimer?.StopTimer();
-
-                        NotificationManagerClass.DisplayMessageNotification(
-                            "Defibrillator use canceled",
-                            ENotificationDurationType.Default,
-                            ENotificationIconType.Default,
-                            Color.red);
-
-                        _selfRevivalKeyHoldDuration.Remove(revivalKey);
-                    }
+                    TryPerformManualRevival(player);
                 }
             }
+
+            // Reset when key is released
+            if (!Input.GetKeyUp(revivalKey) || !_selfRevivalKeyHoldDuration.ContainsKey(revivalKey))
+                return;
+            
+            // Stop timers
+            selfRevivalTimer?.StopTimer();
+
+            NotificationManagerClass.DisplayMessageNotification(
+                "Defibrillator use canceled",
+                ENotificationDurationType.Default,
+                ENotificationIconType.Default,
+                Color.red);
+
+            _selfRevivalKeyHoldDuration.Remove(revivalKey);
         } 
 
         #endregion
@@ -274,7 +271,7 @@ namespace RevivalMod.Features
             return _playerList[playerId].IsCritical;
         }
 
-        public static void ClearPlayerCritcalStateTimer(string playerId)
+        public static void ClearPlayerCriticalStateTimer(string playerId)
         {
             _playerList[playerId].CriticalTimer = 0f;
         }
@@ -449,11 +446,11 @@ namespace RevivalMod.Features
             criticalStateMainTimer = null;
 
             // If player is leaving critical state without revival, clean up
-            if (_playerList[playerId].InvulnerabilityTimer <= 0)
-            {
-                RemoveRevivableState(player);
-                RestorePlayerMovement(player);
-            }
+            if (!(_playerList[playerId].InvulnerabilityTimer <= 0)) 
+                return;
+            
+            RemoveRevivableState(player);
+            RestorePlayerMovement(player);
         }
 
         /// <summary>
@@ -477,16 +474,14 @@ namespace RevivalMod.Features
             {
                 return PerformRevival(player, playerId);
             }
-            else
-            {
-                NotificationManagerClass.DisplayMessageNotification(
-                    "No defibrillator found! Unable to revive!",
-                    ENotificationDurationType.Long,
-                    ENotificationIconType.Alert,
-                    Color.red);
+            
+            NotificationManagerClass.DisplayMessageNotification(
+                "No defibrillator found! Unable to revive!",
+                ENotificationDurationType.Long,
+                ENotificationIconType.Alert,
+                Color.red);
 
-                return false;
-            }
+            return false;
         }
 
         /// <summary>
@@ -498,24 +493,22 @@ namespace RevivalMod.Features
             long currentTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             bool isOnCooldown = (currentTime - lastRevivalTime) < RevivalModSettings.REVIVAL_COOLDOWN.Value;
 
-            if (isOnCooldown)
-            {
-                // Only show notification if not in test mode
-                if (!RevivalModSettings.TESTING.Value)
-                {
-                    int remainingCooldown = (int)(RevivalModSettings.REVIVAL_COOLDOWN.Value - (currentTime - lastRevivalTime));
+            if (!isOnCooldown) 
+                return false;
+            
+            // Only show notification if not in test mode
+            if (RevivalModSettings.TESTING.Value) 
+                return false;
+            
+            int remainingCooldown = (int)(RevivalModSettings.REVIVAL_COOLDOWN.Value - (currentTime - lastRevivalTime));
                     
-                    NotificationManagerClass.DisplayMessageNotification(
-                        $"Revival on cooldown! Available in {remainingCooldown} seconds",
-                        ENotificationDurationType.Long,
-                        ENotificationIconType.Alert,
-                        Color.yellow);
+            NotificationManagerClass.DisplayMessageNotification(
+                $"Revival on cooldown! Available in {remainingCooldown} seconds",
+                ENotificationDurationType.Long,
+                ENotificationIconType.Alert,
+                Color.yellow);
 
-                    return true;
-                }
-            }
-
-            return false;
+            return true;
         }
 
         /// <summary>
@@ -742,7 +735,7 @@ namespace RevivalMod.Features
                         goto IL_12F;
                     }
                 }
-            IL_12F:
+IL_12F:
                 player.MovementContext.ReleaseDoorIfInteractingWithOne();
                 player.MovementContext.OnStateChanged -= player.method_17;
                 player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
@@ -853,52 +846,53 @@ namespace RevivalMod.Features
                 if (RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS.Value)
                 {
                     foreach (EBodyPart bodyPart in Enum.GetValues(typeof(EBodyPart)))
-                    {  
-                        if (bodyPart == EBodyPart.Common)
+                    {
+                        if (bodyPart == EBodyPart.Common || 
+                            (bodyPart != EBodyPart.Head && bodyPart != EBodyPart.Chest))
                             continue;
 
                         GClass2814<ActiveHealthController.GClass2813>.BodyPartState bodyPartState = healthController.Dictionary_0[bodyPart];
 
                         Plugin.LogSource.LogDebug($"{bodyPart} is at {healthController.GetBodyPartHealth(bodyPart).Current} health");
 
-                        if (bodyPartState.IsDestroyed)
+                        if (!bodyPartState.IsDestroyed) 
+                            continue;
+                        
+                        HealthValue health = bodyPartState.Health;
+                        
+                        bodyPartState.IsDestroyed = false;
+
+                        float restorePercent = RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS_AMOUNT.Value/100f;
+                        float newCurrentHealth = bodyPartState.Health.Maximum * restorePercent;
+
+                        bodyPartState.Health = new HealthValue(newCurrentHealth, bodyPartState.Health.Maximum, 0f);
+
+                        healthController.method_43(bodyPart, EDamageType.Medicine);
+                        healthController.method_35(bodyPart);
+                        healthController.RemoveNegativeEffects(bodyPart);
+
+                        var eventField = typeof(ActiveHealthController)
+                            .GetField("BodyPartRestoredEvent", BindingFlags.Instance | BindingFlags.NonPublic);
+
+                        if (eventField != null)
                         {
-
-                            HealthValue health = bodyPartState.Health;
-                            bodyPartState.IsDestroyed = false;
-
-                            float restorePercent = RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS_AMOUNT.Value/100f;
-                            float newCurrentHealth = bodyPartState.Health.Maximum * restorePercent;
-
-                            bodyPartState.Health = new HealthValue(newCurrentHealth, bodyPartState.Health.Maximum, 0f);
-
-                            healthController.method_43(bodyPart, EDamageType.Medicine);
-                            healthController.method_35(bodyPart);
-                            healthController.RemoveNegativeEffects(bodyPart);
-
-                            var eventField = typeof(ActiveHealthController)
-                                .GetField("BodyPartRestoredEvent", BindingFlags.Instance | BindingFlags.NonPublic);
-
-                            if (eventField != null)
+                            if (eventField.GetValue(healthController) is MulticastDelegate eventDelegate)
                             {
-                                if (eventField.GetValue(healthController) is MulticastDelegate eventDelegate)
+                                foreach (var handler in eventDelegate.GetInvocationList())
                                 {
-                                    foreach (var handler in eventDelegate.GetInvocationList())
-                                    {
-                                        handler.DynamicInvoke(bodyPart, health.CurrentAndMaximum);
-                                    }
-                                }
-                                else
-                                {
-                                    Plugin.LogSource.LogError("evenDelegate is null");
+                                    handler.DynamicInvoke(bodyPart, health.CurrentAndMaximum);
                                 }
                             }
                             else
                             {
-                                Plugin.LogSource.LogError("eventField is null");
+                                Plugin.LogSource.LogError("evenDelegate is null");
                             }
-                            Plugin.LogSource.LogDebug($"Restored {bodyPart}");
                         }
+                        else
+                        {
+                            Plugin.LogSource.LogError("eventField is null");
+                        }
+                        Plugin.LogSource.LogDebug($"Restored {bodyPart}");
                     }
                 }
 
@@ -922,7 +916,7 @@ namespace RevivalMod.Features
         /// </summary>
         private static void StartInvulnerability(Player player)
         {
-            if (player == null)
+            if (player is null)
                 return;
 
             string playerId = player.ProfileId;
@@ -944,7 +938,7 @@ namespace RevivalMod.Features
         /// </summary>
         private static void EndInvulnerability(Player player)
         {
-            if (player == null)
+            if (player is null)
                 return;
 
             string playerId = player.ProfileId;
@@ -970,6 +964,7 @@ namespace RevivalMod.Features
             Plugin.LogSource.LogInfo($"Ended invulnerability for player {playerId}");
         }
 
+        // ReSharper disable Unity.PerformanceAnalysis
         /// <summary>
         /// Visual effect coroutine that makes player model flash during invulnerability
         /// </summary>
@@ -982,21 +977,21 @@ namespace RevivalMod.Features
             Dictionary<Renderer, bool> originalStates = [];
 
             // First ensure player is visible to start
-            if (player.PlayerBody != null && player.PlayerBody.BodySkins != null)
+            if (player.PlayerBody?.BodySkins != null)
             {
                 foreach (var kvp in player.PlayerBody.BodySkins)
                 {
-                    if (kvp.Value != null)
+                    if (kvp.Value is null) 
+                        continue;
+                    
+                    var renderers = kvp.Value.GetComponentsInChildren<Renderer>(true);
+                    foreach (var renderer in renderers)
                     {
-                        var renderers = kvp.Value.GetComponentsInChildren<Renderer>(true);
-                        foreach (var renderer in renderers)
-                        {
-                            if (renderer != null)
-                            {
-                                originalStates[renderer] = renderer.enabled;
-                                renderer.enabled = true;
-                            }
-                        }
+                        if (renderer is null) 
+                            continue;
+                        
+                        originalStates[renderer] = renderer.enabled;
+                        renderer.enabled = true;
                     }
                 }
             }
@@ -1013,14 +1008,14 @@ namespace RevivalMod.Features
                     {
                         foreach (var kvp in player.PlayerBody.BodySkins)
                         {
-                            if (kvp.Value != null)
+                            if (kvp.Value is null) 
+                                continue;
+                            
+                            var renderers = kvp.Value.GetComponentsInChildren<Renderer>(true);
+                            foreach (var renderer in renderers)
                             {
-                                var renderers = kvp.Value.GetComponentsInChildren<Renderer>(true);
-                                foreach (var renderer in renderers)
-                                {
-                                    if (renderer != null)
-                                        renderer.enabled = isVisible;
-                                }
+                                if (renderer is not null)
+                                    renderer.enabled = isVisible;
                             }
                         }
                     }
@@ -1038,18 +1033,18 @@ namespace RevivalMod.Features
             {
                 foreach (var kvp in originalStates)
                 {
-                    if (kvp.Key != null)
+                    if (kvp.Key is not null)
                         kvp.Key.enabled = true; // Force visibility on exit
                 }
             }
             catch
             {
                 // Fallback if the dictionary approach fails
-                if (player.PlayerBody != null && player.PlayerBody.BodySkins != null)
+                if (player.PlayerBody?.BodySkins != null)
                 {
                     foreach (var kvp in player.PlayerBody.BodySkins)
                     {
-                        if (kvp.Value != null)
+                        if (kvp.Value is not null)
                             kvp.Value.EnableRenderers(true);
                     }
                 }
