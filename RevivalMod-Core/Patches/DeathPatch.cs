@@ -19,13 +19,15 @@ namespace RevivalMod.Patches
         }
 
         [PatchPrefix]
-        static bool Prefix(ActiveHealthController __instance, EDamageType damageType)
+        private static bool Prefix(ActiveHealthController __instance, EDamageType damageType)
         {
             try
             {
                 // Get the Player field
                 FieldInfo playerField = AccessTools.Field(typeof(ActiveHealthController), "Player");
-                if (playerField == null) return true;
+                
+                if (playerField == null) 
+                    return true;
 
                 // Get the Player instance
                 Player player = playerField.GetValue(__instance) as Player;

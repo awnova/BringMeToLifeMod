@@ -11,7 +11,7 @@ namespace RevivalMod.Components
         private static Vector3 _position;
         private static Vector3 _scale;
         private static Transform _parent;
-        public static Player _player;
+        private static Player _player;
         private static bool _debug;
 
         public static GameObject Build(string name, Vector3 position, Vector3 scale, Transform parent, Player player, bool debug)

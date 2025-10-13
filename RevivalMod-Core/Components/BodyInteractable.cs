@@ -1,10 +1,10 @@
+using System;
 using EFT;
 using EFT.Interactive;
 using EFT.InventoryLogic;
-using System;
-using RevivalMod.Helpers;
 using RevivalMod.Features;
 using RevivalMod.Fika;
+using RevivalMod.Helpers;
 
 namespace RevivalMod.Components
 {
@@ -18,13 +18,13 @@ namespace RevivalMod.Components
 
             float reviveTime = RevivalModSettings.TEAM_REVIVAL_HOLD_DURATION.Value;
 
-            if (Revivee == null)
+            if (Revivee is null)
             {
                 Plugin.LogSource.LogError("Revivee is null, cannot perform revival.");
                 return;
             }
 
-            if (owner.Player == null)
+            if (owner.Player is null)
             {
                 Plugin.LogSource.LogError("Interactor is null, cannot perform revival.");
                 return;
@@ -80,7 +80,7 @@ namespace RevivalMod.Components
             return actionsReturnClass;
         }
 
-        internal class ReviveCompleteHandler
+        private class ReviveCompleteHandler
         {
             public GamePlayerOwner owner;
             public BodyInteractable bodyInteractable;

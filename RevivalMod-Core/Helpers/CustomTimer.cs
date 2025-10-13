@@ -152,9 +152,12 @@ namespace RevivalMod.Helpers
 
                 RectTransform panel = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.transform.GetChild(0) as RectTransform;
 
-                panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-                panel.sizeDelta = new Vector2(318, 51);
-                panel.GetComponent<Image>().color = Color.red;
+                if (panel is not null)
+                {
+                    panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                    panel.sizeDelta = new Vector2(318, 51);
+                    panel.GetComponent<Image>().color = Color.red;
+                }
 
                 titleText = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.GetComponentInChildren<TextMeshProUGUI>();
 
