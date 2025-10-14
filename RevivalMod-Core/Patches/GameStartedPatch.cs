@@ -33,7 +33,7 @@ namespace RevivalMod.Patches
                 // Initialize player client directly
                 Player playerClient = Singleton<GameWorld>.Instance.MainPlayer;
 
-                if (playerClient == null)
+                if (playerClient is null)
                 {
                     Plugin.LogSource.LogError("MainPlayer is null");
                     return;
@@ -41,8 +41,8 @@ namespace RevivalMod.Patches
 
                 RevivalFeatures._playerList[playerClient.ProfileId] = new RMPlayer();
 
-                // Enable interactables
-                Plugin.LogSource.LogDebug("Enabling body interactables");
+                // Enable interactable
+                Plugin.LogSource.LogDebug("Enabling body interactable");
 
                 foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>())
                 {
