@@ -249,6 +249,7 @@ namespace RevivalMod.FikaModule.Common
                 
                 RevivalFeatures.criticalStateMainTimer.StopTimer();
                 Singleton<GameUI>.Instance.BattleUiPanelExtraction.Display();
+                
                 TextMeshProUGUI textTimerPanel = MonoBehaviourSingleton<GameUI>.Instance.BattleUiPanelExtraction.GetComponentInChildren<TextMeshProUGUI>();
                 
                 textTimerPanel.SetText("Being revived...");
