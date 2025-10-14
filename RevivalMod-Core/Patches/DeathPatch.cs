@@ -62,7 +62,6 @@ namespace RevivalMod.Patches
                         __instance.GetBodyPartHealth(EBodyPart.Head, true).Current < 1 &&
                         damageType == EDamageType.Bullet)
                     {
-
                         // Handle random chance of critical state.
                         float randomNumber = UnityEngine.Random.Range(0f, 100f);
 

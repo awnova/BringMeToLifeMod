@@ -363,7 +363,7 @@ namespace RevivalMod.Features
         /// </summary>
         public static bool HasDefib(IEnumerable<Item> inRaidItems)
         {
-            foreach(Item item in inRaidItems)
+            foreach (Item item in inRaidItems)
             {
                 if (item.TemplateId == Constants.Constants.ITEM_ID)
                     return true;
@@ -741,7 +741,8 @@ IL_12F:
                 player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
 
                 player.MovementContext.StationaryWeapon?.Unlock(player.ProfileId);
-                if (player.MovementContext.StationaryWeapon != null && player.MovementContext.StationaryWeapon.Item == player.HandsController.Item)
+                if (player.MovementContext.StationaryWeapon is not null && 
+                    player.MovementContext.StationaryWeapon.Item == player.HandsController.Item)
                 {
                     player.MovementContext.StationaryWeapon.Show();
                     player.ReleaseHand();
@@ -985,6 +986,7 @@ IL_12F:
                         continue;
                     
                     var renderers = kvp.Value.GetComponentsInChildren<Renderer>(true);
+                    
                     foreach (var renderer in renderers)
                     {
                         if (renderer is null) 
@@ -1012,6 +1014,7 @@ IL_12F:
                                 continue;
                             
                             var renderers = kvp.Value.GetComponentsInChildren<Renderer>(true);
+                            
                             foreach (var renderer in renderers)
                             {
                                 if (renderer is not null)

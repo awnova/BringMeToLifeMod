@@ -25,12 +25,12 @@ namespace RevivalMod.Patches
                 // Add the interactions to the list. 
                 case BodyInteractable interactable:
                 {
-                    BodyInteractable revive = interactable;
+                    Plugin.LogSource.LogDebug($"BodyInteractable.Revivee is player {interactable.Revivee.ProfileId} and interactor is {owner.Player.ProfileId}");
 
-                    Plugin.LogSource.LogDebug($"BodyInteractable.Revivee is player {revive.Revivee.ProfileId} and interactor is {owner.Player.ProfileId}");
-
-                    ActionsReturnClass newResult = revive.GetActions(owner);
+                    ActionsReturnClass newResult = interactable.GetActions(owner);
+                    
                     __result = newResult;
+                    
                     return false;
                 }
                 default:

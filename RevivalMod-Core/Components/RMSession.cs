@@ -22,30 +22,33 @@ namespace RevivalMod.Components
         {
             get
             {
-                if (_instance == null)
+                if (_instance is not null) 
+                    return _instance;
+                
+                if (!Singleton<GameWorld>.Instantiated)
                 {
-                    if (!Singleton<GameWorld>.Instantiated)
-                    {
-                        Plugin.LogSource.LogError("Can't get ModSession Instance when GameWorld is not instantiated!");
+                    Plugin.LogSource.LogError("Can't get ModSession Instance when GameWorld is not instantiated!");
 
-                        // Create a temporary instance for error resistance
-                        GameObject go = new("RMSessionTemp");
-                        _instance = go.AddComponent<RMSession>();
+                    // Create a temporary instance for error resistance
+                    GameObject go = new("RMSessionTemp");
+                    _instance = go.AddComponent<RMSession>();
 
-                        return _instance;
-                    }
-
-                    try
-                    {
-                        _instance = Singleton<GameWorld>.Instance.MainPlayer.gameObject.GetOrAddComponent<RMSession>();
-                    }
-                    catch (Exception ex)
-                    {
-                        Plugin.LogSource.LogError($"Error creating RMSession: {ex.Message}");
-                        GameObject go = new("RMSessionError");
-                        _instance = go.AddComponent<RMSession>();
-                    }
+                    return _instance;
                 }
+
+                try
+                {
+                    _instance = Singleton<GameWorld>.Instance.MainPlayer.gameObject.GetOrAddComponent<RMSession>();
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogError($"Error creating RMSession: {ex.Message}");
+                    
+                    GameObject go = new("RMSessionError");
+                    
+                    _instance = go.AddComponent<RMSession>();
+                }
+                
                 return _instance;
             }
         }
@@ -54,14 +57,15 @@ namespace RevivalMod.Components
         {
             try
             {
-                if (Singleton<GameWorld>.Instantiated)
+                if (!Singleton<GameWorld>.Instantiated) 
+                    return;
+                
+                GameWorld = Singleton<GameWorld>.Instance;
+                Player = GameWorld.MainPlayer;
+                
+                if (Player is not null)
                 {
-                    GameWorld = Singleton<GameWorld>.Instance;
-                    Player = GameWorld.MainPlayer;
-                    if (Player != null)
-                    {
-                        GamePlayerOwner = Player.gameObject.GetComponent<GamePlayerOwner>();
-                    }
+                    GamePlayerOwner = Player.gameObject.GetComponent<GamePlayerOwner>();
                 }
             }
             catch (Exception ex)
@@ -78,26 +82,30 @@ namespace RevivalMod.Components
                 return;
             }
 
-            if (Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) return;
+            if (Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) 
+                return;
 
             // Allow overwrites for updating item status
             Instance.CriticalPlayers[playerId] = position;
+            
             Plugin.LogSource.LogDebug($"Player {playerId} added to critical players.");
         }
 
         public static void RemovePlayerFromCriticalPlayers(string playerId)
         {
-            if (string.IsNullOrEmpty(playerId)) return;
-
-            if (Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) return;
+            if (string.IsNullOrEmpty(playerId) ||
+                Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) 
+                return;
 
             Instance.CriticalPlayers.Remove(playerId);
+            
             Plugin.LogSource.LogDebug($"Player {playerId} removed from critical players.");
         }
 
         public static Vector3 GetPosition(string playerId)
         {
-            if (string.IsNullOrEmpty(playerId) || Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId)
+            if (string.IsNullOrEmpty(playerId) || 
+                Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId)
                 return Vector3.zero;
 
             return Instance.CriticalPlayers[playerId];
