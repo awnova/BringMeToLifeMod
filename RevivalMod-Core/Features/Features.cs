@@ -48,7 +48,6 @@ namespace RevivalMod.Features
         #endregion
         public static CustomTimer criticalStateMainTimer;
 
-        private static CustomTimer selfRevivalTimer;
         private static float _nextActionTime = 0;
 
         #region Core Patch Implementation
@@ -60,7 +59,7 @@ namespace RevivalMod.Features
         }
 
         [PatchPostfix]
-        static void PatchPostfix(Player __instance)
+        private static void PatchPostfix(Player __instance)
         {
             try
             {
@@ -174,7 +173,7 @@ namespace RevivalMod.Features
 
             // If time runs out, player dies
             // If in hardcore mode, all players are in critical states, everybody dies
-            bool isLastManStanding = false;
+            // bool isLastManStanding = false;
 
             // TODO: need testing
             /* if (RMSession.GetTotalPlayers() == RMSession.GetCriticalPlayers().Count)
@@ -182,7 +181,7 @@ namespace RevivalMod.Features
 
             //Plugin.LogSource.LogDebug("isLastManStanding:" + isLastManStanding);
 
-            if (_playerList[playerId].CriticalTimer <= 0 || (RevivalModSettings.PLAYER_ALIVE.Value && isLastManStanding))
+            if (_playerList[playerId].CriticalTimer <= 0)
             {
                 criticalStateMainTimer?.StopTimer();
                 criticalStateMainTimer = null;
@@ -196,9 +195,7 @@ namespace RevivalMod.Features
 
             // Check for "give up" key press
             if (Input.GetKeyDown(RevivalModSettings.GIVE_UP_KEY.Value))
-            {
                 ForcePlayerDeath(player);
-            }
         }
 
         /// <summary>
@@ -207,6 +204,13 @@ namespace RevivalMod.Features
         private static void CheckForSelfRevival(Player player)
         {
             bool revivalItemCheck = HasDefib(player.Inventory.GetPlayerItems(EPlayerItems.Equipment));
+            GamePlayerOwner owner = player.GetComponentInParent<GamePlayerOwner>();
+
+            if (!revivalItemCheck || 
+                !RevivalModSettings.SELF_REVIVAL_ENABLED.Value) 
+                return;
+            
+            KeyCode revivalKey = RevivalModSettings.SELF_REVIVAL_KEY.Value;
 
             if (!revivalItemCheck || !RevivalModSettings.SELF_REVIVAL_ENABLED.Value) 
                 return;
@@ -235,20 +239,23 @@ namespace RevivalMod.Features
                 if (holdDuration >= requiredDuration)
                 {
                     _selfRevivalKeyHoldDuration.Remove(revivalKey);
-
-                    // Stop timers
-                    selfRevivalTimer?.StopTimer();
+                    
+                    criticalStateMainTimer?.StopTimer();
 
                     TryPerformManualRevival(player);
                 }
             }
 
-            // Reset when key is released
-            if (!Input.GetKeyUp(revivalKey) || !_selfRevivalKeyHoldDuration.ContainsKey(revivalKey))
+            // Continue if key is still being held
+            if (!Input.GetKeyUp(revivalKey) ||
+                !_selfRevivalKeyHoldDuration.ContainsKey(revivalKey))
                 return;
             
-            // Stop timers
-            selfRevivalTimer?.StopTimer();
+            // Close revive timer
+            owner.CloseObjectivesPanel();
+            
+            // Resume critical state timer
+            criticalStateMainTimer?.StartCountdown(RevivalFeatures._playerList[player.ProfileId].CriticalTimer,"Critical State Timer", TimerPosition.MiddleCenter);
 
             NotificationManagerClass.DisplayMessageNotification(
                 "Defibrillator use canceled",
@@ -417,9 +424,7 @@ namespace RevivalMod.Features
                 string message = "CRITICAL CONDITION!\n";
 
                 if (RevivalModSettings.SELF_REVIVAL_ENABLED.Value && HasDefib(player.Inventory.GetPlayerItems(EPlayerItems.Equipment)))
-                {
                     message += $"Hold {RevivalModSettings.SELF_REVIVAL_KEY.Value} for {RevivalModSettings.REVIVAL_HOLD_DURATION.Value}s to use defibrillator\n";
-                }
 
                 message += $"Press {RevivalModSettings.GIVE_UP_KEY.Value} to give up\n";
                 message += $"Or wait for a teammate to revive you ({(int)RevivalModSettings.TIME_TO_REVIVE.Value} seconds)";
@@ -458,7 +463,7 @@ namespace RevivalMod.Features
         /// </summary>
         public static bool TryPerformManualRevival(Player player)
         {
-            if (player == null)
+            if (player is null)
                 return false;
 
             string playerId = player.ProfileId;
@@ -470,10 +475,9 @@ namespace RevivalMod.Features
             if (IsRevivalOnCooldown(playerId))
                 return false;
 
-            if (hasDefib || RevivalModSettings.TESTING.Value)
-            {
+            if (hasDefib || 
+                RevivalModSettings.TESTING.Value)
                 return PerformRevival(player, playerId);
-            }
             
             NotificationManagerClass.DisplayMessageNotification(
                 "No defibrillator found! Unable to revive!",
@@ -493,13 +497,11 @@ namespace RevivalMod.Features
             long currentTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             bool isOnCooldown = (currentTime - lastRevivalTime) < RevivalModSettings.REVIVAL_COOLDOWN.Value;
 
-            if (!isOnCooldown) 
+            if (!isOnCooldown ||
+                RevivalModSettings.TESTING.Value) 
                 return false;
             
             // Only show notification if not in test mode
-            if (RevivalModSettings.TESTING.Value) 
-                return false;
-            
             int remainingCooldown = (int)(RevivalModSettings.REVIVAL_COOLDOWN.Value - (currentTime - lastRevivalTime));
                     
             NotificationManagerClass.DisplayMessageNotification(
@@ -1006,7 +1008,7 @@ IL_12F:
                     isVisible = !isVisible; // Toggle visibility
 
                     // Apply visibility to all renderers in the player model
-                    if (player.PlayerBody != null && player.PlayerBody.BodySkins != null)
+                    if (player.PlayerBody?.BodySkins != null)
                     {
                         foreach (var kvp in player.PlayerBody.BodySkins)
                         {
@@ -1100,7 +1102,6 @@ IL_12F:
                 Plugin.LogSource.LogError($"Error forcing player death: {ex.Message}");
             }
         }
-
         #endregion
     }
 }
