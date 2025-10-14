@@ -227,7 +227,7 @@ namespace RevivalMod.FikaModule.Common
             else
             {
                 NotificationManagerClass.DisplayMessageNotification(
-                        $"Succesfully revived your teammate!",
+                        $"Successfully revived your teammate!",
                         ENotificationDurationType.Long,
                         ENotificationIconType.Friend,
                         Color.green);

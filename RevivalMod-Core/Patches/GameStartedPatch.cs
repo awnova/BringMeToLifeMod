@@ -17,7 +17,7 @@ namespace RevivalMod.Patches
         }
 
         [PatchPostfix]
-        static void PatchPostfix()
+        private static void PatchPostfix()
         {
             try
             {
@@ -33,7 +33,7 @@ namespace RevivalMod.Patches
                 // Initialize player client directly
                 Player playerClient = Singleton<GameWorld>.Instance.MainPlayer;
 
-                if (playerClient == null)
+                if (playerClient is null)
                 {
                     Plugin.LogSource.LogError("MainPlayer is null");
                     return;
@@ -41,18 +41,18 @@ namespace RevivalMod.Patches
 
                 RevivalFeatures._playerList[playerClient.ProfileId] = new RMPlayer();
 
-                // Enable interactables
-                Plugin.LogSource.LogDebug("Enabling body interactables");
+                // Enable interactable
+                Plugin.LogSource.LogDebug("Enabling body interactable");
 
                 foreach (GameObject interact in Resources.FindObjectsOfTypeAll<GameObject>())
                 {
-                    if (interact.name.Contains("Body Interactable"))
-                    {
-                        Plugin.LogSource.LogDebug($"Found interactable: {interact.name}");
+                    if (!interact.name.Contains("Body Interactable")) 
+                        continue;
                     
-                        interact.layer = LayerMask.NameToLayer("Interactive");
-                        interact.GetComponent<BoxCollider>().enabled = true;
-                    }
+                    Plugin.LogSource.LogDebug($"Found interactable: {interact.name}");
+                    
+                    interact.layer = LayerMask.NameToLayer("Interactive");
+                    interact.GetComponent<BoxCollider>().enabled = true;
                 }
             }
             catch (Exception ex)

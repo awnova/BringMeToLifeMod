@@ -117,15 +117,13 @@ namespace RevivalMod.Helpers
         /// </summary>
         public TimeSpan GetTimeSpan()
         {
-            if (isCountdown)
-            {
-                TimeSpan remaining = targetEndTime - DateTime.UtcNow;
-                return remaining.TotalSeconds > 0 ? remaining : TimeSpan.Zero;
-            }
-            else
-            {
+            if (!isCountdown) 
                 return DateTime.UtcNow - startTime;
-            }
+            
+            TimeSpan remaining = targetEndTime - DateTime.UtcNow;
+
+            return remaining.TotalSeconds > 0 ? remaining : TimeSpan.Zero;
+
         }
 
         /// <summary>
@@ -138,7 +136,7 @@ namespace RevivalMod.Helpers
             if (isCountdown && timeSpan.TotalSeconds <= 0)
                 return "00:00:000";
 
-            return string.Format("{0:00}:{1:00}:{2:000}", (int)timeSpan.TotalMinutes, timeSpan.Seconds, timeSpan.Milliseconds);
+            return $"{(int)timeSpan.TotalMinutes:00}:{timeSpan.Seconds:00}:{timeSpan.Milliseconds:000}";
         }
 
         /// <summary>
@@ -152,9 +150,12 @@ namespace RevivalMod.Helpers
 
                 RectTransform panel = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.transform.GetChild(0) as RectTransform;
 
-                panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-                panel.sizeDelta = new Vector2(318, 51);
-                panel.GetComponent<Image>().color = Color.red;
+                if (panel is not null)
+                {
+                    panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                    panel.sizeDelta = new Vector2(318, 51);
+                    panel.GetComponent<Image>().color = Color.red;
+                }
 
                 titleText = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.GetComponentInChildren<TextMeshProUGUI>();
 
