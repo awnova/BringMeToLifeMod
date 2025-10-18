@@ -251,6 +251,7 @@ namespace RevivalMod.Features
                     if (!RevivalModSettings.TESTING.Value)
                     {
                         // Reset hands controller otherwise can't remove item
+                        // Known issue: having no weapon or melee weapon can cause same bug
                         foreach (Item item in player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
                         {
                             if (item is null ||
@@ -305,6 +306,12 @@ namespace RevivalMod.Features
         public static bool IsPlayerInvulnerable(string playerId)
         {
             return _playerList[playerId].IsInvulnerable;
+        }
+
+        private static void RemovePlayerFromCriticalState(string playerId)
+        {
+            RMSession.RemovePlayerFromCriticalPlayers(playerId);
+            FikaBridge.SendRemovePlayerFromCriticalPlayersListPacket(playerId);
         }
 
         /// <summary>
@@ -492,8 +499,7 @@ namespace RevivalMod.Features
             string playerId = player.ProfileId;
             
             // Remove from critical players list for multiplayer sync
-            RMSession.RemovePlayerFromCriticalPlayers(player.ProfileId);
-            FikaBridge.SendRemovePlayerFromCriticalPlayersListPacket(player.ProfileId);
+            RemovePlayerFromCriticalState(playerId);
             
             // Apply revival effects with limited healing
             ApplyRevivalEffects(player);
@@ -560,9 +566,8 @@ namespace RevivalMod.Features
                 if (!RevivalModSettings.TESTING.Value)
                     ConsumeDefibItem(player, GetDefib(player.Inventory.GetPlayerItems(EPlayerItems.Equipment)));
 
-                RMSession.RemovePlayerFromCriticalPlayers(targetPlayerId);
-
-                FikaBridge.SendRemovePlayerFromCriticalPlayersListPacket(targetPlayerId);
+                RemovePlayerFromCriticalState(targetPlayerId);
+                
                 FikaBridge.SendReviveMePacket(targetPlayerId, player.ProfileId);
 
                 return true;
@@ -794,6 +799,7 @@ namespace RevivalMod.Features
                     
                     foreach (EBodyPart bodyPart in Enum.GetValues(typeof(EBodyPart)))
                     {  
+                        // Only heal head and chest
                         if (bodyPart is EBodyPart.Common ||
                             (bodyPart is not EBodyPart.Head && bodyPart is not EBodyPart.Chest))
                             continue;
@@ -869,7 +875,7 @@ namespace RevivalMod.Features
             string playerId = player.ProfileId;
 
             _playerList[playerId].IsInvulnerable = true;
-            _playerList[playerId].InvulnerabilityTimer = 0.1f;
+            _playerList[playerId].InvulnerabilityTimer = 3f;
 
             // Start visual effect
             player.StartCoroutine(FlashInvulnerabilityEffect(player));
@@ -1026,13 +1032,12 @@ namespace RevivalMod.Features
                 // Stop countdown timer
                 criticalStateMainTimer?.StopTimer();
                 criticalStateMainTimer = null;
-
+                
+                RemovePlayerFromCriticalState(playerId);
+                
                 // Use original Kill method, bypassing our patch
                 player.ActiveHealthController.IsAlive = true;
                 player.ActiveHealthController.Kill(damageType);
-
-                RMSession.RemovePlayerFromCriticalPlayers(playerId);
-                FikaBridge.SendRemovePlayerFromCriticalPlayersListPacket(playerId);
 
                 Plugin.LogSource.LogInfo($"Player {playerId} has died after critical state");
             }
