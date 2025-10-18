@@ -13,12 +13,12 @@ namespace RevivalMod
 {
     // first string below is your plugin's GUID, it MUST be unique to any other mod. Read more about it in BepInEx docs. Be sure to update it if you copy this project.
     [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
-    [BepInPlugin("com.kobethuy.BringMeToLife", "BringMeToLife", "1.0.0")]
+    [BepInPlugin("com.kobethuy.BringMeToLifeMod", "BringMeToLifeMod", "1.0.0")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource LogSource;
-
-        private static bool FikaInstalled { get; set; }
+        
+        public static bool FikaInstalled { get; private set; }
         public static bool IAmDedicatedClient { get; private set; }
 
         // BaseUnityPlugin inherits MonoBehaviour, so you can use base unity functions like Awake() and Update()
@@ -50,12 +50,12 @@ namespace RevivalMod
 
         void TryInitFikaAssembly()
         {
-            if (!FikaInstalled) 
-                return;
+            if (!FikaInstalled) return;
 
             try
             {
                 Assembly fikaModuleAssembly = Assembly.Load("RevivalMod-Fika");
+
                 Type main = fikaModuleAssembly.GetType("RevivalMod.FikaModule.Main");
                 MethodInfo init = main.GetMethod("Init");
 

@@ -137,6 +137,10 @@
       <HintPath>D:\ref\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Fika.Core">
+      <HintPath>D:\ref\Fika.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Components\InteractableBuilder.cs" />

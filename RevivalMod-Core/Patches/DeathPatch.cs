@@ -26,14 +26,9 @@ namespace RevivalMod.Patches
                 // Get the Player field
                 FieldInfo playerField = AccessTools.Field(typeof(ActiveHealthController), "Player");
                 
-                if (playerField == null) 
+                if (playerField?.GetValue(__instance) is not Player player || 
+                    player.IsAI) 
                     return true;
-
-                // Get the Player instance
-                Player player = playerField.GetValue(__instance) as Player;
-
-                // Skip if player is null and is AI
-                if (player == null || player.IsAI) return true;
 
                 string playerId = player.ProfileId;
 
@@ -62,6 +57,7 @@ namespace RevivalMod.Patches
                         __instance.GetBodyPartHealth(EBodyPart.Head, true).Current < 1 &&
                         damageType == EDamageType.Bullet)
                     {
+
                         // Handle random chance of critical state.
                         float randomNumber = UnityEngine.Random.Range(0f, 100f);
 

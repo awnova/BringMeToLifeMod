@@ -94,7 +94,7 @@ namespace RevivalMod.FikaModule.Common
             }
         }
 
-        public static void SendRevivedPacket(string reviverId, NetPeer peer)
+        public static void SendReviveSucceedPacket(string reviverId, NetPeer peer)
         {
             RevivedPacket packet = new()
             {
@@ -210,19 +210,20 @@ namespace RevivalMod.FikaModule.Common
             else
             {
                 bool revived = RevivalFeatures.TryPerformRevivalByTeammate(packet.reviveeId);
-                if (revived)
-                {
-                    SendRevivedPacket(packet.reviverId, peer);
-                    Singleton<GameUI>.Instance.BattleUiPanelExtraction.Close();
-                }
+                
+                if (!revived) 
+                    return;
+                
+                SendReviveSucceedPacket(packet.reviverId, peer);
+                Singleton<GameUI>.Instance.BattleUiPanelExtraction.Close();
             }
         }
 
-        private static void OnRevivedPacketReceived(RevivedPacket packet, NetPeer peer)
+        private static void OnReviveSucceedPacketReceived(RevivedPacket packet, NetPeer peer)
         {
             if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
             {
-                SendRevivedPacket(packet.reviverId, peer);
+                SendReviveSucceedPacket(packet.reviverId, peer);
             }
             else
             {
@@ -281,7 +282,7 @@ namespace RevivalMod.FikaModule.Common
             managerCreatedEvent.Manager.RegisterPacket<PlayerPositionPacket, NetPeer>(OnPlayerPositionPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<RemovePlayerFromCriticalPlayersListPacket, NetPeer>(OnRemovePlayerFromCriticalPlayersListPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<ReviveMePacket, NetPeer>(OnReviveMePacketReceived);
-            managerCreatedEvent.Manager.RegisterPacket<RevivedPacket, NetPeer>(OnRevivedPacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<RevivedPacket, NetPeer>(OnReviveSucceedPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<ReviveStartedPacket, NetPeer>(OnReviveStartedPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<ReviveCanceledPacket, NetPeer>(OnReviveCanceledPacketReceived);
         }

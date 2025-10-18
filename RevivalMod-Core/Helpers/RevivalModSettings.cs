@@ -17,7 +17,7 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<float> TEAM_REVIVAL_HOLD_DURATION;
         public static ConfigEntry<float> REVIVAL_DURATION;
         public static ConfigEntry<float> REVIVAL_COOLDOWN;
-        public static ConfigEntry<float> TIME_TO_REVIVE;
+        public static ConfigEntry<float> CRITICAL_STATE_TIME;
         public static ConfigEntry<bool> RESTORE_DESTROYED_BODY_PARTS;
         public static ConfigEntry<float> RESTORE_DESTROYED_BODY_PARTS_AMOUNT;
         public static ConfigEntry<bool> CONTUSION_EFFECT;
@@ -80,7 +80,7 @@ namespace RevivalMod.Helpers
                 "How many seconds you need to hold the Team Revival Key to revive a teammate"
             );
 
-            TIME_TO_REVIVE = config.Bind(
+            CRITICAL_STATE_TIME = config.Bind(
                 "2. Revival Mechanics",
                 "Critical State Duration",
                 180f,

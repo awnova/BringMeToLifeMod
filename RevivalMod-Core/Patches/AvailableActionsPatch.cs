@@ -16,26 +16,16 @@ namespace RevivalMod.Patches
         [PatchPrefix]
         private static bool PatchPrefix(GamePlayerOwner owner, GInterface150 interactive, ref ActionsReturnClass __result)
         {
+            // Add the interactions to the list. 
+            if (interactive is not BodyInteractable revive) 
+                return true;
+            
+            Plugin.LogSource.LogDebug($"BodyInteractable.Revivee is player {revive.Revivee.ProfileId} and interactor is {owner.Player.ProfileId}");
 
-            switch (interactive)
-            {
-                case null:
-                    return true; // Proceed with original method if no interactive object
-                
-                // Add the interactions to the list. 
-                case BodyInteractable interactable:
-                {
-                    Plugin.LogSource.LogDebug($"BodyInteractable.Revivee is player {interactable.Revivee.ProfileId} and interactor is {owner.Player.ProfileId}");
+            ActionsReturnClass newResult = revive.GetActions(owner);
+            __result = newResult;
+            return false;
 
-                    ActionsReturnClass newResult = interactable.GetActions(owner);
-                    
-                    __result = newResult;
-                    
-                    return false;
-                }
-                default:
-                    return true;
-            }
         }
     }
 }

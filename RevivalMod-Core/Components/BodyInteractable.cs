@@ -1,10 +1,10 @@
-using System;
 using EFT;
 using EFT.Interactive;
 using EFT.InventoryLogic;
+using System;
+using RevivalMod.Helpers;
 using RevivalMod.Features;
 using RevivalMod.Fika;
-using RevivalMod.Helpers;
 
 namespace RevivalMod.Components
 {
@@ -40,13 +40,9 @@ namespace RevivalMod.Components
                 ReviveCompleteHandler actionCompleteHandler = new()
                 {
                     owner = owner,
-                    bodyInteractable = this,
                     targetId = Revivee.ProfileId
                 };
-
-                // Stop timer
-                //RevivalFeatures.criticalStateMainTimer.StopTimer();
-
+                
                 Action<bool> action = new(actionCompleteHandler.Complete);
 
                 currentManagedState.Plant(true, false, reviveTime, action);
@@ -63,8 +59,8 @@ namespace RevivalMod.Components
         {
             
             bool hasDefib = RevivalFeatures.HasDefib(owner.Player.Inventory.GetPlayerItems(EPlayerItems.Equipment));        
-            bool playerCritState = RevivalFeatures._playerList[owner.Player.ProfileId].IsCritical;
-            bool reviveButtonEnabled = playerCritState && (hasDefib || RevivalModSettings.TESTING.Value);
+            bool playerCritState = RMSession.GetCriticalPlayers().TryGetValue(Revivee.ProfileId, out _);
+            bool reviveButtonEnabled = playerCritState && hasDefib;
 
             ActionsReturnClass actionsReturnClass = new();
 
@@ -80,10 +76,9 @@ namespace RevivalMod.Components
             return actionsReturnClass;
         }
 
-        private class ReviveCompleteHandler
+        internal class ReviveCompleteHandler
         {
             public GamePlayerOwner owner;
-            public BodyInteractable bodyInteractable;
             public string targetId;
 
             public void Complete(bool result)
