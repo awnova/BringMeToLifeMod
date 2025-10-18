@@ -717,9 +717,9 @@ namespace RevivalMod.Features
                     }
                 }
                 
-                //player.MovementContext.ReleaseDoorIfInteractingWithOne();
-                //player.MovementContext.OnStateChanged -= player.method_17;
-                //player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
+                player.MovementContext.ReleaseDoorIfInteractingWithOne();
+                player.MovementContext.OnStateChanged -= player.method_17;
+                player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
 
                 player.MovementContext.StationaryWeapon?.Unlock(player.ProfileId);
                 
