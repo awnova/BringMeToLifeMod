@@ -1,5 +1,19 @@
-RevivalMod-Server/build
-RevivalMod-Server/node_modules
-RevivalMod-Server/types
-.vs
-.git
+# Build outputs
+RevivalMod-Core/bin/
+RevivalMod-Core/obj/
+RevivalMod-Fika/bin/
+RevivalMod-Fika/obj/
+RevivalMod-Server/build/
+RevivalMod-Server/node_modules/
+RevivalMod-Server/types/
+
+# IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+
+# Build configuration and scripts with local paths - DO NOT COMMIT
+build-config.json
+build.ps1

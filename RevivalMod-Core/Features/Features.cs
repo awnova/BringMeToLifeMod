@@ -68,8 +68,11 @@ namespace RevivalMod.Features
                 PlayerClient = __instance;
 
                 // Only process for the local player
-                if (!PlayerClient.IsYourPlayer || 
-                    !_playerList.ContainsKey(playerId))
+                if (!PlayerClient.IsYourPlayer)
+                    return;
+
+                // Only process revival states if player is in the player list (critical state)
+                if (!_playerList.ContainsKey(playerId))
                     return;
 
                 // Process player states
@@ -167,11 +170,15 @@ namespace RevivalMod.Features
                 Plugin.LogSource.LogError("player.MovementContext is null!");
             }
 
-            if (criticalStateMainTimer.IsRunning)
-                _playerList[playerId].CriticalTimer -= Time.deltaTime;
-
             // Update the main critical state timer
             criticalStateMainTimer?.Update();
+            
+            // Sync the internal timer with the CustomTimer
+            if (criticalStateMainTimer != null && criticalStateMainTimer.IsRunning)
+            {
+                TimeSpan remaining = criticalStateMainTimer.GetTimeSpan();
+                _playerList[playerId].CriticalTimer = (float)remaining.TotalSeconds;
+            }
 
             // Check for give up key or timer runs out
             if (_playerList[playerId].CriticalTimer <= 0 ||
@@ -286,7 +293,9 @@ namespace RevivalMod.Features
                 Color.red);
 
             _selfRevivalKeyHoldDuration.Remove(revivalKey);
-        } 
+        }
+
+
 
         #endregion
 
@@ -623,12 +632,13 @@ namespace RevivalMod.Features
                 if (_playerList[playerId].OriginalMovementSpeed < 0)
                     _playerList[playerId].OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
 
-                // Apply visual and movement effects
+                // Apply visual and movement effects for entire critical state duration
                 if (RevivalModSettings.CONTUSION_EFFECT.Value)
-                    player.ActiveHealthController.DoContusion(RevivalModSettings.REVIVAL_DURATION.Value, 1f);
+                    player.ActiveHealthController.DoContusion(RevivalModSettings.CRITICAL_STATE_TIME.Value, 1f);
                 
                 if (RevivalModSettings.STUN_EFFECT.Value)
-                    player.ActiveHealthController.DoStun(RevivalModSettings.REVIVAL_DURATION.Value / 2, 1f);
+                    // Cap stun effect at 30 seconds, but allow shorter duration if critical state time is less than 30
+                    player.ActiveHealthController.DoStun(Math.Min(RevivalModSettings.CRITICAL_STATE_TIME.Value, 30f), 1f);
 
                 // Severely restrict movement
                 player.Physical.WalkSpeedLimit = MOVEMENT_SPEED_MULTIPLIER;
@@ -853,8 +863,7 @@ namespace RevivalMod.Features
                 if (RevivalModSettings.CONTUSION_EFFECT.Value)
                     healthController.DoContusion(RevivalModSettings.REVIVAL_DURATION.Value, 1f);
                     
-                if (RevivalModSettings.STUN_EFFECT.Value) 
-                    healthController.DoStun(RevivalModSettings.REVIVAL_DURATION.Value / 2, 1f);
+                // Note: Stun effect removed from revival - only applies during critical state
 
                 Plugin.LogSource.LogInfo("Applied revival effects to player");
             }
@@ -875,7 +884,7 @@ namespace RevivalMod.Features
             string playerId = player.ProfileId;
 
             _playerList[playerId].IsInvulnerable = true;
-            _playerList[playerId].InvulnerabilityTimer = 3f;
+            _playerList[playerId].InvulnerabilityTimer = RevivalModSettings.REVIVAL_DURATION.Value;
 
             // Start visual effect
             player.StartCoroutine(FlashInvulnerabilityEffect(player));
