@@ -22,3 +22,6 @@ RevivalMod-Server/types/
 # Build configuration and scripts with local paths - DO NOT COMMIT
 build-config.json
 build.ps1
+
+# Local dependency copies (do not commit)
+RevivalMod-Core/lib/

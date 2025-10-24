@@ -66,30 +66,30 @@
       <Private>false</Private>
     </Reference>
     <Reference Include="spt-common">
-      <HintPath>$(MSBuildThisFileDirectory)lib\spt-common.dll</HintPath>
+      <HintPath>$(SPT_SOURCE_PATH)\$(SPT_REFERENCE_SUBPATH)\spt-common.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="spt-reflection">
-      <HintPath>$(MSBuildThisFileDirectory)lib\spt-reflection.dll</HintPath>
+      <HintPath>$(SPT_SOURCE_PATH)\$(SPT_REFERENCE_SUBPATH)\spt-reflection.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Comfort">
-      <HintPath>$(MSBuildThisFileDirectory)lib\Comfort.dll</HintPath>
+      <HintPath>$(SPT_SOURCE_PATH)\$(SPT_REFERENCE_SUBPATH)\Comfort.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Comfort.Unity, Version=1.0.0.4, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(MSBuildThisFileDirectory)lib\Comfort.Unity.dll</HintPath>
+      <HintPath>$(SPT_SOURCE_PATH)\$(SPT_REFERENCE_SUBPATH)\Comfort.Unity.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(MSBuildThisFileDirectory)lib\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(SPT_SOURCE_PATH)\$(SPT_REFERENCE_SUBPATH)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Sirenix.Serialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(MSBuildThisFileDirectory)lib\Sirenix.Serialization.dll</HintPath>
+      <HintPath>$(SPT_SOURCE_PATH)\$(SPT_REFERENCE_SUBPATH)\Sirenix.Serialization.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="System" />
