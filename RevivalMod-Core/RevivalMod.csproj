@@ -156,6 +156,7 @@
     <Compile Include="Patches\DeathPatch.cs" />
     <Compile Include="Patches\OnPlayerCreatedPatch.cs" />
     <Compile Include="Patches\AvailableActionsPatch.cs" />
+    <Compile Include="Patches\GhostModeEnemyListPatch.cs" />
     <Compile Include="Features\Features.cs" />
     <Compile Include="Helpers\Utils.cs" />
     <Compile Include="Patches\GameStartedPatch.cs" />

@@ -92,6 +92,28 @@ namespace RevivalMod.Patches
                 // At this point, we want the player to enter critical state
                 RevivalFeatures.SetPlayerCriticalState(player, true, damageType);
 
+                // Manually send Fika sync packet with IsAlive = false
+                // This tells other clients/host that we're "dead" so their AI ignores us
+                // But locally we keep IsAlive = true so movement/controls work
+                if (RevivalModSettings.PLAYER_ALIVE.Value)
+                {
+                    NetworkHealthSyncPacketStruct packet = new()
+                    {
+                        SyncType = NetworkHealthSyncPacketStruct.ESyncType.IsAlive,
+                        Data = new()
+                        {
+                            IsAlive = new()
+                            {
+                                IsAlive = false,
+                                DamageType = damageType
+                            }
+                        }
+                    };
+                    
+                    __instance.SendNetworkSyncPacket(packet);
+                    Plugin.LogSource.LogDebug($"Sent IsAlive=false sync packet for ghost mode");
+                }
+
                 // Block the kill completely
                 return false;
             }

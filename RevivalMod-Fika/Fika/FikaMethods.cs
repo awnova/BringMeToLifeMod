@@ -178,6 +178,20 @@ namespace RevivalMod.FikaModule.Common
             else
             {
                 RMSession.AddToCriticalPlayers(packet.playerId, packet.position);
+
+                // If this process actually runs AI, also apply ghost-mode removal locally
+                try
+                {
+                    var bots = UnityEngine.Object.FindObjectsOfType<BotOwner>();
+                    if (bots != null && bots.Length > 0)
+                    {
+                        RevivalMod.Patches.GhostModeEnemyManager.EnterGhostModeById(packet.playerId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogError(ex);
+                }
             }
         }
         
@@ -190,6 +204,20 @@ namespace RevivalMod.FikaModule.Common
             else
             {
                 RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
+
+                // If this process runs AI, restore the player in the local enemy lists
+                try
+                {
+                    var bots = UnityEngine.Object.FindObjectsOfType<BotOwner>();
+                    if (bots != null && bots.Length > 0)
+                    {
+                        RevivalMod.Patches.GhostModeEnemyManager.ExitGhostModeById(packet.playerId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogError(ex);
+                }
             }
         }
         

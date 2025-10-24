@@ -166,7 +166,7 @@ namespace RevivalMod.Helpers
                 "3. Ghost/God Mode",
                 "Enable Ghost Mode",
                 false,
-                "Makes players not targetable by AI BUT will not be able to move or look around"
+                "Makes players not targetable by AI while in critical state."
             );
 
             GOD_MODE = config.Bind(

@@ -43,6 +43,11 @@ namespace RevivalMod
             new GameStartedPatch().Enable();
             new DeathPatch().Enable();
             new AvailableActionsPatch().Enable();
+            
+            // Enable new ghost mode system (enemy list manipulation)
+            new GhostModeCriticalStatePatch().Enable();
+            new GhostModeRevivalPatch().Enable();
+            new GhostModeDeathPatch().Enable();
 
             TryInitFikaAssembly();
         }

@@ -13,7 +13,7 @@ using Comfort.Common;
 using RevivalMod.Helpers;
 using RevivalMod.Fika;
 using RevivalMod.Components;
-using Fika.Core.Coop.Players;
+using RevivalMod.Patches;
 
 namespace RevivalMod.Features
 {
@@ -220,6 +220,62 @@ namespace RevivalMod.Features
                 if (Input.GetKeyDown(KeyCode.F4))
                 {
                     MedicalAnimations.PlaySurgicalAnimation(player, MedicalAnimations.SurgicalItemType.CMS);
+                }
+
+                // F7 = remove local player from AI enemy lists (enter ghost mode) - test
+                if (Input.GetKeyDown(KeyCode.F7))
+                {
+                    try
+                    {
+                        if (player != null && player.IsYourPlayer)
+                        {
+                            // Use id-based helper so local testing and networked behavior share the same path
+                            GhostModeEnemyManager.EnterGhostModeById(player.ProfileId);
+                            Plugin.LogSource.LogInfo("GhostMode test: F7 pressed - EnterGhostMode called");
+                            NotificationManagerClass.DisplayMessageNotification(
+                                "GhostMode: Entered ghost mode (F7)",
+                                ENotificationDurationType.Default,
+                                ENotificationIconType.Default,
+                                Color.cyan);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Plugin.LogSource.LogError($"GhostMode test F7 error: {ex.Message}");
+                        NotificationManagerClass.DisplayMessageNotification(
+                            $"GhostMode F7 error: {ex.Message}",
+                            ENotificationDurationType.Default,
+                            ENotificationIconType.Alert,
+                            Color.red);
+                    }
+                }
+
+                // F8 = re-add local player to AI enemy lists (exit ghost mode) - test
+                if (Input.GetKeyDown(KeyCode.F8))
+                {
+                    try
+                    {
+                        if (player != null && player.IsYourPlayer)
+                        {
+                            // Use id-based helper so local testing and networked behavior share the same path
+                            GhostModeEnemyManager.ExitGhostModeById(player.ProfileId);
+                            Plugin.LogSource.LogInfo("GhostMode test: F8 pressed - ExitGhostMode called");
+                            NotificationManagerClass.DisplayMessageNotification(
+                                "GhostMode: Exited ghost mode (F8)",
+                                ENotificationDurationType.Default,
+                                ENotificationIconType.Default,
+                                Color.cyan);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Plugin.LogSource.LogError($"GhostMode test F8 error: {ex.Message}");
+                        NotificationManagerClass.DisplayMessageNotification(
+                            $"GhostMode F8 error: {ex.Message}",
+                            ENotificationDurationType.Default,
+                            ENotificationIconType.Alert,
+                            Color.red);
+                    }
                 }
             }
             catch (Exception ex)
@@ -627,10 +683,7 @@ namespace RevivalMod.Features
         {
             try
             {
-                if (player is not CoopPlayer coopPlayer)
-                    return;
-                
-                InventoryController inventoryController = coopPlayer.InventoryController;
+                InventoryController inventoryController = player.InventoryController;
                 GStruct454 discardResult = InteractionsHandlerClass.Discard(defibItem, inventoryController, true);
 
                 if (discardResult.Failed)
@@ -737,14 +790,11 @@ namespace RevivalMod.Features
                 player.SetEmptyHands(null);
                 //player.Transform.rotation = Quaternion.Euler(0f, player.Transform.eulerAngles.y, 180f);
 
-                // Make player invisible to AI and mark as dead
-                // But for hardcore mode, we want them to still be targetable ?
+                // Keep IsAlive = true so player controls/movement work
+                // For Ghost Mode, we remove players from AI enemy lists via GhostModeEnemyListPatch instead
                 player.ActiveHealthController.IsAlive = true;
-
-                // Enable God mode
-                if (RevivalModSettings.PLAYER_ALIVE.Value)
-                    player.ActiveHealthController.IsAlive = false;
                 
+                // Enable God mode
                 if (RevivalModSettings.GOD_MODE.Value)
                     player.ActiveHealthController.SetDamageCoeff(0);
 

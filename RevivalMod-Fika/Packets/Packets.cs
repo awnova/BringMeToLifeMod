@@ -137,4 +137,23 @@ namespace RevivalMod.FikaModule.Packets
         }
     }
 
+    // Packet to request the host that runs AI to toggle ghost mode for a player
+    public struct GhostModeTogglePacket : INetSerializable
+    {
+        public string playerId;
+        public bool enterGhostMode;
+
+        public void Deserialize(NetDataReader reader)
+        {
+            playerId = reader.GetString();
+            enterGhostMode = reader.GetBool();
+        }
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(playerId ?? string.Empty);
+            writer.Put(enterGhostMode);
+        }
+    }
+
 }
