@@ -10,6 +10,7 @@ namespace RevivalMod.Helpers
         // Key Bindings
         public static ConfigEntry<KeyCode> SELF_REVIVAL_KEY;
         public static ConfigEntry<KeyCode> GIVE_UP_KEY;
+        public static ConfigEntry<KeyCode> SURVKIT_TEST_KEY;
 
         // Revival Mechanics
         public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
@@ -53,6 +54,13 @@ namespace RevivalMod.Helpers
                 "Give Up Key",
                 KeyCode.Backspace,
                 "Press this key when in critical state to die immediately"
+            );
+
+            SURVKIT_TEST_KEY = config.Bind(
+                "1. Key Bindings",
+                "SurvKit Animation Test Key",
+                KeyCode.F4,
+                "Press this key to trigger SurvKit animation test (bypasses inventory check)"
             );
 
             #endregion

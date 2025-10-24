@@ -8,6 +8,7 @@ using RevivalMod.Patches;
 using RevivalMod.Helpers;
 using System.Reflection;
 using RevivalMod.Components;
+using UnityEngine;
 
 namespace RevivalMod
 {
@@ -17,6 +18,7 @@ namespace RevivalMod
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource LogSource;
+        public static MonoBehaviour StaticCoroutineRunner;
         
         public static bool FikaInstalled { get; private set; }
         public static bool IAmDedicatedClient { get; private set; }
@@ -29,17 +31,19 @@ namespace RevivalMod
 
             // save the Logger to variable so we can use it elsewhere in the project
             LogSource = Logger;
+            
+            // Set up coroutine runner for async cleanup operations
+            StaticCoroutineRunner = this;
             LogSource.LogInfo("Revival plugin loaded!");
             RevivalModSettings.Init(Config);
 
-            // Enable patches
+            // Enable core revival system patches
             new RevivalFeatures().Enable();
             new OnPlayerCreatedPatch().Enable();
             new GameStartedPatch().Enable();
             new DeathPatch().Enable();
             new AvailableActionsPatch().Enable();
 
-            LogSource.LogInfo("Revival plugin initialized! Press F5 to use your defibrillator when in critical state.");
             TryInitFikaAssembly();
         }
 

@@ -151,6 +151,7 @@
     <Compile Include="Constants\Constants.cs" />
     <Compile Include="Fika\FikaBridge.cs" />
     <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
+    <Compile Include="Helpers\MedicalAnimations.cs" />
     <Compile Include="Helpers\RevivalModSettings.cs" />
     <Compile Include="Patches\DeathPatch.cs" />
     <Compile Include="Patches\OnPlayerCreatedPatch.cs" />
@@ -158,6 +159,7 @@
     <Compile Include="Features\Features.cs" />
     <Compile Include="Helpers\Utils.cs" />
     <Compile Include="Patches\GameStartedPatch.cs" />
+    <Compile Include="Patches\TestKeybinds.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

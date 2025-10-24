@@ -71,6 +71,9 @@ namespace RevivalMod.Features
                 if (!PlayerClient.IsYourPlayer)
                     return;
 
+                // Test keybinds for surgical animations (F3 = SurvKit, F4 = CMS)
+                CheckTestKeybinds(__instance);
+
                 // Only process revival states if player is in the player list (critical state)
                 if (!_playerList.ContainsKey(playerId))
                     return;
@@ -194,6 +197,35 @@ namespace RevivalMod.Features
 
             // Check for self-revival if player has the item
             CheckForSelfRevival(player);
+        }
+
+        /// <summary>
+        /// Checks for test keybinds to trigger surgical animations (only active when TESTING mode is enabled)
+        /// </summary>
+        private static void CheckTestKeybinds(Player player)
+        {
+            // Only enable test keybinds when TESTING mode is active
+            if (!RevivalModSettings.TESTING.Value)
+                return;
+
+            try
+            {
+                // F3 = SurvKit animation
+                if (Input.GetKeyDown(KeyCode.F3))
+                {
+                    MedicalAnimations.PlaySurgicalAnimation(player, MedicalAnimations.SurgicalItemType.SurvKit);
+                }
+
+                // F4 = CMS animation
+                if (Input.GetKeyDown(KeyCode.F4))
+                {
+                    MedicalAnimations.PlaySurgicalAnimation(player, MedicalAnimations.SurgicalItemType.CMS);
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[TestKeybinds] Error: {ex.Message}");
+            }
         }
 
         /// <summary>
