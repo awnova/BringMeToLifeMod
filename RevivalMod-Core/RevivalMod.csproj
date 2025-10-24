@@ -6,6 +6,14 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{9076ADE2-F4EE-4B5D-B9A6-29A054CF0A7E}</ProjectGuid>
     <OutputType>Library</OutputType>
+    <!-- User-specific SPT paths: adjust these if your installation differs -->
+    <SPT_INSTALL_PATH Condition=" '$(SPT_INSTALL_PATH)' == '' ">C:\\Program Files\\EEFT Launcher\\SPT</SPT_INSTALL_PATH>
+    <SPT_SOURCE_PATH Condition=" '$(SPT_SOURCE_PATH)' == '' ">C:\\Users\\awnov\\Downloads\\sptsorce 3.11.4</SPT_SOURCE_PATH>
+  <!-- If the Fika references folder exists in the SPT source, use it for referenced DLLs -->
+  <SPT_REFERENCE_SUBPATH Condition="Exists('$(SPT_SOURCE_PATH)\\Fika-Headless-1.3.7\\References')">Fika-Headless-1.3.7\References</SPT_REFERENCE_SUBPATH>
+  <SPT_REFERENCE_SUBPATH Condition=" '$(SPT_REFERENCE_SUBPATH)' == '' and Exists('$(SPT_SOURCE_PATH)\\Fika-Plugin-1.2.8\\References')">Fika-Plugin-1.2.8\References</SPT_REFERENCE_SUBPATH>
+  <!-- Default to root of SPT_SOURCE_PATH if no references subfolder is found -->
+  <SPT_REFERENCE_SUBPATH Condition=" '$(SPT_REFERENCE_SUBPATH)' == '' ">.</SPT_REFERENCE_SUBPATH>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>RevivalMod</RootNamespace>
     <AssemblyName>RevivalMod</AssemblyName>
@@ -53,35 +61,35 @@
       <HintPath>$(SPT_INSTALL_PATH)\BepInEx\core\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="spt-common">
-      <HintPath>$(SPT_SOURCE_PATH)\spt-common.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="spt-reflection">
-      <HintPath>$(SPT_SOURCE_PATH)\spt-reflection.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
     <Reference Include="BepInEx">
       <HintPath>$(SPT_INSTALL_PATH)\BepInEx\core\BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="spt-common">
+      <HintPath>$(MSBuildThisFileDirectory)lib\spt-common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="spt-reflection">
+      <HintPath>$(MSBuildThisFileDirectory)lib\spt-reflection.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Comfort">
-      <HintPath>$(SPT_SOURCE_PATH)\Comfort.dll</HintPath>
+      <HintPath>$(MSBuildThisFileDirectory)lib\Comfort.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Comfort.Unity, Version=1.0.0.4, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Comfort.Unity.dll</HintPath>
+      <HintPath>$(MSBuildThisFileDirectory)lib\Comfort.Unity.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(MSBuildThisFileDirectory)lib\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Sirenix.Serialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Sirenix.Serialization.dll</HintPath>
+      <HintPath>$(MSBuildThisFileDirectory)lib\Sirenix.Serialization.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="System" />
