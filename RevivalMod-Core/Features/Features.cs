@@ -166,7 +166,6 @@ namespace RevivalMod.Features
                 player.MovementContext.IsInPronePose = true;
                 player.ActiveHealthController.SetStaminaCoeff(1f);
                 player.SetEmptyHands(null);
-                //player.Transform.rotation = Quaternion.Euler(0f, player.Transform.eulerAngles.y, 180f);
             }
             else
             {
@@ -788,11 +787,15 @@ namespace RevivalMod.Features
                 player.MovementContext.SetPoseLevel(0f, true);
                 player.MovementContext.IsInPronePose = true;
                 player.SetEmptyHands(null);
-                //player.Transform.rotation = Quaternion.Euler(0f, player.Transform.eulerAngles.y, 180f);
 
-                // Keep IsAlive = true so player controls/movement work
-                // For Ghost Mode, we remove players from AI enemy lists via GhostModeEnemyListPatch instead
+                // Keep IsAlive = true so player controls/movement work during critical state
                 player.ActiveHealthController.IsAlive = true;
+                
+                // Enter ghost mode - remove player from AI enemy lists
+                if (RevivalModSettings.PLAYER_ALIVE.Value)
+                {
+                    GhostModeEnemyManager.EnterGhostMode(player);
+                }
                 
                 // Enable God mode
                 if (RevivalModSettings.GOD_MODE.Value)
@@ -853,6 +856,12 @@ namespace RevivalMod.Features
                 // Restore awareness and visibility
                 player.Awareness = _playerList[playerId].OriginalAwareness;
                 player.ActiveHealthController.IsAlive = true;
+                
+                // Exit ghost mode - restore player to AI enemy lists
+                if (RevivalModSettings.PLAYER_ALIVE.Value)
+                {
+                    GhostModeEnemyManager.ExitGhostMode(player);
+                }
 
                 Plugin.LogSource.LogInfo($"Removed revivable state from player {playerId}");
             }
@@ -879,6 +888,12 @@ namespace RevivalMod.Features
 
                 // Make player targetable by AI
                 healthController.IsAlive = true;
+                
+                // Exit ghost mode - restore player to AI enemy lists
+                if (RevivalModSettings.PLAYER_ALIVE.Value)
+                {
+                    GhostModeEnemyManager.ExitGhostMode(player);
+                }
                 
                 // Disable God mode
                 if (RevivalModSettings.GOD_MODE.Value)
@@ -1125,6 +1140,12 @@ namespace RevivalMod.Features
                 criticalStateMainTimer = null;
                 
                 RemovePlayerFromCriticalState(playerId);
+                
+                // Exit ghost mode before actual death
+                if (RevivalModSettings.PLAYER_ALIVE.Value)
+                {
+                    GhostModeEnemyManager.ExitGhostMode(player);
+                }
                 
                 // Use original Kill method, bypassing our patch
                 player.ActiveHealthController.IsAlive = true;

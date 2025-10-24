@@ -13,7 +13,7 @@ namespace RevivalMod.Patches
 {
     /// <summary>
     /// Ghost Mode Enemy List Manager
-    /// Removes players from AI enemy lists during critical state instead of intercepting IsAlive checks.
+    /// Removes players from AI enemy lists during critical state for proper ghost mode functionality.
     /// This approach works with both vanilla AI and SAIN AI systems.
     /// </summary>
     public static class GhostModeEnemyManager

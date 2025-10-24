@@ -39,7 +39,6 @@ namespace RevivalMod.Fika
         public static event SendPlayerPositionPacketEvent SendPlayerPositionPacketEmitted;
         public static void SendPlayerPositionPacket(string playerId, DateTime timeOfDeath, Vector3 position)
         { 
-            //Plugin.LogSource.LogDebug("Sending player position packet");
             SendPlayerPositionPacketEmitted?.Invoke(playerId, timeOfDeath, position); 
         }
 
@@ -75,12 +74,5 @@ namespace RevivalMod.Fika
             SendReviveCanceledPacketEmitted?.Invoke(reviveeId, reviverId);
         }
 
-        //public delegate void SendRevivedPacketEvent(string reviverId, NetPeer peer);
-        //public static event SendRevivedPacketEvent SendRevivedPacketEmitted;
-        //public static void SendRevivedPacket(string reviverId, NetPeer peer)
-        //{
-        //    Plugin.LogSource.LogInfo("Sending revived packet");
-        //    SendRevivedPacketEmitted?.Invoke(reviverId, peer); 
-        //}
     }
 }
