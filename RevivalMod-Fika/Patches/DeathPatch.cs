@@ -1,5 +1,7 @@
 ﻿using EFT;
 using EFT.HealthSystem;
+using EFT.UI;
+using EFT.Communications;
 using HarmonyLib;
 using SPT.Reflection.Patching;
 using System;

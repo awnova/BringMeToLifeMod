@@ -1,4 +1,5 @@
 ﻿using Comfort.Common;
+using EFT;
 using EFT.Communications;
 using EFT.UI;
 using Fika.Core.Coop.Utils;

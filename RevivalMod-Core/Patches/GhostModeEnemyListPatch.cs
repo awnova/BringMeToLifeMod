@@ -2,6 +2,7 @@ using EFT;
 using EFT.HealthSystem;
 using HarmonyLib;
 using SPT.Reflection.Patching;
+using Comfort.Common;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
