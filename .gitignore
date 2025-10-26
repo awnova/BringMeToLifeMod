@@ -13,15 +13,8 @@ RevivalMod-Server/types/
 *.user
 *.suo
 *.sln.docstates
-.idea/.idea.RevivalMod/.idea/.name
-.idea/.idea.RevivalMod/.idea/encodings.xml
-.idea/.idea.RevivalMod/.idea/indexLayout.xml
-.idea/.idea.RevivalMod/.idea/vcs.xml
-.idea/.idea.RevivalMod/.idea/.gitignore
+.idea/
 
 # Build configuration and scripts with local paths - DO NOT COMMIT
 build-config.json
-build.ps1
-
-# Local dependency copies (do not commit)
-RevivalMod-Core/lib/
+Build/

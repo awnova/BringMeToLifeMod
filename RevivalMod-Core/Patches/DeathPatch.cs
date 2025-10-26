@@ -49,8 +49,9 @@ namespace RevivalMod.Patches
 
                 Plugin.LogSource.LogInfo($"DEATH PREVENTION: Player {player.ProfileId} about to die from {damageType}");
 
-                // Check for headshot instant death
-                if (RevivalModSettings.HARDCORE_HEADSHOT_DEFAULT_DEAD.Value &&
+                // Check for hardcore mode headshot rules
+                if (RevivalModSettings.HARDCORE_MODE.Value && 
+                    RevivalModSettings.HARDCORE_HEADSHOT_DEFAULT_DEAD.Value &&
                     __instance.GetBodyPartHealth(EBodyPart.Head, true).Current < 1 &&
                     damageType == EDamageType.Bullet)
                 {

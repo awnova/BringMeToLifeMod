@@ -38,6 +38,7 @@ namespace RevivalMod.Helpers
         //====================[ Public API ]====================
 
         // Start a surgical animation using a temp fake item.
+        // Returns true if the animation was started successfully.
         public static bool PlaySurgicalAnimation(
             Player player,
             SurgicalItemType itemType,
@@ -54,7 +55,58 @@ namespace RevivalMod.Helpers
                 return false;
             }
 
+            // PlayCore returns the actual animation duration (seconds) or null on failure.
+            var started = PlayCore(player, item, defaultSec, animationSpeed, onComplete, itemType.ToString());
+            return started.HasValue;
+        }
+
+        // Start surgical animation and return the estimated animation duration (in seconds), or null on failure.
+        public static float? PlaySurgicalAnimationWithDuration(
+            Player player,
+            SurgicalItemType itemType,
+            float animationSpeed = 1f,
+            Action onComplete = null)
+        {
+            if (!ValidatePlayer(player)) return null;
+
+            var (templateId, defaultSec) = Spec[itemType];
+            var item = CreateTempItem(templateId);
+            if (item == null)
+            {
+                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create temp item ({itemType}).");
+                return null;
+            }
+
             return PlayCore(player, item, defaultSec, animationSpeed, onComplete, itemType.ToString());
+        }
+
+        // Start a surgical animation and scale its speed so the playback lasts targetDurationSeconds (in seconds).
+        // Returns true if started successfully.
+        public static bool PlaySurgicalAnimationForDuration(
+            Player player,
+            SurgicalItemType itemType,
+            float targetDurationSeconds,
+            Action onComplete = null)
+        {
+            if (!ValidatePlayer(player)) return false;
+
+            var (templateId, defaultSec) = Spec[itemType];
+            var item = CreateTempItem(templateId);
+            if (item == null)
+            {
+                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create temp item ({itemType}).");
+                return false;
+            }
+
+            // Guard target duration
+            if (targetDurationSeconds <= 0f)
+                targetDurationSeconds = defaultSec;
+
+            // Calculate the speed multiplier so the base animation (defaultSec) will play in targetDurationSeconds.
+            float animationSpeed = defaultSec / targetDurationSeconds;
+
+            var started = PlayCore(player, item, defaultSec, animationSpeed, onComplete, itemType.ToString());
+            return started.HasValue;
         }
 
         // Adjust the speed of the current animation (1.0 = normal).
@@ -91,7 +143,7 @@ namespace RevivalMod.Helpers
 
         //====================[ Core Logic ]====================
 
-        private static bool PlayCore(
+        private static float? PlayCore(
             Player player,
             Item item,
             float defaultSec,
@@ -103,7 +155,7 @@ namespace RevivalMod.Helpers
             {
                 if (animationSpeed <= 0f) animationSpeed = 1f;
 
-                var baseDuration = GetUseTimeSeconds(item, defaultSec);
+                var baseDuration = defaultSec;
 
                 // Play the animation (no healing logic, just visuals)
                 player.Proceed(item, null, true);
@@ -111,36 +163,22 @@ namespace RevivalMod.Helpers
                 if (Math.Abs(animationSpeed - 1f) > 0.01f)
                     SetAnimationSpeed(player, animationSpeed);
 
-                var actual  = baseDuration / animationSpeed;
+                var actual = baseDuration / animationSpeed;
                 var cleanup = actual + CLEANUP_BUFFER_SEC;
 
                 Plugin.StaticCoroutineRunner.StartCoroutine(
                     CleanupAfterAnimation(player, cleanup, itemLabel, animationSpeed, onComplete));
 
-                return true;
+                return actual;
             }
             catch (Exception ex)
             {
                 Plugin.LogSource.LogError($"[MedicalAnimations] PlayCore failed: {ex.Message}");
-                return false;
+                return null;
             }
         }
 
-        // Grab animation duration from UseTime if available.
-        private static float GetUseTimeSeconds(Item item, float fallback)
-        {
-            try
-            {
-                if (item is MedsItemClass meds && meds.HealthEffectsComponent != null)
-                {
-                    var t = meds.HealthEffectsComponent.UseTime;
-                    if (t > 0f) return t;
-                }
-            }
-            catch { /* fallback if anything fails */ }
-            return fallback;
-        }
-
+        // Note: Uses Spec default durations Not real use time.
         // Waits for animation to finish, then clears hands.
         private static IEnumerator CleanupAfterAnimation(
             Player player, float delay, string itemName, float speed, Action onComplete)

@@ -34,56 +34,62 @@
   <PropertyGroup>
     <RunPostBuildEvent>Always</RunPostBuildEvent>
   </PropertyGroup>
+  <PropertyGroup>
+    <!-- Centralized external libs directory (points to Fika-Plugin references by default) -->
+    <ExternalLibDir>$(MSBuildThisFileDirectory)..\Build\Lib\Fika-Plugin-1.2.8\References\</ExternalLibDir>
+    <!-- Fallback to Fika-Headless references for DLLs only available there -->
+    <FikaHeadlessRefDir>$(MSBuildThisFileDirectory)..\Build\Lib\Fika-Headless-1.3.7\References\</FikaHeadlessRefDir>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Fika.Core, Version=1.2.2.0, Culture=neutral, PublicKeyToken=1f37bed7e0de1980, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Fika.Core.dll</HintPath>
+      <HintPath>$(ExternalLibDir)Fika.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="ItemComponent.Types, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
       <Private>false</Private>
     </Reference>
     <Reference Include="PhysicsModule">
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.PhysicsModule.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.PhysicsModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>$(SPT_SOURCE_PATH)\0Harmony.dll</HintPath>
+      <HintPath>$(ExternalLibDir)0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="spt-common">
-      <HintPath>$(SPT_SOURCE_PATH)\spt-common.dll</HintPath>
+      <HintPath>$(ExternalLibDir)spt-common.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="spt-reflection">
-      <HintPath>$(SPT_SOURCE_PATH)\spt-reflection.dll</HintPath>
+      <HintPath>$(ExternalLibDir)spt-reflection.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>$(SPT_SOURCE_PATH)\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(ExternalLibDir)Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>$(SPT_SOURCE_PATH)\BepInEx.dll</HintPath>
+      <HintPath>$(ExternalLibDir)BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Comfort">
-      <HintPath>$(SPT_SOURCE_PATH)\Comfort.dll</HintPath>
+      <HintPath>$(ExternalLibDir)Comfort.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Comfort.Unity, Version=1.0.0.4, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Comfort.Unity.dll</HintPath>
+      <HintPath>$(ExternalLibDir)Comfort.Unity.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(ExternalLibDir)Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Sirenix.Serialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Sirenix.Serialization.dll</HintPath>
+      <HintPath>$(ExternalLibDir)Sirenix.Serialization.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="System">
@@ -112,51 +118,55 @@
     </Reference>
     <Reference Include="Unity.TextMeshPro, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\Unity.TextMeshPro.dll</HintPath>
+      <HintPath>$(ExternalLibDir)Unity.TextMeshPro.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)Unity.TextMeshPro.dll')">$(FikaHeadlessRefDir)Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.dll')">$(FikaHeadlessRefDir)UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.AssetBundleModule.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.AssetBundleModule.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.AssetBundleModule.dll')">$(FikaHeadlessRefDir)UnityEngine.AssetBundleModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.CoreModule.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.CoreModule.dll')">$(FikaHeadlessRefDir)UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.IMGUIModule.dll')">$(FikaHeadlessRefDir)UnityEngine.IMGUIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.InputLegacyModule.dll')">$(FikaHeadlessRefDir)UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.TextRenderingModule.dll')">$(FikaHeadlessRefDir)UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(SPT_SOURCE_PATH)\UnityEngine.UI.dll</HintPath>
+      <HintPath>$(ExternalLibDir)UnityEngine.UI.dll</HintPath>
+      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.UI.dll')">$(FikaHeadlessRefDir)UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     
     <Compile Include="Fika\FikaMethods.cs" />
-    <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Packets\Packets.cs" />
-    <Compile Include="Patches\DeathPatch.cs" />  
-    <Compile Include="Patches\GameStartedPatch.cs" />
-    <Compile Include="Helpers\Utils.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -1,4 +1,5 @@
-﻿using System;
+﻿//====================[ Imports ]====================
+using System;
 using EFT.UI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,11 +7,11 @@ using TMPro;
 using System.Threading;
 using System.Runtime.ConstrainedExecution;
 
+//====================[ CustomTimer ]====================
 namespace RevivalMod.Helpers
 {
-    /// <summary>
-    /// Positions for the custom timer UI
-    /// </summary>
+    //====================[ Enums ]====================
+    // Defines possible on-screen anchor points for the timer display
     public enum TimerPosition
     {
         TopLeft,
@@ -24,34 +25,39 @@ namespace RevivalMod.Helpers
         BottomRight
     }
 
-    /// <summary>
-    /// Custom timer implementation with a fully custom UI
-    /// </summary>
+    //====================[ Custom Timer Class ]====================
+    // Provides a simple countdown or stopwatch timer with a custom in-game UI
+    // Uses the existing LocationTransitTimerPanel from EFT’s GameUI as the display surface
     public class CustomTimer
     {
-        // Timer data
-        private DateTime targetEndTime;
-        private DateTime startTime;
-        private bool isCountdown;
-        public bool IsRunning { get; set; }
-        private string timerName;
-        private TimerPosition timerPosition;
+        //====================[ Fields ]====================
+        // Timing data
+        private DateTime targetEndTime;          // UTC time when countdown ends
+        private DateTime startTime;              // UTC time when timer started
+        private bool isCountdown;                // Determines timer type
+        private string timerName;                // Internal name for logging/debugging
+        private TimerPosition timerPosition;     // Screen anchor position for display
 
-        // UI components
-        private TextMeshProUGUI titleText;
+        // UI references
+        private TextMeshProUGUI titleText;       // Reference to timer text component
 
-        public CustomTimer()
-        {
-        }
+        //====================[ Properties ]====================
+        public bool IsRunning { get; set; }      // Indicates if timer is currently active
+        public string TimerLabel { get; private set; } = "Timer"; // Display name shown on screen
 
-        /// <summary>
-        /// Start a countdown timer with specified duration
-        /// </summary>
+        //====================[ Constructors ]====================
+        // Basic constructor initializes a clean instance with no running state
+        public CustomTimer() { }
+
+        //====================[ Timer Control ]====================
+        // Starts a countdown for the specified duration
+        // Displays time decreasing toward zero
         public void StartCountdown(float durationInSeconds, string name = "Countdown", TimerPosition position = TimerPosition.BottomCenter)
         {
             isCountdown = true;
             IsRunning = true;
             timerName = name;
+            TimerLabel = name;
             timerPosition = position;
 
             // Set target time
@@ -62,9 +68,7 @@ namespace RevivalMod.Helpers
             CreateTimerUI();
         }
 
-        /// <summary>
-        /// Start a stopwatch to measure elapsed time
-        /// </summary>
+        // Starts a stopwatch timer (elapsed time counting upward)
         public void StartStopwatch(string name = "Stopwatch", TimerPosition position = TimerPosition.TopCenter)
         {
             isCountdown = false;
@@ -72,16 +76,22 @@ namespace RevivalMod.Helpers
             timerName = name;
             timerPosition = position;
 
-            // Set start time
+            
             startTime = DateTime.UtcNow;
 
             // Create and show the timer UI
             CreateTimerUI();
         }
 
-        /// <summary>
-        /// Update the timer (call this every frame)
-        /// </summary>
+        // Stops the timer and hides its UI
+        public void StopTimer()
+        {
+            IsRunning = false;
+            MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.Close();
+        }
+
+        //====================[ Update Loop ]====================
+        // called each frame to refresh the timer text
         public void Update()
         {
             if (!IsRunning || titleText == null)
@@ -89,77 +99,60 @@ namespace RevivalMod.Helpers
 
             TimeSpan timeSpan = GetTimeSpan();
 
-            // Check if countdown complete
+            // Check and Stop automatically if countdown finishes
             if (isCountdown && timeSpan.TotalSeconds <= 0)
             {
                 titleText.text = "00:00.000";
-
-                // Auto-stop if countdown finished
                 StopTimer();
                 return;
             }
 
-            // Update the display
-            titleText.text = "Critical State: " + GetFormattedTime();
+            // Update display text in real time maybe...
+            titleText.text = $"{TimerLabel}: {GetFormattedTime()}";
         }
 
-        /// <summary>
-        /// Stop the timer
-        /// </summary>
-        public void StopTimer()
-        {
-            IsRunning = false;
-            MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.Close();
-        }
-
-        /// <summary>
-        /// Get current timer value as TimeSpan
-        /// </summary>
+        //====================[ Time Utilities ]====================
+        // Returns the raw TimeSpan value (remaining for countdown, elapsed for stopwatch)
         public TimeSpan GetTimeSpan()
         {
-            if (!isCountdown) 
+            if (!isCountdown)
                 return DateTime.UtcNow - startTime;
-            
+
             TimeSpan remaining = targetEndTime - DateTime.UtcNow;
-
             return remaining.TotalSeconds > 0 ? remaining : TimeSpan.Zero;
-
         }
 
-        /// <summary>
-        /// Get the current timer value as formatted string (MM:SS)
-        /// </summary>
+        // Returns the formatted time as MM:SS:MMM
         public string GetFormattedTime()
         {
             TimeSpan timeSpan = GetTimeSpan();
-
             if (isCountdown && timeSpan.TotalSeconds <= 0)
                 return "00:00:000";
 
             return $"{(int)timeSpan.TotalMinutes:00}:{timeSpan.Seconds:00}:{timeSpan.Milliseconds:000}";
         }
 
-        /// <summary>
-        /// Create a custom timer UI and add it to the main canvas
-        /// </summary>
+        //====================[ UI Handling ]====================
+        // Creates or reuses the LocationTransitTimerPanel to display timer data
         private void CreateTimerUI()
         {
             try
             {
-                MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.Display();
+                var ui = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel;
+                ui.Display(); // Make panel visible if hidden
 
-                RectTransform panel = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.transform.GetChild(0) as RectTransform;
-
-                if (panel is not null)
+                // Configure the layout and appearance
+                RectTransform panel = ui.transform.GetChild(0) as RectTransform;
+                if (panel != null)
                 {
                     panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
                     panel.sizeDelta = new Vector2(318, 51);
-                    panel.GetComponent<Image>().color = Color.red;
+                    panel.GetComponent<Image>().color = Color.red; // Temporary visual indicator
                 }
 
-                titleText = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel.GetComponentInChildren<TextMeshProUGUI>();
-
-                titleText.text = "Critical State: " + GetFormattedTime();
+                // Initialize text component for live updates
+                titleText = ui.GetComponentInChildren<TextMeshProUGUI>();
+                titleText.text = $"{TimerLabel}: {GetFormattedTime()}";
                 titleText.autoSizeTextContainer = true;
                 titleText.fontSize = 22;
 

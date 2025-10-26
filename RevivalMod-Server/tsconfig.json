@@ -17,7 +17,7 @@
     "strict": false,
     "paths": {
       "@/*": ["./src/*"],
-      "@spt/*": ["./types/*"]
+      "@spt/*": ["./types/*", "../Build/Lib/Fika-Server-2.4.8/types/*"]
     }
   },
   "include": ["src/**/*.ts"],

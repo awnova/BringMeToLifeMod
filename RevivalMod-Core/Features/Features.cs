@@ -35,6 +35,20 @@ namespace RevivalMod.Features
 
         #endregion
 
+        // Simple coroutine helper to run an action after a delay
+        private static IEnumerator DelayedActionAfterSeconds(float seconds, Action action)
+        {
+            yield return new WaitForSeconds(seconds);
+            try
+            {
+                action?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"Error in delayed action: {ex.Message}");
+            }
+        }
+
         #region State Tracking
 
         // Key holding tracking
@@ -165,7 +179,12 @@ namespace RevivalMod.Features
                 player.MovementContext.SetPoseLevel(0f, true);
                 player.MovementContext.IsInPronePose = true;
                 player.ActiveHealthController.SetStaminaCoeff(1f);
-                player.SetEmptyHands(null);
+                
+                // Only force empty hands if NOT playing a revival animation
+                if (!_playerList[playerId].IsPlayingRevivalAnimation)
+                {
+                    player.SetEmptyHands(null);
+                }
             }
             else
             {
@@ -182,6 +201,10 @@ namespace RevivalMod.Features
                 _playerList[playerId].CriticalTimer = (float)remaining.TotalSeconds;
             }
 
+            // Allow self-revival checks to run before the expiry/give-up check so a held key that completes
+            // exactly when the critical timer hits zero can still trigger the revival flow instead of immediate death.
+            CheckForSelfRevival(player);
+
             // Check for give up key or timer runs out
             if (_playerList[playerId].CriticalTimer <= 0 ||
                 Input.GetKeyDown(RevivalModSettings.GIVE_UP_KEY.Value))
@@ -193,9 +216,6 @@ namespace RevivalMod.Features
                 
                 return;
             }
-
-            // Check for self-revival if player has the item
-            CheckForSelfRevival(player);
         }
 
         /// <summary>
@@ -318,8 +338,9 @@ namespace RevivalMod.Features
 
                 criticalStateMainTimer?.StopTimer();
                 
-                // Show revive timer
-                owner.ShowObjectivesPanel("Reviving {0:F1}", RevivalModSettings.REVIVAL_HOLD_DURATION.Value);
+                // Show revive timer (labelled 'Reviving' when animation starts)
+                const float initialHold = 2f;
+                owner.ShowObjectivesPanel("Reviving {0:F1}", initialHold);
             }
 
             // Update hold duration while key is held
@@ -329,7 +350,7 @@ namespace RevivalMod.Features
                 _selfRevivalKeyHoldDuration[revivalKey] += Time.deltaTime;
 
                 float holdDuration = _selfRevivalKeyHoldDuration[revivalKey];
-                float requiredDuration = RevivalModSettings.REVIVAL_HOLD_DURATION.Value;
+                const float requiredDuration = 2f;
 
                 // Trigger revival when key is held long enough
                 if (holdDuration >= requiredDuration)
@@ -338,27 +359,28 @@ namespace RevivalMod.Features
 
                     // Stop timers
                     criticalStateMainTimer?.StopTimer();
-
-                    TryPerformManualRevival(player);
                     
-                    // Consume the item if not in test mode
-                    if (!RevivalModSettings.TESTING.Value)
-                    {
-                        // Reset hands controller otherwise can't remove item
-                        // Known issue: having no weapon or melee weapon can cause same bug
-                        foreach (Item item in player.Inventory.GetPlayerItems(EPlayerItems.Equipment))
-                        {
-                            if (item is null ||
-                                player.HandsController is not IFirearmHandsController firearmHandsController)
-                                continue;
+                    // Stop forcing empty hands to allow the animation to play
+                    _playerList[player.ProfileId].IsPlayingRevivalAnimation = true;
 
-                            player.SetInHands(item, null);
-                            owner.SetHandsController(firearmHandsController);
-                            break;
-                        }
+                    // Start the surgical animation (SurvKit) and perform the actual revival when animation completes
+                        // Start the SurvKit animation for visuals and sync it to the UI revive countdown (so both finish together).
+                        // We intentionally ignore the return value so a broken animation won't prevent revival.
+                        float revivalDuration = RevivalModSettings.SELF_REVIVE_ANIMATION_DURATION.Value;
                         
-                        ConsumeDefibItem(player, GetDefib(player.Inventory.GetPlayerItems(EPlayerItems.Equipment)));
-                    }
+                        _ = MedicalAnimations.PlaySurgicalAnimationForDuration(player, MedicalAnimations.SurgicalItemType.SurvKit, revivalDuration);
+                        // Use the configured revival duration for the countdown timer
+                        criticalStateMainTimer = new CustomTimer();
+                        criticalStateMainTimer.StartCountdown(revivalDuration, "Reviving", TimerPosition.MiddleCenter);
+
+                        // Schedule the actual revival when countdown finishes via a coroutine
+                        Plugin.StaticCoroutineRunner.StartCoroutine(DelayedActionAfterSeconds(revivalDuration, () =>
+                        {
+                            TryPerformManualRevival(player);
+
+                            if (!RevivalModSettings.TESTING.Value)
+                                ConsumeDefibItem(player, GetDefib(player.Inventory.GetPlayerItems(EPlayerItems.Equipment)));
+                        }));
                 }
             }
 
@@ -366,6 +388,9 @@ namespace RevivalMod.Features
             if (!Input.GetKeyUp(revivalKey) ||
                 !_selfRevivalKeyHoldDuration.ContainsKey(revivalKey)) 
                 return;
+            
+            // Clear animation flag if cancelling early
+            _playerList[player.ProfileId].IsPlayingRevivalAnimation = false;
             
             // Close revive timer
             owner.CloseObjectivesPanel();
@@ -549,7 +574,7 @@ namespace RevivalMod.Features
 
                 if (RevivalModSettings.SELF_REVIVAL_ENABLED.Value && HasDefib(player.Inventory.GetPlayerItems(EPlayerItems.Equipment)))
                 {
-                    message += $"Hold {RevivalModSettings.SELF_REVIVAL_KEY.Value} for {RevivalModSettings.REVIVAL_HOLD_DURATION.Value}s to use defibrillator\n";
+                    message += $"Hold {RevivalModSettings.SELF_REVIVAL_KEY.Value} for 2s to use defibrillator ({(int)RevivalModSettings.SELF_REVIVE_ANIMATION_DURATION.Value}s animation)\n";
                 }
 
                 message += $"Press {RevivalModSettings.GIVE_UP_KEY.Value} to give up\n";
@@ -792,10 +817,8 @@ namespace RevivalMod.Features
                 player.ActiveHealthController.IsAlive = true;
                 
                 // Enter ghost mode - remove player from AI enemy lists
-                if (RevivalModSettings.PLAYER_ALIVE.Value)
-                {
+                if (RevivalModSettings.GHOST_MODE.Value)
                     GhostModeEnemyManager.EnterGhostMode(player);
-                }
                 
                 // Enable God mode
                 if (RevivalModSettings.GOD_MODE.Value)
@@ -858,10 +881,8 @@ namespace RevivalMod.Features
                 player.ActiveHealthController.IsAlive = true;
                 
                 // Exit ghost mode - restore player to AI enemy lists
-                if (RevivalModSettings.PLAYER_ALIVE.Value)
-                {
+                if (RevivalModSettings.GHOST_MODE.Value)
                     GhostModeEnemyManager.ExitGhostMode(player);
-                }
 
                 Plugin.LogSource.LogInfo($"Removed revivable state from player {playerId}");
             }
@@ -890,10 +911,8 @@ namespace RevivalMod.Features
                 healthController.IsAlive = true;
                 
                 // Exit ghost mode - restore player to AI enemy lists
-                if (RevivalModSettings.PLAYER_ALIVE.Value)
-                {
+                if (RevivalModSettings.GHOST_MODE.Value)
                     GhostModeEnemyManager.ExitGhostMode(player);
-                }
                 
                 // Disable God mode
                 if (RevivalModSettings.GOD_MODE.Value)
@@ -1142,10 +1161,8 @@ namespace RevivalMod.Features
                 RemovePlayerFromCriticalState(playerId);
                 
                 // Exit ghost mode before actual death
-                if (RevivalModSettings.PLAYER_ALIVE.Value)
-                {
+                if (RevivalModSettings.GHOST_MODE.Value)
                     GhostModeEnemyManager.ExitGhostMode(player);
-                }
                 
                 // Use original Kill method, bypassing our patch
                 player.ActiveHealthController.IsAlive = true;

@@ -13,9 +13,9 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<KeyCode> SURVKIT_TEST_KEY;
 
         // Revival Mechanics
-        public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
-        public static ConfigEntry<float> REVIVAL_HOLD_DURATION;
-        public static ConfigEntry<float> TEAM_REVIVAL_HOLD_DURATION;
+    public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
+    public static ConfigEntry<float> SELF_REVIVE_ANIMATION_DURATION;
+    public static ConfigEntry<float> TEAMMATE_REVIVE_ANIMATION_DURATION;
         public static ConfigEntry<float> REVIVAL_DURATION;
         public static ConfigEntry<float> REVIVAL_COOLDOWN;
         public static ConfigEntry<float> CRITICAL_STATE_TIME;
@@ -28,8 +28,9 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<float> REVIVAL_RANGE_Z;
 
         // Hardcore Mode
-        public static ConfigEntry<bool> PLAYER_ALIVE;
         public static ConfigEntry<bool> GOD_MODE;
+        public static ConfigEntry<bool> GHOST_MODE;
+        public static ConfigEntry<bool> HARDCORE_MODE;
         public static ConfigEntry<bool> HARDCORE_HEADSHOT_DEFAULT_DEAD;
         public static ConfigEntry<float> HARDCORE_CHANCE_OF_CRITICAL_STATE;
 
@@ -74,18 +75,19 @@ namespace RevivalMod.Helpers
                 "When enabled, you can revive yourself with a defibrillator"
             );
 
-            REVIVAL_HOLD_DURATION = config.Bind(
+
+            SELF_REVIVE_ANIMATION_DURATION = config.Bind(
                 "2. Revival Mechanics",
-                "Self Revival Hold Duration",
-                3f,
-                "How many seconds you need to hold the Self Revival Key to revive yourself"
+                "Self Revive Animation Duration",
+                20f,
+                "Duration (seconds) used for the SurvKit animation when self-reviving"
             );
 
-            TEAM_REVIVAL_HOLD_DURATION = config.Bind(
+            TEAMMATE_REVIVE_ANIMATION_DURATION = config.Bind(
                 "2. Revival Mechanics",
-                "Team Revival Hold Duration",
-                5f,
-                "How many seconds you need to hold the Team Revival Key to revive a teammate"
+                "Teammate Revive Animation Duration",
+                10f,
+                "Duration (seconds) used for the CMS animation when a teammate revives you"
             );
 
             CRITICAL_STATE_TIME = config.Bind(
@@ -162,18 +164,25 @@ namespace RevivalMod.Helpers
 
             #region Hardcore Mode Settings
 
-            PLAYER_ALIVE = config.Bind(
-                "3. Ghost/God Mode",
-                "Enable Ghost Mode",
-                true,  // Changed from false to true
-                "Makes players not targetable by AI while in critical state."
-            );
-
             GOD_MODE = config.Bind(
                 "3. Ghost/God Mode",
                 "Enable God Mode",
                 false,
                 "Makes players invulnerable while in Critical State"
+            );
+
+            GHOST_MODE = config.Bind(
+                "3. Ghost/God Mode",
+                "Enable Ghost Mode",
+                true,
+                "Makes players invisible to AI while in Critical State"
+            );
+
+            HARDCORE_MODE = config.Bind(
+                "3. Hardcore Mode",
+                "Enable Hardcore Mode",
+                false,
+                "Enables hardcore mode checks for headshot instant death"
             );
 
             HARDCORE_HEADSHOT_DEFAULT_DEAD = config.Bind(

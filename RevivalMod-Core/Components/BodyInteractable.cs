@@ -16,7 +16,8 @@ namespace RevivalMod.Components
         public void OnRevive(GamePlayerOwner owner)
         {
 
-            float reviveTime = RevivalModSettings.TEAM_REVIVAL_HOLD_DURATION.Value;
+            // Use a hardcoded 2 second hold time for teammate revives per design decision
+            float reviveTime = RevivalModSettings.TEAMMATE_REVIVE_ANIMATION_DURATION.Value;
 
             if (Revivee is null)
             {
@@ -32,6 +33,16 @@ namespace RevivalMod.Components
 
             if (owner.Player.CurrentState is IdleStateClass)
             {
+                // Stop forcing empty hands on the revivee to allow any potential animations
+                if (RevivalFeatures._playerList.ContainsKey(Revivee.ProfileId))
+                {
+                    RevivalFeatures._playerList[Revivee.ProfileId].IsPlayingRevivalAnimation = true;
+                }
+                
+                // Play the CMS animation on the reviver and sync its playback to the UI revive countdown (so both finish together).
+                // Ignore the return value so a broken animation won't block the actual revive.
+                _ = MedicalAnimations.PlaySurgicalAnimationForDuration(owner.Player, MedicalAnimations.SurgicalItemType.CMS, reviveTime);
+
                 owner.ShowObjectivesPanel("Reviving {0:F1}", reviveTime);
 
                 // Start the countdown, and trigger the ActionCompleteHandler when it's done
@@ -93,6 +104,12 @@ namespace RevivalMod.Components
                 }
                 else
                 {
+                    // Resume forcing empty hands on the revivee if revival was cancelled
+                    if (RevivalFeatures._playerList.ContainsKey(targetId))
+                    {
+                        RevivalFeatures._playerList[targetId].IsPlayingRevivalAnimation = false;
+                    }
+                    
                     FikaBridge.SendReviveCanceledPacket(targetId, owner.Player.ProfileId);
 
                     Plugin.LogSource.LogInfo($"Revive not completed !");

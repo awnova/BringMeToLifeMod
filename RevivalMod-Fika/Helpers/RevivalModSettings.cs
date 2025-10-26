@@ -11,10 +11,8 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<KeyCode> SELF_REVIVAL_KEY;
         public static ConfigEntry<KeyCode> GIVE_UP_KEY;
 
-        // Revival Mechanics
-        public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
-        public static ConfigEntry<float> REVIVAL_HOLD_DURATION;
-        public static ConfigEntry<float> TEAM_REVIVAL_HOLD_DURATION;
+    // Revival Mechanics
+    public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
         public static ConfigEntry<float> REVIVAL_DURATION;
         public static ConfigEntry<float> REVIVAL_COOLDOWN;
         public static ConfigEntry<float> TIME_TO_REVIVE;
@@ -62,19 +60,6 @@ namespace RevivalMod.Helpers
                 "When enabled, you can revive yourself with a defibrillator"
             );
 
-            REVIVAL_HOLD_DURATION = config.Bind(
-                "2. Revival Mechanics",
-                "Self Revival Hold Duration",
-                3f,
-                "How many seconds you need to hold the Self Revival Key to revive yourself"
-            );
-
-            TEAM_REVIVAL_HOLD_DURATION = config.Bind(
-                "2. Revival Mechanics",
-                "Team Revival Hold Duration",
-                5f,
-                "How many seconds you need to hold the Team Revival Key to revive a teammate"
-            );
 
             TIME_TO_REVIVE = config.Bind(
                 "2. Revival Mechanics",
