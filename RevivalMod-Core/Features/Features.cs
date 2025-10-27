@@ -746,8 +746,8 @@ namespace RevivalMod.Features
                     player.ActiveHealthController.DoContusion(RevivalModSettings.CRITICAL_STATE_TIME.Value, 1f);
                 
                 if (RevivalModSettings.STUN_EFFECT.Value)
-                    // Cap stun effect at 30 seconds, but allow shorter duration if critical state time is less than 30
-                    player.ActiveHealthController.DoStun(Math.Min(RevivalModSettings.CRITICAL_STATE_TIME.Value, 30f), 1f);
+                    // Cap stun effect at 20 seconds, but allow shorter duration if critical state time is less than 20
+                    player.ActiveHealthController.DoStun(Math.Min(RevivalModSettings.CRITICAL_STATE_TIME.Value, 20f), 1f);
 
                 // Severely restrict movement
                 player.Physical.WalkSpeedLimit = MOVEMENT_SPEED_MULTIPLIER;
@@ -925,9 +925,8 @@ namespace RevivalMod.Features
                     
                     foreach (EBodyPart bodyPart in Enum.GetValues(typeof(EBodyPart)))
                     {  
-                        // Only heal head and chest
-                        if (bodyPart is EBodyPart.Common ||
-                            (bodyPart is not EBodyPart.Head && bodyPart is not EBodyPart.Chest))
+                        // Skip Common (overall health)
+                        if (bodyPart is EBodyPart.Common)
                             continue;
 
                         GClass2814<ActiveHealthController.GClass2813>.BodyPartState bodyPartState = healthController.Dictionary_0[bodyPart];
@@ -941,7 +940,17 @@ namespace RevivalMod.Features
                         
                         bodyPartState.IsDestroyed = false;
 
-                        float restorePercent = RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS_AMOUNT.Value/100f;
+                        // Get the appropriate percentage based on body part
+                        float restorePercent = bodyPart switch
+                        {
+                            EBodyPart.Head => RevivalModSettings.RESTORE_HEAD_PERCENTAGE.Value / 100f,
+                            EBodyPart.Chest => RevivalModSettings.RESTORE_CHEST_PERCENTAGE.Value / 100f,
+                            EBodyPart.Stomach => RevivalModSettings.RESTORE_STOMACH_PERCENTAGE.Value / 100f,
+                            EBodyPart.LeftArm or EBodyPart.RightArm => RevivalModSettings.RESTORE_ARMS_PERCENTAGE.Value / 100f,
+                            EBodyPart.LeftLeg or EBodyPart.RightLeg => RevivalModSettings.RESTORE_LEGS_PERCENTAGE.Value / 100f,
+                            _ => 0.5f // Default 50% for any unknown body parts
+                        };
+                        
                         float newCurrentHealth = bodyPartState.Health.Maximum * restorePercent;
 
                         bodyPartState.Health = new HealthValue(newCurrentHealth, bodyPartState.Health.Maximum, 0f);
@@ -971,7 +980,7 @@ namespace RevivalMod.Features
                         {
                             Plugin.LogSource.LogError("eventField is null");
                         }
-                        Plugin.LogSource.LogDebug($"Restored {bodyPart}");
+                        Plugin.LogSource.LogDebug($"Restored {bodyPart} to {restorePercent * 100}%");
                     }
                 }
 

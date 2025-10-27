@@ -10,7 +10,6 @@ namespace RevivalMod.Helpers
         // Key Bindings
         public static ConfigEntry<KeyCode> SELF_REVIVAL_KEY;
         public static ConfigEntry<KeyCode> GIVE_UP_KEY;
-        public static ConfigEntry<KeyCode> SURVKIT_TEST_KEY;
 
         // Revival Mechanics
     public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
@@ -20,7 +19,11 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<float> REVIVAL_COOLDOWN;
         public static ConfigEntry<float> CRITICAL_STATE_TIME;
         public static ConfigEntry<bool> RESTORE_DESTROYED_BODY_PARTS;
-        public static ConfigEntry<float> RESTORE_DESTROYED_BODY_PARTS_AMOUNT;
+        public static ConfigEntry<float> RESTORE_HEAD_PERCENTAGE;
+        public static ConfigEntry<float> RESTORE_CHEST_PERCENTAGE;
+        public static ConfigEntry<float> RESTORE_STOMACH_PERCENTAGE;
+        public static ConfigEntry<float> RESTORE_ARMS_PERCENTAGE;
+        public static ConfigEntry<float> RESTORE_LEGS_PERCENTAGE;
         public static ConfigEntry<bool> CONTUSION_EFFECT;
         public static ConfigEntry<bool> STUN_EFFECT;
         public static ConfigEntry<float> REVIVAL_RANGE_X;
@@ -57,13 +60,6 @@ namespace RevivalMod.Helpers
                 "Press this key when in critical state to die immediately"
             );
 
-            SURVKIT_TEST_KEY = config.Bind(
-                "1. Key Bindings",
-                "SurvKit Animation Test Key",
-                KeyCode.F4,
-                "Press this key to trigger SurvKit animation test (bypasses inventory check)"
-            );
-
             #endregion
 
             #region Revival Mechanics Settings
@@ -94,7 +90,7 @@ namespace RevivalMod.Helpers
                 "2. Revival Mechanics",
                 "Critical State Duration",
                 180f,
-                "How long you remain in critical state before dying (in seconds)"
+                "How long you can be in critical state before dying (in seconds)"
             );
 
             REVIVAL_DURATION = config.Bind(
@@ -118,11 +114,39 @@ namespace RevivalMod.Helpers
                 "When enabled, destroyed body parts will be restored after revival"
             );
 
-            RESTORE_DESTROYED_BODY_PARTS_AMOUNT = config.Bind(
+            RESTORE_HEAD_PERCENTAGE = config.Bind(
                 "2. Revival Mechanics",
-                "Restore Destroyed Body Parts percentage",
-                0f,
-                "The percentage of Body Part's health to be restored (i.e 50%)"
+                "Head Restore Percentage",
+                50f,
+                "The percentage of Head's maximum health to restore (0-100)"
+            );
+
+            RESTORE_CHEST_PERCENTAGE = config.Bind(
+                "2. Revival Mechanics",
+                "Thorax Restore Percentage",
+                50f,
+                "The percentage of Thorax's maximum health to restore (0-100)"
+            );
+
+            RESTORE_STOMACH_PERCENTAGE = config.Bind(
+                "2. Revival Mechanics",
+                "Stomach Restore Percentage",
+                50f,
+                "The percentage of Stomach's maximum health to restore (0-100)"
+            );
+
+            RESTORE_ARMS_PERCENTAGE = config.Bind(
+                "2. Revival Mechanics",
+                "Arms Restore Percentage",
+                50f,
+                "The percentage of Arms' maximum health to restore (0-100)"
+            );
+
+            RESTORE_LEGS_PERCENTAGE = config.Bind(
+                "2. Revival Mechanics",
+                "Legs Restore Percentage",
+                50f,
+                "The percentage of Legs' maximum health to restore (0-100)"
             );
 
             CONTUSION_EFFECT = config.Bind(
