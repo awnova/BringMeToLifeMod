@@ -34,29 +34,11 @@ namespace RevivalMod.Components
 
             if (owner.Player.CurrentState is IdleStateClass)
             {
+                // Show hold prompt using ShowObjectivesPanel (TimerPanel) for the 2-second hold
                 owner.ShowObjectivesPanel("Reviving {0:F1}", REVIVE_HOLD_TIME);
 
-                // Try to color the objectives panel green for teammate revival
-                try
-                {
-                    var objectivesPanel = MonoBehaviourSingleton<GameUI>.Instance?.TimerPanel;
-                    if (objectivesPanel != null)
-                    {
-                        RectTransform panel = objectivesPanel.transform.GetChild(0) as RectTransform;
-                        if (panel != null)
-                        {
-                            var panelImage = panel.GetComponent<UnityEngine.UI.Image>();
-                            if (panelImage != null)
-                            {
-                                panelImage.color = UnityEngine.Color.green;
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Plugin.LogSource.LogDebug($"Could not color objectives panel: {ex.Message}");
-                }
+                // Color the objectives panel blue for teammate revival
+                VFX_UI.ColorObjectivesPanelBlue();
 
                 // Start the countdown, and trigger the ActionCompleteHandler when it's done
                 MovementState currentManagedState = owner.Player.CurrentManagedState;
@@ -82,7 +64,7 @@ namespace RevivalMod.Components
         public ActionsReturnClass GetActions(GamePlayerOwner owner)
         {
             // Check entire inventory for defib
-            bool hasDefib = RevivalFeatures.HasDefib(owner.Player);        
+            bool hasDefib = Utils.HasDefib(owner.Player);        
             bool playerCritState = RMSession.GetCriticalPlayers().Contains(Revivee.ProfileId);
             bool reviveButtonEnabled = playerCritState && hasDefib;
 

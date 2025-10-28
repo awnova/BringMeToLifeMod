@@ -128,15 +128,6 @@ namespace RevivalMod.Components
             return Instance.PlayerStates.ContainsKey(playerId);
         }
 
-        // Not sure yet
-        public static int GetTotalPlayers()
-        {
-            return Singleton<GameWorld>.Instance.allObservedPlayersByID.Count;
-        }
-
-        public static List<Player> GetAllAlivePlayerList()
-        {
-            return Singleton<GameWorld>.Instance.AllAlivePlayersList;
-        }
+        // Note: For general player lookups, use Utils.GetPlayerById() and Utils.GetAllPlayersAndBots()
     }
 }

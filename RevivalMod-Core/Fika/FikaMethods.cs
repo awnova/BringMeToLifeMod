@@ -255,9 +255,10 @@ namespace RevivalMod.Fika
                 if (FikaBackendUtils.Profile.ProfileId == packet.reviveeId)
                 {
                     float animDuration = RevivalModSettings.TEAMMATE_REVIVE_ANIMATION_DURATION.Value;
+                    var playerState = RMSession.GetPlayerState(packet.reviveeId);
                     
                     // Transition from "Being revived" countdown to "Reviving" countdown with red-to-green color
-                    RevivalFeatures.criticalStateMainTimer?.StartCountdown(
+                    playerState.CriticalStateMainTimer?.StartCountdown(
                         animDuration, 
                         "Reviving", 
                         TimerPosition.MiddleCenter,
@@ -279,11 +280,7 @@ namespace RevivalMod.Fika
             else
             {
                 // Reviver receives confirmation that revival process started successfully
-                NotificationManagerClass.DisplayMessageNotification(
-                        $"Revival initiated - teammate is reviving...",
-                        ENotificationDurationType.Long,
-                        ENotificationIconType.Friend,
-                        Color.green);
+                VFX_UI.ShowTeammateNotification("Revival initiated - teammate is reviving...");
             }
         }
 
@@ -300,9 +297,13 @@ namespace RevivalMod.Fika
 
                 Plugin.LogSource.LogDebug("ReviveStarted packet received - teammate is holding to revive");
                 
+                // Set flag to freeze movement (handled by update loop)
+                var playerState = RMSession.GetPlayerState(packet.reviveeId);
+                playerState.IsBeingRevived = true;
+                
                 // Show a 2-second countdown while teammate is holding to initiate revival
                 const float REVIVE_HOLD_TIME = 2f;
-                RevivalFeatures.criticalStateMainTimer?.StartCountdown(
+                playerState.CriticalStateMainTimer?.StartCountdown(
                     REVIVE_HOLD_TIME, 
                     "Being revived", 
                     TimerPosition.MiddleCenter,
@@ -324,9 +325,12 @@ namespace RevivalMod.Fika
                     
                 Plugin.LogSource.LogDebug("ReviveCanceled packet received - teammate stopped holding");
 
-                // Resume the "Bleeding Out" critical state timer with red-to-black transition
+                // Clear flag and restore crawl speed (recalculate from config)
                 var playerState = RMSession.GetPlayerState(packet.reviveeId);
-                RevivalFeatures.criticalStateMainTimer?.StartCountdown(
+                playerState.IsBeingRevived = false;
+
+                // Resume the "Bleeding Out" critical state timer with red-to-black transition
+                playerState.CriticalStateMainTimer?.StartCountdown(
                     playerState.CriticalTimer,
                     "Bleeding Out", 
                     TimerPosition.MiddleCenter,

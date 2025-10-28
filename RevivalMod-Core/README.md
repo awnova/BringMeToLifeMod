@@ -29,23 +29,19 @@ RevivalMod adds a second-chance mechanic to Single Player Tarkov. Instead of imm
 5. **Cooldown**: There's a 3-minute cooldown between uses of the revival system
 
 ## Configuration
-You can modify the following settings in the `Constants.cs` file:
+You can modify settings using BepInEx's built-in configuration system. After running the mod once, settings can be found in:
+`BepInEx/config/com.kobethuy.BringMeToLifeMod.cfg`
 
-```csharp
-// Change which item works as a revival tool
-public const string ITEM_ID = "60540bddd93c884912009818"; // Default: Defibrillator
-
-// Set to true for testing without requiring the actual item
-public const bool TESTING = false;
-
-// Enable/disable self-revival
-public const bool SELF_REVIVAL = true;
-```
-
-Additional settings in `Features.cs`:
-- `INVULNERABILITY_DURATION`: Duration of post-revival invulnerability (default: 4 seconds)
-- `MANUAL_REVIVAL_KEY`: Key to trigger revival (default: F5)
-- `REVIVAL_COOLDOWN`: Time between revivals (default: 180 seconds)
+Key configurable settings include:
+- **Revival Item ID**: Which item triggers revival (default: Defibrillator "5c052e6986f7746b207bc3c9")
+- **Self Revival Key**: Key to trigger self-revival (default: F)
+- **Give Up Key**: Key to die immediately in critical state (default: Backspace)
+- **Critical State Duration**: How long you can be in critical state (default: 180 seconds)
+- **Revival Cooldown**: Time between revivals (default: 180 seconds)
+- **Downed Movement Speed**: Movement speed percentage when downed (default: 50%)
+- **Restore Destroyed Body Parts**: Automatically restore destroyed limbs after revival
+- **Animation Durations**: Self-revive and teammate revive animation times
+- **Testing Mode**: Enables debug keybinds and bypasses item requirements
 
 ## Multiplayer Support
 When using the Fika Co-op mod, RevivalMod will synchronize player states:

@@ -12,6 +12,7 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<KeyCode> GIVE_UP_KEY;
 
         // Revival Mechanics
+        public static ConfigEntry<string> REVIVAL_ITEM_ID;
     public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
     public static ConfigEntry<float> SELF_REVIVE_ANIMATION_DURATION;
     public static ConfigEntry<float> TEAMMATE_REVIVE_ANIMATION_DURATION;
@@ -27,9 +28,8 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<float> RESTORE_LEGS_PERCENTAGE;
         public static ConfigEntry<bool> CONTUSION_EFFECT;
         public static ConfigEntry<bool> STUN_EFFECT;
-        public static ConfigEntry<float> REVIVAL_RANGE_X;
-        public static ConfigEntry<float> REVIVAL_RANGE_Y; 
-        public static ConfigEntry<float> REVIVAL_RANGE_Z;
+        public static ConfigEntry<float> REVIVAL_RANGE;
+        public static ConfigEntry<float> DOWNED_MOVEMENT_SPEED;
 
         // Hardcore Mode
         public static ConfigEntry<bool> GOD_MODE;
@@ -50,7 +50,7 @@ namespace RevivalMod.Helpers
             SELF_REVIVAL_KEY = config.Bind(
                 "1. Key Bindings",
                 "Self Revival Key",
-                KeyCode.F5,
+                KeyCode.F,
                 "The key to press and hold to revive yourself when in critical state"
             );
 
@@ -64,6 +64,13 @@ namespace RevivalMod.Helpers
             #endregion
 
             #region Revival Mechanics Settings
+
+            REVIVAL_ITEM_ID = config.Bind(
+                "2. Revival Mechanics",
+                "Revival Item ID",
+                "5c052e6986f7746b207bc3c9",
+                "The item template ID required for revival (default is defibrillator). Common IDs: Defibrillator='5c052e6986f7746b207bc3c9', CMS='5d02778e86f774203e7dedbe', Bandage='544fb25a4bdc2dfb738b4567'"
+            );
 
             SELF_REVIVAL_ENABLED = config.Bind(
                 "2. Revival Mechanics",
@@ -118,7 +125,7 @@ namespace RevivalMod.Helpers
             RESTORE_DESTROYED_BODY_PARTS = config.Bind(
                 "2. Revival Mechanics",
                 "Restore Destroyed Body Parts",
-                false,
+                true,
                 "When enabled, destroyed body parts will be restored after revival"
             );
 
@@ -171,25 +178,18 @@ namespace RevivalMod.Helpers
                 ""
             );
 
-            REVIVAL_RANGE_X = config.Bind(
+            REVIVAL_RANGE = config.Bind(
                 "2. Revival Mechanics",
-                "Hitbox X dimension (requires restart raid)",
+                "Revival Range",
                 0.3f,
-                ""
+                "The interaction range for reviving downed players (requires restart raid)"
             );
 
-            REVIVAL_RANGE_Y = config.Bind(
+            DOWNED_MOVEMENT_SPEED = config.Bind(
                 "2. Revival Mechanics",
-                "Hitbox Y dimension (requires restart raid)",
-                0.3f,
-                ""
-            );
-
-            REVIVAL_RANGE_Z = config.Bind(
-                "2. Revival Mechanics",
-                "Hitbox Z dimension (requires restart raid)",
-                0.3f,
-                ""
+                "Downed Movement Speed",
+                50f,
+                "Movement speed percentage when downed (0-100, default is 50% of normal speed)"
             );
 
             #endregion

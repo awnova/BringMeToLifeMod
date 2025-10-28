@@ -156,10 +156,11 @@
   <ItemGroup>
     <Compile Include="Components\InteractableBuilder.cs" />
     <Compile Include="Components\BodyInteractable.cs" />
+    <Compile Include="Helpers\BodyPartRestoration.cs" />
     <Compile Include="Helpers\CustomTimer.cs" />
     <Compile Include="Components\RMSession.cs" />
     <Compile Include="Components\RMPlayer.cs" />
-    <Compile Include="Constants\Constants.cs" />
+    <Compile Include="Helpers\VFX_UI.cs" />
     <Compile Include="Fika\FikaBridge.cs" />
     <Compile Include="Fika\FikaMethods.cs" />
     <Compile Include="Fika\Packets.cs" />

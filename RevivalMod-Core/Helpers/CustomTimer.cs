@@ -10,8 +10,7 @@ using UnityEngine.UI;
 //====================[ CustomTimer ]====================
 namespace RevivalMod.Helpers
 {
-    //====================[ Enums ]====================
-    // Defines possible on-screen anchor points for the timer display
+    //====================[ Screen Positions ]====================
     public enum TimerPosition
     {
         TopLeft,
@@ -25,68 +24,67 @@ namespace RevivalMod.Helpers
         BottomRight
     }
 
-    // Defines color transition behavior for the timer
+    //====================[ Color Modes ]====================
     public enum TimerColorMode
     {
-        RedToGrey,      // Default: transitions from red to grey (danger diminishing)
-        RedToGreen,     // Revival: transitions from red to green (healing in progress)
-        RedToBlack,     // Critical: transitions from red to black (death approaching)
-        StaticBlue,     // Static blue color (for "Being revived")
-        Static          // No color transition
+        RedToGrey,   // bleedout / danger cooling off
+        RedToGreen,  // healing / being saved
+        RedToBlack,  // about to die
+        StaticBlue,  // "Being revived" / help incoming
+        Static       // no color change
     }
 
-    //====================[ Custom Timer Class ]====================
-    // Provides a simple countdown or stopwatch timer with a custom in-game UI
-    // Uses EFT’s LocationTransitTimerPanel as the display surface
+    //====================[ Timer Display ]====================
+    // Renders a countdown or stopwatch on screen using GameUI.LocationTransitTimerPanel.
     public class CustomTimer
     {
-        //====================[ Fields ]====================
-        // Timing data
-        private bool isCountdown;                // Determines timer type (countdown or stopwatch)
-        private string timerName;                // Internal name for logging/debugging
-        private TimerPosition timerPosition;     // Screen anchor position for display
-        private TimerColorMode colorMode;        // Color transition mode
-        private DateTime startTime;              // UTC time when timer started
-        private DateTime targetEndTime;          // UTC time when countdown ends
-        private float totalDuration;             // Total duration in seconds (for color interpolation)
+        //-------------[ State ]-------------
+        private bool isCountdown;
+        private string timerName;
+        private TimerPosition timerPosition;
+        private TimerColorMode colorMode;
+        private DateTime startTime;
+        private DateTime targetEndTime;
+        private float totalDuration;
 
-        // UI references
-        private TextMeshProUGUI titleText;       // Timer text component
-        private Image panelImage;                // Panel background for color transitions
+        //-------------[ UI Refs ]-------------
+        private TextMeshProUGUI titleText;
+        private Image panelImage;
 
-        //====================[ Properties ]====================
-        public bool IsRunning { get; set; }      // Indicates if timer is currently active
-        public string TimerLabel { get; private set; } = "Timer"; // Display name shown on screen
+        //-------------[ Public Flags ]-------------
+        public bool IsRunning { get; set; }
+        public string TimerLabel { get; private set; } = "Timer";
 
-        //====================[ Constructors ]====================
-        // Initializes a clean timer instance
-        public CustomTimer() { }
-
-        //====================[ Timer Control ]====================
-        // Starts a countdown for the specified duration
-        public void StartCountdown(float durationInSeconds, string name = "Countdown", TimerPosition position = TimerPosition.BottomCenter, TimerColorMode colorTransition = TimerColorMode.RedToGrey)
+        //====================[ Start Countdown ]====================
+        public void StartCountdown(
+            float seconds,
+            string label = "Countdown",
+            TimerPosition position = TimerPosition.BottomCenter,
+            TimerColorMode mode = TimerColorMode.RedToGrey)
         {
             isCountdown = true;
             IsRunning = true;
-            timerName = name;
-            TimerLabel = name;
+            timerName = label;
+            TimerLabel = label;
             timerPosition = position;
-            colorMode = colorTransition;
-            totalDuration = durationInSeconds;
+            colorMode = mode;
+            totalDuration = seconds;
 
             startTime = DateTime.UtcNow;
-            targetEndTime = startTime.AddSeconds(durationInSeconds);
+            targetEndTime = startTime.AddSeconds(seconds);
 
             CreateTimerUI();
         }
 
-        // Starts a stopwatch timer (elapsed time counting upward)
-        public void StartStopwatch(string name = "Stopwatch", TimerPosition position = TimerPosition.TopCenter)
+        //====================[ Start Stopwatch ]====================
+        public void StartStopwatch(
+            string label = "Stopwatch",
+            TimerPosition position = TimerPosition.TopCenter)
         {
             isCountdown = false;
             IsRunning = true;
-            timerName = name;
-            TimerLabel = name;
+            timerName = label;
+            TimerLabel = label;
             timerPosition = position;
             colorMode = TimerColorMode.Static;
 
@@ -95,7 +93,7 @@ namespace RevivalMod.Helpers
             CreateTimerUI();
         }
 
-        // Stops the timer and hides its UI safely
+        //====================[ Stop / Hide ]====================
         public void StopTimer()
         {
             IsRunning = false;
@@ -103,62 +101,53 @@ namespace RevivalMod.Helpers
             try
             {
                 var ui = MonoBehaviourSingleton<GameUI>.Instance?.LocationTransitTimerPanel;
-                if (ui != null && ui.isActiveAndEnabled)
-                    ui.Close();
+                if (ui != null && ui.isActiveAndEnabled) ui.Close();
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"Error stopping timer UI: {ex.Message}");
+                Plugin.LogSource.LogError($"StopTimer(): {ex.Message}");
             }
         }
 
-        //====================[ Update Loop ]====================
-        // Called each frame to refresh the timer text and visual color transitions
+        //====================[ Per-Frame Update ]====================
         public void Update()
         {
-            if (!IsRunning || titleText == null)
-                return;
+            if (!IsRunning || titleText == null) return;
 
-            TimeSpan timeSpan = GetTimeSpan();
+            var span = GetTimeSpan();
 
-            // Stop automatically when countdown finishes
-            if (isCountdown && timeSpan.TotalSeconds <= 0)
+            // auto-stop when countdown hits zero
+            if (isCountdown && span.TotalSeconds <= 0)
             {
                 titleText.text = $"{TimerLabel.ToUpperInvariant()}: 00:00.000";
                 StopTimer();
                 return;
             }
 
-            // Update label text
             titleText.text = $"{TimerLabel.ToUpperInvariant()}: {GetFormattedTime()}";
-
-            // Update background color
-            UpdatePanelColor(timeSpan);
+            UpdatePanelColor(span);
         }
 
-        //====================[ Time Utilities ]====================
-        // Returns the raw TimeSpan (remaining for countdown, elapsed for stopwatch)
+        //====================[ Time Math ]====================
+        // Remaining time (countdown) or elapsed time (stopwatch)
         public TimeSpan GetTimeSpan()
         {
-            if (!isCountdown)
-                return DateTime.UtcNow - startTime;
+            if (!isCountdown) return DateTime.UtcNow - startTime;
 
-            TimeSpan remaining = targetEndTime - DateTime.UtcNow;
+            var remaining = targetEndTime - DateTime.UtcNow;
             return remaining.TotalSeconds > 0 ? remaining : TimeSpan.Zero;
         }
 
-        // Returns formatted time as MM:SS:MMM
+        // "MM:SS:MMM"
         public string GetFormattedTime()
         {
-            TimeSpan timeSpan = GetTimeSpan();
-            if (isCountdown && timeSpan.TotalSeconds <= 0)
-                return "00:00:000";
+            var span = GetTimeSpan();
+            if (isCountdown && span.TotalSeconds <= 0) return "00:00:000";
 
-            return $"{(int)timeSpan.TotalMinutes:00}:{timeSpan.Seconds:00}:{timeSpan.Milliseconds:000}";
+            return $"{(int)span.TotalMinutes:00}:{span.Seconds:00}:{span.Milliseconds:000}";
         }
 
-        //====================[ UI Handling ]====================
-        // Creates or reuses the LocationTransitTimerPanel for display
+        //====================[ UI Build ]====================
         private void CreateTimerUI()
         {
             try
@@ -166,68 +155,63 @@ namespace RevivalMod.Helpers
                 var ui = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel;
                 ui.Display();
 
-                // Configure layout
-                RectTransform panel = ui.transform.GetChild(0) as RectTransform;
+                // panel
+                var panel = ui.transform.GetChild(0) as RectTransform;
                 if (panel != null)
                 {
                     panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
                     panel.sizeDelta = new Vector2(318, 51);
 
                     panelImage = panel.GetComponent<Image>();
-                    
-                    // Set initial color based on color mode
-                    panelImage.color = colorMode == TimerColorMode.StaticBlue ? Color.blue : 
-                                      (isCountdown ? Color.red : Color.grey);
+                    panelImage.color = colorMode == TimerColorMode.StaticBlue
+                        ? Color.blue
+                        : (isCountdown ? Color.red : Color.grey);
 
                     ApplyAnchorPosition(panel);
                 }
 
-                // Initialize text component
+                // text
                 titleText = ui.GetComponentInChildren<TextMeshProUGUI>();
                 titleText.text = $"{TimerLabel.ToUpperInvariant()}: {GetFormattedTime()}";
                 titleText.autoSizeTextContainer = true;
                 titleText.fontSize = 22;
 
-                Plugin.LogSource.LogDebug($"Created custom timer UI for '{timerName}' at {timerPosition}");
+                Plugin.LogSource.LogDebug($"Timer UI '{timerName}' at {timerPosition}");
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"Error creating custom timer UI: {ex.Message}\n{ex.StackTrace}");
+                Plugin.LogSource.LogError($"CreateTimerUI(): {ex.Message}\n{ex.StackTrace}");
             }
         }
 
-        //====================[ Visual Utilities ]====================
-        // Transitions panel color based on timer progress and color mode
-        private void UpdatePanelColor(TimeSpan timeSpan)
+        //====================[ Color Logic ]====================
+        private void UpdatePanelColor(TimeSpan span)
         {
-            if (!isCountdown || panelImage == null || totalDuration <= 0)
-                return;
+            if (!isCountdown || panelImage == null || totalDuration <= 0) return;
 
-            float remainingSeconds = (float)timeSpan.TotalSeconds;
-            float progress = 1f - (remainingSeconds / totalDuration); // 0=start, 1=end
+            float remaining = (float)span.TotalSeconds;
+            float t = 1f - (remaining / totalDuration); // 0=start, 1=end
 
             switch (colorMode)
             {
                 case TimerColorMode.RedToGrey:
-                    panelImage.color = Color.Lerp(Color.red, Color.grey, progress);
+                    panelImage.color = Color.Lerp(Color.red, Color.grey, t);
                     break;
                 case TimerColorMode.RedToGreen:
-                    panelImage.color = Color.Lerp(Color.red, Color.green, progress);
+                    panelImage.color = Color.Lerp(Color.red, Color.green, t);
                     break;
                 case TimerColorMode.RedToBlack:
-                    panelImage.color = Color.Lerp(Color.red, Color.black, progress);
+                    panelImage.color = Color.Lerp(Color.red, Color.black, t);
                     break;
                 case TimerColorMode.StaticBlue:
-                    // Keep static blue color
                     panelImage.color = Color.blue;
                     break;
                 case TimerColorMode.Static:
-                    // No color change
                     break;
             }
         }
 
-        // Positions the panel based on the selected TimerPosition enum
+        //====================[ Positioning ]====================
         private void ApplyAnchorPosition(RectTransform panel)
         {
             switch (timerPosition)
@@ -269,6 +253,56 @@ namespace RevivalMod.Helpers
                     panel.anchoredPosition = new Vector2(-100, 50);
                     break;
             }
+        }
+
+        //====================[ Static Message Display ]====================
+        // Show a message panel (no ticking time)
+        public void ShowStaticMessage(
+            string message,
+            TimerPosition position = TimerPosition.BottomCenter,
+            Color backgroundColor = default)
+        {
+            IsRunning = true;
+            timerName = message;
+            TimerLabel = message;
+            timerPosition = position;
+            colorMode = TimerColorMode.Static;
+            isCountdown = false;
+
+            if (backgroundColor == default) backgroundColor = Color.grey;
+
+            try
+            {
+                var ui = MonoBehaviourSingleton<GameUI>.Instance.LocationTransitTimerPanel;
+                ui.Display();
+
+                var panel = ui.transform.GetChild(0) as RectTransform;
+                if (panel != null)
+                {
+                    panel.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                    panel.sizeDelta = new Vector2(318, 51);
+
+                    panelImage = panel.GetComponent<Image>();
+                    panelImage.color = backgroundColor;
+
+                    ApplyAnchorPosition(panel);
+                }
+
+                titleText = ui.GetComponentInChildren<TextMeshProUGUI>();
+                titleText.text = message;
+                titleText.autoSizeTextContainer = true;
+                titleText.fontSize = 22;
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"ShowStaticMessage(): {ex.Message}");
+            }
+        }
+
+        //====================[ Update Static Text ]====================
+        public void UpdateStaticMessage(string message)
+        {
+            if (titleText != null) titleText.text = message;
         }
     }
 }
