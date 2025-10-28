@@ -6,6 +6,7 @@ using System;
 using System.Reflection;
 using RevivalMod.Features;
 using RevivalMod.Helpers;
+using RevivalMod.Components;
 using UnityEngine;
 using EFT.Communications;
 
@@ -33,8 +34,16 @@ namespace RevivalMod.Patches
                 string playerId = player.ProfileId;
 
                 // Check for explicit kill override
-                if (RevivalFeatures._playerList[playerId].KillOverride)
+                if (RMSession.HasPlayerState(playerId) && RMSession.GetPlayerState(playerId).KillOverride) 
                     return true;
+
+                // CRITICAL: If player is already in critical state, block all further kill attempts
+                // This prevents dying from additional damage while bleeding out
+                if (RevivalFeatures.IsPlayerInCriticalState(playerId))
+                {
+                    Plugin.LogSource.LogDebug($"Player {playerId} is already in critical state, blocking repeated kill attempt from {damageType}");
+                    return false; // Block the kill completely
+                }
 
                 // Check if player is invulnerable from recent revival
                 if (RevivalFeatures.IsPlayerInvulnerable(playerId))

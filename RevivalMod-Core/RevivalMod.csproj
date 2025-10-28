@@ -161,6 +161,8 @@
     <Compile Include="Components\RMPlayer.cs" />
     <Compile Include="Constants\Constants.cs" />
     <Compile Include="Fika\FikaBridge.cs" />
+    <Compile Include="Fika\FikaMethods.cs" />
+    <Compile Include="Fika\Packets.cs" />
     <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
     <Compile Include="Helpers\MedicalAnimations.cs" />
     <Compile Include="Helpers\RevivalModSettings.cs" />

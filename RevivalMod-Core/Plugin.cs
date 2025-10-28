@@ -87,34 +87,12 @@ namespace RevivalMod
             {
                 LogSource.LogError($"Error enabling GhostModeDeathPatch: {ex.Message}");
             }
-
-            TryInitFikaAssembly();
         }
 
         private void OnEnable()
         {
             FikaBridge.PluginEnable();
         }
-
-        void TryInitFikaAssembly()
-        {
-            if (!FikaInstalled) return;
-
-            try
-            {
-                Assembly fikaModuleAssembly = Assembly.Load("RevivalMod-Fika");
-
-                Type main = fikaModuleAssembly.GetType("RevivalMod.FikaModule.Main");
-                MethodInfo init = main.GetMethod("Init");
-
-                init.Invoke(main, null);
-            }
-            catch (Exception ex)
-            {
-                LogSource.LogError($"Error loading Fika assembly: {ex.Message}");
-            }
-        }
-
   
     }
 }

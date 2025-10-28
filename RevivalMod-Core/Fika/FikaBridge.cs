@@ -1,78 +1,81 @@
 ﻿using SPT.Reflection.Utils;
 using System;
 using UnityEngine;
+using Comfort.Common;
+using Fika.Core.Coop.Utils;
+using Fika.Core.Networking;
 
 namespace RevivalMod.Fika
 {
     internal class FikaBridge
     {
-        public delegate void SimpleEvent();
-        public delegate bool SimpleBoolReturnEvent();
-        public delegate string SimpleStringReturnEvent();
-
-        public static event SimpleEvent PluginEnableEmitted;
         public static void PluginEnable()
         {
-            PluginEnableEmitted?.Invoke(); 
-            
-            if (PluginEnableEmitted != null)
-            {
-                Plugin.LogSource.LogInfo("RevivalMod-Fika plugin loaded!");
-            }
+            if (!Plugin.FikaInstalled)
+                return;
+
+            FikaMethods.InitOnPluginEnabled();
+            Plugin.LogSource.LogInfo("Fika integration initialized!");
         }
-        public static event SimpleBoolReturnEvent IAmHostEmitted;
+
         public static bool IAmHost()
         {
-            bool? eventResponse = IAmHostEmitted?.Invoke();
+            if (!Plugin.FikaInstalled)
+                return true;
 
-            return eventResponse == null || eventResponse.Value;
+            return Singleton<FikaServer>.Instantiated;
         }
-        public static event SimpleStringReturnEvent GetRaidIdEmitted;
+
         public static string GetRaidId()
         {
-            string eventResponse = GetRaidIdEmitted?.Invoke();
+            if (!Plugin.FikaInstalled)
+                return ClientAppUtils.GetMainApp().GetClientBackEndSession().Profile.ProfileId;
 
-            return eventResponse ?? ClientAppUtils.GetMainApp().GetClientBackEndSession().Profile.ProfileId;
+            return FikaBackendUtils.GroupId;
         }
 
-        public delegate void SendPlayerPositionPacketEvent(string playerId, DateTime timeOfDeath, Vector3 position);
-        public static event SendPlayerPositionPacketEvent SendPlayerPositionPacketEmitted;
-        public static void SendPlayerPositionPacket(string playerId, DateTime timeOfDeath, Vector3 position)
-        { 
-            SendPlayerPositionPacketEmitted?.Invoke(playerId, timeOfDeath, position); 
+        public static void SendPlayerCriticalStatePacket(string playerId)
+        {
+            if (!Plugin.FikaInstalled)
+                return;
+
+            FikaMethods.SendPlayerCriticalStatePacket(playerId);
         }
 
-        public delegate void SendRemovePlayerFromCriticalPlayersListPacketEvent(string playerId);
-        public static event SendRemovePlayerFromCriticalPlayersListPacketEvent SendRemovePlayerFromCriticalPlayersListPacketEmitted;
         public static void SendRemovePlayerFromCriticalPlayersListPacket(string playerId)
         {
+            if (!Plugin.FikaInstalled)
+                return;
+
             Plugin.LogSource.LogDebug("Sending remove player from critical players list packet");
-            SendRemovePlayerFromCriticalPlayersListPacketEmitted?.Invoke(playerId); 
+            FikaMethods.SendRemovePlayerFromCriticalPlayersListPacket(playerId);
         }
 
-        public delegate void SendReviveMePacketEvent(string reviveeId, string reviverId);
-        public static event SendReviveMePacketEvent SendReviveMePacketEmitted;
         public static void SendReviveMePacket(string reviveeId, string reviverId)
         {
+            if (!Plugin.FikaInstalled)
+                return;
+
             Plugin.LogSource.LogDebug("Sending revive me packet");
-            SendReviveMePacketEmitted?.Invoke(reviveeId, reviverId);
+            FikaMethods.SendReviveMePacket(reviveeId, reviverId);
         }
-        
-        public delegate void SendReviveStartedPacketEvent(string reviveeId, string reviverId);
-        public static event SendReviveStartedPacketEvent SendReviveStartedPacketEmitted;
+
         public static void SendReviveStartedPacket(string reviveeId, string reviverId)
         {
+            if (!Plugin.FikaInstalled)
+                return;
+
             Plugin.LogSource.LogDebug("Sending revive started packet");
-            SendReviveStartedPacketEmitted?.Invoke(reviveeId, reviverId);
+            FikaMethods.SendReviveStartedPacket(reviveeId, reviverId);
         }
 
-        public delegate void SendReviveCanceledPacketEvent(string reviveeId, string reviverId);
-        public static event SendReviveCanceledPacketEvent SendReviveCanceledPacketEmitted;
         public static void SendReviveCanceledPacket(string reviveeId, string reviverId)
         {
-            Plugin.LogSource.LogDebug("Sending revive canceled packet");
-            SendReviveCanceledPacketEmitted?.Invoke(reviveeId, reviverId);
-        }
+            if (!Plugin.FikaInstalled)
+                return;
 
+            Plugin.LogSource.LogDebug("Sending revive canceled packet");
+            FikaMethods.SendReviveCanceledPacket(reviveeId, reviverId);
+        }
     }
 }

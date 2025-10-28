@@ -1,4 +1,4 @@
-﻿using Comfort.Common;
+using Comfort.Common;
 using EFT;
 using EFT.Communications;
 using EFT.UI;
@@ -9,23 +9,21 @@ using Fika.Core.Networking;
 using LiteNetLib;
 using RevivalMod.Components;
 using RevivalMod.Features;
-using RevivalMod.FikaModule.Packets;
+using RevivalMod.Fika.Packets;
 using RevivalMod.Helpers;
 using System;
 using UnityEngine;
 using TMPro;
 
-namespace RevivalMod.FikaModule.Common
+namespace RevivalMod.Fika
 {
     internal class FikaMethods
     {
-        public static void SendPlayerPositionPacket(string playerId, DateTime timeOfDeath, Vector3 position)
+        public static void SendPlayerCriticalStatePacket(string playerId)
         {
-            PlayerPositionPacket packet = new()
+            PlayerCriticalStatePacket packet = new()
             {
-                playerId = playerId,
-                timeOfDeath = timeOfDeath,
-                position = position
+                playerId = playerId
             };
 
             if (FikaBackendUtils.IsServer)
@@ -170,15 +168,18 @@ namespace RevivalMod.FikaModule.Common
             }
         }
 
-        private static void OnPlayerPositionPacketReceived(PlayerPositionPacket packet, NetPeer peer)
+        private static void OnPlayerCriticalStatePacketReceived(PlayerCriticalStatePacket packet, NetPeer peer)
         {
             if (FikaBackendUtils.IsServer && FikaBackendUtils.IsHeadless)
             {
-                SendPlayerPositionPacket(packet.playerId, packet.timeOfDeath, packet.position);
+                SendPlayerCriticalStatePacket(packet.playerId);
             }
             else
             {
-                RMSession.AddToCriticalPlayers(packet.playerId, packet.position);
+                // Update RMSession (single source of truth) for network-synced critical state
+                var playerState = RMSession.GetPlayerState(packet.playerId);
+                playerState.IsCritical = true;
+                RMSession.AddToCriticalPlayers(packet.playerId);
 
                 // If this process actually runs AI, also apply ghost-mode removal locally
                 try
@@ -204,6 +205,11 @@ namespace RevivalMod.FikaModule.Common
             }
             else
             {
+                // Update RMSession (single source of truth) for network-synced critical state removal
+                if (RMSession.HasPlayerState(packet.playerId))
+                {
+                    RMSession.GetPlayerState(packet.playerId).IsCritical = false;
+                }
                 RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
 
                 // If this process runs AI, restore the player in the local enemy lists
@@ -238,13 +244,29 @@ namespace RevivalMod.FikaModule.Common
             }
             else
             {
-                bool revived = RevivalFeatures.TryPerformRevivalByTeammate(packet.reviveeId);
+                // This packet is received after teammate finished holding (2s)
+                // Now start the CMS animation on the revivee
+                bool animationStarted = RevivalFeatures.TryPerformRevivalByTeammate(packet.reviveeId);
                 
-                if (!revived) 
+                if (!animationStarted) 
                     return;
                 
+                // Update timer to show the CMS animation duration
+                if (FikaBackendUtils.Profile.ProfileId == packet.reviveeId)
+                {
+                    float animDuration = RevivalModSettings.TEAMMATE_REVIVE_ANIMATION_DURATION.Value;
+                    
+                    // Transition from "Being revived" countdown to "Reviving" countdown with red-to-green color
+                    RevivalFeatures.criticalStateMainTimer?.StartCountdown(
+                        animDuration, 
+                        "Reviving", 
+                        TimerPosition.MiddleCenter,
+                        TimerColorMode.RedToGreen  // Healing in progress - red to green
+                    );
+                }
+                
+                // Notify the reviver that revival animation has started
                 SendReviveSucceedPacket(packet.reviverId, peer);
-                Singleton<GameUI>.Instance.BattleUiPanelExtraction.Close();
             }
         }
 
@@ -256,8 +278,9 @@ namespace RevivalMod.FikaModule.Common
             }
             else
             {
+                // Reviver receives confirmation that revival process started successfully
                 NotificationManagerClass.DisplayMessageNotification(
-                        $"Successfully revived your teammate!",
+                        $"Revival initiated - teammate is reviving...",
                         ENotificationDurationType.Long,
                         ENotificationIconType.Friend,
                         Color.green);
@@ -275,14 +298,16 @@ namespace RevivalMod.FikaModule.Common
                 if (FikaBackendUtils.Profile.ProfileId != packet.reviveeId)
                     return;
 
-                Plugin.LogSource.LogDebug("ReviveStarted packet received");
+                Plugin.LogSource.LogDebug("ReviveStarted packet received - teammate is holding to revive");
                 
-                RevivalFeatures.criticalStateMainTimer.StopTimer();
-                Singleton<GameUI>.Instance.BattleUiPanelExtraction.Display();
-                
-                TextMeshProUGUI textTimerPanel = MonoBehaviourSingleton<GameUI>.Instance.BattleUiPanelExtraction.GetComponentInChildren<TextMeshProUGUI>();
-                
-                textTimerPanel.SetText("Being revived...");
+                // Show a 2-second countdown while teammate is holding to initiate revival
+                const float REVIVE_HOLD_TIME = 2f;
+                RevivalFeatures.criticalStateMainTimer?.StartCountdown(
+                    REVIVE_HOLD_TIME, 
+                    "Being revived", 
+                    TimerPosition.MiddleCenter,
+                    TimerColorMode.StaticBlue  // Blue color for short "being revived" state
+                );
             }
         }
 
@@ -297,18 +322,22 @@ namespace RevivalMod.FikaModule.Common
                 if (FikaBackendUtils.Profile.ProfileId != packet.reviveeId)
                     return;
                     
-                Plugin.LogSource.LogDebug("ReviveCanceled packet received");
+                Plugin.LogSource.LogDebug("ReviveCanceled packet received - teammate stopped holding");
 
-                Singleton<GameUI>.Instance.BattleUiPanelExtraction.Close();
-
-                RevivalFeatures.criticalStateMainTimer.StartCountdown(RevivalFeatures._playerList[packet.reviveeId].CriticalTimer,
-                                                                    "Critical State Timer", TimerPosition.MiddleCenter);
+                // Resume the "Bleeding Out" critical state timer with red-to-black transition
+                var playerState = RMSession.GetPlayerState(packet.reviveeId);
+                RevivalFeatures.criticalStateMainTimer?.StartCountdown(
+                    playerState.CriticalTimer,
+                    "Bleeding Out", 
+                    TimerPosition.MiddleCenter,
+                    TimerColorMode.RedToBlack
+                );
             }
         }
 
         public static void OnFikaNetManagerCreated(FikaNetworkManagerCreatedEvent managerCreatedEvent)
         {
-            managerCreatedEvent.Manager.RegisterPacket<PlayerPositionPacket, NetPeer>(OnPlayerPositionPacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<PlayerCriticalStatePacket, NetPeer>(OnPlayerCriticalStatePacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<RemovePlayerFromCriticalPlayersListPacket, NetPeer>(OnRemovePlayerFromCriticalPlayersListPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<ReviveMePacket, NetPeer>(OnReviveMePacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<RevivedPacket, NetPeer>(OnReviveSucceedPacketReceived);

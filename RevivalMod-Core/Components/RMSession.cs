@@ -15,8 +15,11 @@ namespace RevivalMod.Components
         public GameWorld GameWorld { get; private set; }
         public GamePlayerOwner GamePlayerOwner { get; private set; }
 
-        // Dictionary to track players with revival items
-        public Dictionary<string, Vector3> CriticalPlayers = [];
+        // Dictionary to track all player states (single source of truth)
+        public Dictionary<string, RMPlayer> PlayerStates = [];
+        
+        // Backward compatibility: critical players set for quick lookups
+        public HashSet<string> CriticalPlayers = [];
 
         public static RMSession Instance
         {
@@ -74,7 +77,7 @@ namespace RevivalMod.Components
             }
         }
 
-        public static void AddToCriticalPlayers(string playerId, Vector3 position)
+        public static void AddToCriticalPlayers(string playerId)
         {
             if (string.IsNullOrEmpty(playerId))
             {
@@ -85,8 +88,7 @@ namespace RevivalMod.Components
             if (Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) 
                 return;
 
-            // Allow overwrites for updating item status
-            Instance.CriticalPlayers[playerId] = position;
+            Instance.CriticalPlayers.Add(playerId);
             
             Plugin.LogSource.LogDebug($"Player {playerId} added to critical players.");
         }
@@ -102,18 +104,28 @@ namespace RevivalMod.Components
             Plugin.LogSource.LogDebug($"Player {playerId} removed from critical players.");
         }
 
-        public static Vector3 GetPosition(string playerId)
-        {
-            if (string.IsNullOrEmpty(playerId) || 
-                Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId)
-                return Vector3.zero;
-
-            return Instance.CriticalPlayers[playerId];
-        }
-
-        public static Dictionary<string, Vector3> GetCriticalPlayers()
+        public static HashSet<string> GetCriticalPlayers()
         {
             return Instance.CriticalPlayers;
+        }
+
+        public static Dictionary<string, RMPlayer> GetPlayerStates()
+        {
+            return Instance.PlayerStates;
+        }
+
+        public static RMPlayer GetPlayerState(string playerId)
+        {
+            if (!Instance.PlayerStates.ContainsKey(playerId))
+            {
+                Instance.PlayerStates[playerId] = new RMPlayer();
+            }
+            return Instance.PlayerStates[playerId];
+        }
+
+        public static bool HasPlayerState(string playerId)
+        {
+            return Instance.PlayerStates.ContainsKey(playerId);
         }
 
         // Not sure yet

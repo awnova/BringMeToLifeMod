@@ -15,6 +15,7 @@ namespace RevivalMod.Helpers
     public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
     public static ConfigEntry<float> SELF_REVIVE_ANIMATION_DURATION;
     public static ConfigEntry<float> TEAMMATE_REVIVE_ANIMATION_DURATION;
+    public static ConfigEntry<bool> CONSUME_DEFIB_ON_TEAMMATE_REVIVE;
         public static ConfigEntry<float> REVIVAL_DURATION;
         public static ConfigEntry<float> REVIVAL_COOLDOWN;
         public static ConfigEntry<float> CRITICAL_STATE_TIME;
@@ -84,6 +85,13 @@ namespace RevivalMod.Helpers
                 "Teammate Revive Animation Duration",
                 10f,
                 "Duration (seconds) used for the CMS animation when a teammate revives you"
+            );
+
+            CONSUME_DEFIB_ON_TEAMMATE_REVIVE = config.Bind(
+                "2. Revival Mechanics",
+                "Consume Defib on Teammate Revive",
+                false,
+                "When enabled, the defibrillator will be consumed when reviving a teammate"
             );
 
             CRITICAL_STATE_TIME = config.Bind(

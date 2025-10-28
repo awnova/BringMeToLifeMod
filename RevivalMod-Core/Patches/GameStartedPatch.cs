@@ -39,7 +39,8 @@ namespace RevivalMod.Patches
                     return;
                 }
 
-                RevivalFeatures._playerList[playerClient.ProfileId] = new RMPlayer();
+                // Initialize player state in RMSession (single source of truth)
+                RMSession.GetPlayerState(playerClient.ProfileId);
 
                 // Enable interactable
                 Plugin.LogSource.LogDebug("Enabling body interactable");

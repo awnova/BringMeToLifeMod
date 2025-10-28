@@ -1,8 +1,6 @@
 # Build outputs
 RevivalMod-Core/bin/
 RevivalMod-Core/obj/
-RevivalMod-Fika/bin/
-RevivalMod-Fika/obj/
 RevivalMod-Server/build/
 RevivalMod-Server/node_modules/
 RevivalMod-Server/types/
@@ -18,3 +16,6 @@ RevivalMod-Server/types/
 # Build configuration and scripts with local paths - DO NOT COMMIT
 build-config.json
 Build/
+
+# Deprecated/Old project files (merged into Core)
+RevivalMod-Fika/
