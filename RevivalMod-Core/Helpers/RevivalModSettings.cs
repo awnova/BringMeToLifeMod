@@ -30,6 +30,7 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<bool> STUN_EFFECT;
         public static ConfigEntry<float> REVIVAL_RANGE;
         public static ConfigEntry<float> DOWNED_MOVEMENT_SPEED;
+        public static ConfigEntry<bool> INVULNERABLE_MOVEMENT_RESTRICTIONS;
 
         // Hardcore Mode
         public static ConfigEntry<bool> GOD_MODE;
@@ -190,6 +191,13 @@ namespace RevivalMod.Helpers
                 "Downed Movement Speed",
                 50f,
                 "Movement speed percentage when downed (0-100, default is 50% of normal speed)"
+            );
+
+            INVULNERABLE_MOVEMENT_RESTRICTIONS = config.Bind(
+                "2. Revival Mechanics",
+                "Invulnerable Movement Restrictions",
+                false,
+                "When enabled, movement is restricted during invulnerability period (forced crouch, slow movement). When disabled, you can move normally after revival."
             );
 
             #endregion

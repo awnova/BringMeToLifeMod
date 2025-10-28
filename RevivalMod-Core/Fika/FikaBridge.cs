@@ -77,5 +77,14 @@ namespace RevivalMod.Fika
             Plugin.LogSource.LogDebug("Sending revive canceled packet");
             FikaMethods.SendReviveCanceledPacket(reviveeId, reviverId);
         }
+
+        public static void SendHealthRestoredPacket(string playerId)
+        {
+            if (!Plugin.FikaInstalled)
+                return;
+
+            Plugin.LogSource.LogDebug($"Sending health restored packet for player {playerId}");
+            FikaMethods.SendHealthRestoredPacket(playerId);
+        }
     }
 }

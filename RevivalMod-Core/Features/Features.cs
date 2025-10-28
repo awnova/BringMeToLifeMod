@@ -130,6 +130,10 @@ namespace RevivalMod.Features
         /// </summary>
         private static void ApplyInvulnerabilityRestrictions(Player player)
         {
+            // Only apply restrictions if config is enabled
+            if (!RevivalModSettings.INVULNERABLE_MOVEMENT_RESTRICTIONS.Value)
+                return;
+
             // Force player to crouch during invulnerability if enabled
             if (FORCE_CROUCH_DURING_INVULNERABILITY && 
                 player.MovementContext.PoseLevel > 0)
@@ -359,7 +363,10 @@ namespace RevivalMod.Features
                 {
                     playerState.SelfRevivalKeyHoldDuration.Remove(revivalKey);
 
-                    // Stop timers
+                    // Close the bottom "Reviving 2.0" panel
+                    owner.CloseObjectivesPanel();
+                    
+                    // Stop the center timer
                     playerState.CriticalStateMainTimer?.StopTimer();
                     
                     // Stop forcing empty hands to allow the animation to play (movement freeze handled by update loop)
@@ -371,7 +378,8 @@ namespace RevivalMod.Features
                         float revivalDuration = RevivalModSettings.SELF_REVIVE_ANIMATION_DURATION.Value;
                         
                         _ = MedicalAnimations.PlaySurgicalAnimationForDuration(player, MedicalAnimations.SurgicalItemType.SurvKit, revivalDuration);
-                        // Use the configured revival duration for the countdown timer with red-to-green transition
+                        
+                        // Use the configured revival duration for the countdown timer with red-to-green transition at CENTER
                         playerState.CriticalStateMainTimer = new CustomTimer();
                         playerState.CriticalStateMainTimer.StartCountdown(revivalDuration, "Reviving", TimerPosition.MiddleCenter, TimerColorMode.RedToGreen);
 
@@ -397,10 +405,16 @@ namespace RevivalMod.Features
             playerState.IsBeingRevived = false;
             playerState.IsPlayingRevivalAnimation = false;
             
-            // Close hold prompt
+            // Close the bottom "Reviving 2.0" panel
             owner.CloseObjectivesPanel();
             
-            // Resume critical state timer with red-to-black color transition
+            // Restore the "HOLD F TO REVIVE" prompt at bottom if player has defib
+            if (RevivalModSettings.SELF_REVIVAL_ENABLED.Value && Utils.HasDefib(player))
+            {
+                owner.ShowObjectivesPanel($"HOLD [{RevivalModSettings.SELF_REVIVAL_KEY.Value}] TO REVIVE", 999999f);
+            }
+            
+            // Resume critical state timer with red-to-black color transition at CENTER
             playerState.CriticalStateMainTimer?.StartCountdown(playerState.CriticalTimer,"Bleeding Out", TimerPosition.MiddleCenter, TimerColorMode.RedToBlack);
 
             VFX_UI.ShowCriticalNotification("Defibrillator use canceled", ENotificationDurationType.Default);
@@ -451,11 +465,12 @@ namespace RevivalMod.Features
 
             string playerId = player.ProfileId;
 
-            // Keeps track of critical state and damage type in RMSession (single source of truth)
+            // Store damage type in RMSession
             var playerState = RMSession.GetPlayerState(playerId);
-            playerState.IsCritical = criticalState;
             playerState.PlayerDamageType = damageType;
 
+            // Use RMSession methods to update critical state (single source of truth)
+            // These methods update both PlayerStates.IsCritical and CriticalPlayers HashSet
             if (criticalState)
                 InitializeCriticalState(player, playerId);
             else
@@ -562,6 +577,19 @@ namespace RevivalMod.Features
             playerState.CriticalTimer = RevivalModSettings.CRITICAL_STATE_TIME.Value;
             playerState.IsInvulnerable = true;
 
+            // Create fake medical items with static IDs for networked revival animations
+            playerState.FakeCmsItem = MedicalAnimations.CreateFakeMedicalItem(MedicalAnimations.SurgicalItemType.CMS);
+            playerState.FakeSurvKitItem = MedicalAnimations.CreateFakeMedicalItem(MedicalAnimations.SurgicalItemType.SurvKit);
+            
+            if (playerState.FakeCmsItem != null && playerState.FakeSurvKitItem != null)
+            {
+                Plugin.LogSource.LogInfo($"[Revival] Created fake medical items for player {playerId}: CMS={playerState.FakeCmsItem.Id}, SurvKit={playerState.FakeSurvKitItem.Id}");
+            }
+            else
+            {
+                Plugin.LogSource.LogWarning($"[Revival] Failed to create fake medical items for player {playerId}");
+            }
+
             // Apply effects and make player revivable
             ApplyCriticalEffects(player);
             ApplyRevivableState(player);
@@ -596,6 +624,10 @@ namespace RevivalMod.Features
         private static void CleanupCriticalState(Player player, string playerId)
         {
             var playerState = RMSession.GetPlayerState(playerId);
+            
+            // Clean up fake medical items
+            playerState.FakeCmsItem = null;
+            playerState.FakeSurvKitItem = null;
             
             // Stop the main critical state timer
             playerState.CriticalStateMainTimer?.StopTimer();
@@ -805,6 +837,9 @@ namespace RevivalMod.Features
                 player.MovementContext.IsInPronePose = true;
                 player.SetEmptyHands(null);
 
+                // Enable the BodyInteractable collider so teammates can interact
+                EnableBodyInteractable(player);
+
                 // Enter ghost mode - remove player from AI enemy lists
                 if (RevivalModSettings.GHOST_MODE.Value)
                     GhostModeEnemyManager.EnterGhostMode(player);
@@ -862,6 +897,9 @@ namespace RevivalMod.Features
             {
                 string playerId = player.ProfileId;
                 var playerState = RMSession.GetPlayerState(playerId);
+
+                // Disable the BodyInteractable collider
+                DisableBodyInteractable(player);
 
                 // Only restore if we have stored awareness
                 if (playerState.HasStoredAwareness)
@@ -934,10 +972,79 @@ namespace RevivalMod.Features
             playerState.IsInvulnerable = true;
             playerState.InvulnerabilityTimer = RevivalModSettings.REVIVAL_DURATION.Value;
 
-            // Start visual effect
-            player.StartCoroutine(VFX_UI.FlashInvulnerabilityEffect(player));
+            // Show invulnerability countdown at bottom in blue
+            if (player.IsYourPlayer)
+            {
+                if (player.GetComponentInParent<GamePlayerOwner>() is GamePlayerOwner owner)
+                {
+                    float invulnDuration = RevivalModSettings.REVIVAL_DURATION.Value;
+                    owner.ShowObjectivesPanel("Invulnerable {0:F1}", invulnDuration);
+                    VFX_UI.ColorObjectivesPanelBlue();
+                }
+            }
 
             Plugin.LogSource.LogInfo($"Started invulnerability for player {playerId} for {RevivalModSettings.REVIVAL_DURATION.Value} seconds");
+        }
+
+        /// <summary>
+        /// <summary>
+        /// Enables the BodyInteractable collider so teammates can interact
+        /// </summary>
+        private static void EnableBodyInteractable(Player player)
+        {
+            try
+            {
+                // Find the BodyInteractable component attached to this player
+                BodyInteractable[] interactables = player.GetComponentsInChildren<BodyInteractable>(true);
+                
+                foreach (var interactable in interactables)
+                {
+                    if (interactable.Revivee != null && interactable.Revivee.ProfileId == player.ProfileId)
+                    {
+                        BoxCollider collider = interactable.GetComponent<BoxCollider>();
+                        if (collider != null)
+                        {
+                            collider.enabled = true;
+                            Plugin.LogSource.LogInfo($"Enabled BodyInteractable collider for player {player.ProfileId}");
+                        }
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"Error enabling BodyInteractable: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Disables the BodyInteractable collider
+        /// </summary>
+        private static void DisableBodyInteractable(Player player)
+        {
+            try
+            {
+                // Find the BodyInteractable component attached to this player
+                BodyInteractable[] interactables = player.GetComponentsInChildren<BodyInteractable>(true);
+                
+                foreach (var interactable in interactables)
+                {
+                    if (interactable.Revivee != null && interactable.Revivee.ProfileId == player.ProfileId)
+                    {
+                        BoxCollider collider = interactable.GetComponent<BoxCollider>();
+                        if (collider != null)
+                        {
+                            collider.enabled = false;
+                            Plugin.LogSource.LogInfo($"Disabled BodyInteractable collider for player {player.ProfileId}");
+                        }
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"Error disabling BodyInteractable: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -959,9 +1066,14 @@ namespace RevivalMod.Features
             // Remove movement restrictions
             RestorePlayerMovement(player);
 
-            // Show notification
+            // Close the invulnerability countdown panel and show notification
             if (player.IsYourPlayer)
             {
+                if (player.GetComponentInParent<GamePlayerOwner>() is GamePlayerOwner owner)
+                {
+                    owner.CloseObjectivesPanel();
+                }
+                
                 VFX_UI.ShowNotification("Temporary invulnerability has ended");
             }
 

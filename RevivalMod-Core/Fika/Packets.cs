@@ -119,4 +119,20 @@ namespace RevivalMod.Fika.Packets
         }
     }
 
+    // Packet to sync body part restoration after revival
+    public struct HealthRestoredPacket : INetSerializable
+    {
+        public string playerId;
+
+        public void Deserialize(NetDataReader reader)
+        {
+            playerId = reader.GetString();
+        }
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(playerId ?? string.Empty);
+        }
+    }
+
 }

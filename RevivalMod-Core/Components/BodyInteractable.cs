@@ -63,14 +63,29 @@ namespace RevivalMod.Components
 
         public ActionsReturnClass GetActions(GamePlayerOwner owner)
         {
-            // Check entire inventory for defib
-            bool hasDefib = Utils.HasDefib(owner.Player);        
-            bool playerCritState = RMSession.GetCriticalPlayers().Contains(Revivee.ProfileId);
-            bool reviveButtonEnabled = playerCritState && hasDefib;
-
             ActionsReturnClass actionsReturnClass = new();
 
-            Plugin.LogSource.LogDebug($"Revivee {Revivee.ProfileId} critical state is {playerCritState}");
+            // Null checks to prevent errors
+            if (Revivee == null)
+            {
+                Plugin.LogSource.LogError("GetActions: Revivee is null");
+                return actionsReturnClass;
+            }
+
+            if (owner?.Player == null)
+            {
+                Plugin.LogSource.LogError("GetActions: Owner or Owner.Player is null");
+                return actionsReturnClass;
+            }
+
+            // Check entire inventory for defib
+            bool hasDefib = Utils.HasDefib(owner.Player);
+            
+            // Use RMSession.IsPlayerCritical as single source of truth
+            bool playerCritState = RMSession.IsPlayerCritical(Revivee.ProfileId);
+            bool reviveButtonEnabled = playerCritState && hasDefib;
+
+            Plugin.LogSource.LogDebug($"Revivee {Revivee.ProfileId} critical state is {playerCritState}, has defib: {hasDefib}");
            
             actionsReturnClass.Actions.Add(new ActionsTypesClass()
             {

@@ -37,10 +37,29 @@ namespace RevivalMod.Components
             interactableObject.transform.position = _position;
             interactableObject.transform.localScale = _scale;
             interactableObject.transform.SetParent(_parent, false);
-            interactableObject.AddComponent<T>();
-            interactableObject.GetComponent<BodyInteractable>().Revivee = _player;
-            interactableObject.GetComponent<BoxCollider>().enabled = false;
-            interactableObject.GetComponent<MeshRenderer>().enabled = _debug;
+            
+            // Add the component and store the reference
+            T component = interactableObject.AddComponent<T>();
+            
+            // If T is BodyInteractable, set the Revivee property
+            if (component is BodyInteractable bodyInteractable)
+            {
+                bodyInteractable.Revivee = _player;
+            }
+            
+            // Get other components with null checks
+            BoxCollider collider = interactableObject.GetComponent<BoxCollider>();
+            if (collider != null)
+            {
+                collider.enabled = false;
+            }
+            
+            MeshRenderer renderer = interactableObject.GetComponent<MeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.enabled = _debug;
+            }
+            
             interactableObject.SetActive(true);
 
             return interactableObject;

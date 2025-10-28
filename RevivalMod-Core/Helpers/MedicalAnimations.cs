@@ -6,6 +6,7 @@ using UnityEngine;
 using EFT;
 using EFT.InventoryLogic;
 using Comfort.Common;
+using RevivalMod.Components;
 
 namespace RevivalMod.Helpers
 {
@@ -21,6 +22,10 @@ namespace RevivalMod.Helpers
         //====================[ Constants ]====================
         public const string SURVKIT_TEMPLATE_ID = "5d02797c86f774203f38e30a";
         public const string CMS_TEMPLATE_ID     = "5d02778e86f774203e7dedbe";
+
+        // Static IDs for fake medical items (shared across all clients)
+        public const string FAKE_CMS_ID = "RevivalFakeCms";
+        public const string FAKE_SURVKIT_ID = "RevivalFakeSurv";
 
         private const float DEFAULT_SURVKIT_DURATION = 20f;
         private const float DEFAULT_CMS_DURATION     = 17f;
@@ -48,10 +53,12 @@ namespace RevivalMod.Helpers
             if (!ValidatePlayer(player)) return false;
 
             var (templateId, defaultSec) = Spec[itemType];
-            var item = CreateTempItem(templateId);
+            
+            // Try to get fake item from player state, otherwise create temp item
+            Item item = GetOrCreateFakeItem(player, itemType, templateId);
             if (item == null)
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create temp item ({itemType}).");
+                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create/get item ({itemType}).");
                 return false;
             }
 
@@ -70,10 +77,12 @@ namespace RevivalMod.Helpers
             if (!ValidatePlayer(player)) return null;
 
             var (templateId, defaultSec) = Spec[itemType];
-            var item = CreateTempItem(templateId);
+            
+            // Try to get fake item from player state, otherwise create temp item
+            Item item = GetOrCreateFakeItem(player, itemType, templateId);
             if (item == null)
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create temp item ({itemType}).");
+                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create/get item ({itemType}).");
                 return null;
             }
 
@@ -91,10 +100,12 @@ namespace RevivalMod.Helpers
             if (!ValidatePlayer(player)) return false;
 
             var (templateId, defaultSec) = Spec[itemType];
-            var item = CreateTempItem(templateId);
+            
+            // Try to get fake item from player state, otherwise create temp item
+            Item item = GetOrCreateFakeItem(player, itemType, templateId);
             if (item == null)
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create temp item ({itemType}).");
+                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create/get item ({itemType}).");
                 return false;
             }
 
@@ -157,8 +168,27 @@ namespace RevivalMod.Helpers
 
                 var baseDuration = defaultSec;
 
-                // Play the animation (no healing logic, just visuals)
-                player.Proceed(item, null, true);
+                // Cast to MedsItemClass for the medical-specific Proceed overload
+                // This is what sends the ProceedPacket to other players!
+                if (item is MedsItemClass medsItem)
+                {
+                    // Create empty body parts struct
+                    GStruct353<EBodyPart> bodyParts = new();
+                    
+                    // Call the MEDICAL Proceed overload - this sends the network packet!
+                    player.Proceed(
+                        medsItem,
+                        bodyParts,
+                        null,                           // Callback (null is fine)
+                        0,                              // Animation variant
+                        true                            // Scheduled
+                    );
+                }
+                else
+                {
+                    // Fallback for non-medical items (shouldn't happen)
+                    player.Proceed(item, null, true);
+                }
 
                 if (Math.Abs(animationSpeed - 1f) > 0.01f)
                     SetAnimationSpeed(player, animationSpeed);
@@ -214,7 +244,58 @@ namespace RevivalMod.Helpers
         private static bool ValidatePlayer(Player player)
             => player != null && player.IsYourPlayer;
 
+        //====================[ Item Retrieval ]====================
+
+        // Get the fake item from player state (for critical players), or create a temp item
+        private static Item GetOrCreateFakeItem(Player player, SurgicalItemType itemType, string templateId)
+        {
+            // Check if player is in critical state and has fake items
+            if (RMSession.HasPlayerState(player.ProfileId))
+            {
+                var playerState = RMSession.GetPlayerState(player.ProfileId);
+                
+                // Use the fake item with static ID if available
+                Item fakeItem = itemType == SurgicalItemType.CMS 
+                    ? playerState.FakeCmsItem 
+                    : playerState.FakeSurvKitItem;
+                
+                if (fakeItem != null)
+                {
+                    Plugin.LogSource.LogInfo($"[MedicalAnimations] Using fake {itemType} item with ID: {fakeItem.Id}");
+                    return fakeItem;
+                }
+            }
+            
+            // Fallback: Create a temp item (for testing or non-critical scenarios)
+            Plugin.LogSource.LogWarning($"[MedicalAnimations] Player not in critical state or fake item missing, creating temp {itemType}");
+            return CreateTempItem(templateId);
+        }
+
         //====================[ Item Creation ]====================
+
+        // Create a fake medical item with a static ID (for networked revival animations)
+        public static Item CreateFakeMedicalItem(SurgicalItemType itemType)
+        {
+            try
+            {
+                var factory = Singleton<ItemFactoryClass>.Instance;
+                if (factory == null)
+                {
+                    Plugin.LogSource.LogError("[MedicalAnimations] ItemFactory not ready yet.");
+                    return null;
+                }
+
+                var (templateId, _) = Spec[itemType];
+                var staticId = itemType == SurgicalItemType.CMS ? FAKE_CMS_ID : FAKE_SURVKIT_ID;
+                
+                return factory.CreateItem(staticId, templateId, null) as Item;
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[MedicalAnimations] Fake item creation failed: {ex.Message}");
+                return null;
+            }
+        }
 
         // Make a temporary item (not in inventory).
         private static Item CreateTempItem(string templateId)

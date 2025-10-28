@@ -85,9 +85,11 @@ namespace RevivalMod.Components
                 return;
             }
 
-            if (Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) 
-                return;
+            // Update PlayerStates (single source of truth)
+            var playerState = GetPlayerState(playerId);
+            playerState.IsCritical = true;
 
+            // Also update CriticalPlayers HashSet for backward compatibility
             Instance.CriticalPlayers.Add(playerId);
             
             Plugin.LogSource.LogDebug($"Player {playerId} added to critical players.");
@@ -95,10 +97,16 @@ namespace RevivalMod.Components
 
         public static void RemovePlayerFromCriticalPlayers(string playerId)
         {
-            if (string.IsNullOrEmpty(playerId) ||
-                Singleton<GameWorld>.Instance.MainPlayer.ProfileId == playerId) 
+            if (string.IsNullOrEmpty(playerId))
                 return;
 
+            // Update PlayerStates (single source of truth)
+            if (HasPlayerState(playerId))
+            {
+                GetPlayerState(playerId).IsCritical = false;
+            }
+
+            // Also update CriticalPlayers HashSet for backward compatibility
             Instance.CriticalPlayers.Remove(playerId);
             
             Plugin.LogSource.LogDebug($"Player {playerId} removed from critical players.");
@@ -107,6 +115,17 @@ namespace RevivalMod.Components
         public static HashSet<string> GetCriticalPlayers()
         {
             return Instance.CriticalPlayers;
+        }
+
+        /// <summary>
+        /// Check if a player is in critical state using PlayerStates as the single source of truth
+        /// </summary>
+        public static bool IsPlayerCritical(string playerId)
+        {
+            if (string.IsNullOrEmpty(playerId))
+                return false;
+
+            return HasPlayerState(playerId) && GetPlayerState(playerId).IsCritical;
         }
 
         public static Dictionary<string, RMPlayer> GetPlayerStates()

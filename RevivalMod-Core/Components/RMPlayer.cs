@@ -1,4 +1,5 @@
 using EFT;
+using EFT.InventoryLogic;
 using RevivalMod.Helpers;
 using System.Collections.Generic;
 using UnityEngine;
@@ -24,6 +25,10 @@ namespace RevivalMod.Components
         public float OriginalMovementSpeed { get; set; } = -1f;
         public long LastRevivalTimesByPlayer { get; set; } = 0;
         public EDamageType PlayerDamageType { get; set; } = EDamageType.Undefined;
+        
+        // Fake medical items for revival animations (networked across clients)
+        public Item FakeCmsItem { get; set; } = null;
+        public Item FakeSurvKitItem { get; set; } = null;
         
         // Per-player UI timers (moved from Features.cs)
         public CustomTimer CriticalStateMainTimer { get; set; }
