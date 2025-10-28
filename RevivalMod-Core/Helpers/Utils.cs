@@ -120,7 +120,7 @@ namespace RevivalMod.Helpers
         }
 
         /// <summary>
-        /// Consumes a defibrillator item from the player's inventory
+        /// Consumes a defibrillator item from the player's inventory (removes and destroys it)
         /// </summary>
         public static void ConsumeDefibItem(Player player, Item defibItem)
         {
@@ -132,22 +132,38 @@ namespace RevivalMod.Helpers
                     return;
                 }
 
+                Plugin.LogSource.LogInfo($"Attempting to consume defib item: {defibItem.LocalizedName()} (ID: {defibItem.Id}, Template: {defibItem.TemplateId})");
+                
                 InventoryController inventoryController = player.InventoryController;
-                GStruct454 discardResult = InteractionsHandlerClass.Discard(defibItem, inventoryController, true);
+                
+                // Use Remove operation to destroy the item completely
+                GStruct454 removeResult = InteractionsHandlerClass.Remove(defibItem, inventoryController, true);
 
-                if (discardResult.Failed)
+                if (removeResult.Failed)
                 {
-                    Plugin.LogSource.LogError($"Couldn't remove item: {discardResult.Error}");
-                    return;
+                    Plugin.LogSource.LogWarning($"Remove failed: {removeResult.Error}, trying Discard...");
+                    
+                    // Fallback to Discard (deletes the item)
+                    GStruct454 discardResult = InteractionsHandlerClass.Discard(defibItem, inventoryController, true);
+                    
+                    if (discardResult.Failed)
+                    {
+                        Plugin.LogSource.LogError($"Both Remove and Discard failed: {discardResult.Error}");
+                        return;
+                    }
+                    
+                    inventoryController.TryRunNetworkTransaction(discardResult);
+                }
+                else
+                {
+                    inventoryController.TryRunNetworkTransaction(removeResult);
                 }
                 
-                inventoryController.TryRunNetworkTransaction(discardResult);
-                
-                Plugin.LogSource.LogInfo("Defibrillator consumed successfully");
+                Plugin.LogSource.LogInfo("Defibrillator consumed successfully (removed and destroyed)");
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"Error consuming defib item: {ex.Message}");
+                Plugin.LogSource.LogError($"Error consuming defib item: {ex.Message}\n{ex.StackTrace}");
             }
         }
 
