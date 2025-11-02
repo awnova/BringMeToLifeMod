@@ -33,6 +33,7 @@ namespace RevivalMod.Helpers
         public static ConfigEntry<bool> INVULNERABLE_MOVEMENT_RESTRICTIONS;
 
         // Hardcore Mode
+        public static ConfigEntry<bool> DEATH_BLOCK_IN_CRITICAL;
         public static ConfigEntry<bool> GOD_MODE;
         public static ConfigEntry<bool> GHOST_MODE;
         public static ConfigEntry<bool> HARDCORE_MODE;
@@ -204,18 +205,31 @@ namespace RevivalMod.Helpers
 
             #region Hardcore Mode Settings
 
-            GOD_MODE = config.Bind(
-                "3. Ghost/God Mode",
-                "Enable God Mode",
-                false,
-                "Makes players invulnerable while in Critical State"
+            // Death blocking: Prevents Kill() calls during critical state (separate from damage)
+            DEATH_BLOCK_IN_CRITICAL = config.Bind(
+                "3. Protection Settings",
+                "Block Death in Critical State",
+                true,
+                "When enabled, prevents death from additional damage/kills during BleedingOut/Reviving states. " +
+                "Player can still take damage if God Mode is disabled, but won't die."
             );
 
+            // God Mode: Prevents damage from being applied (HP doesn't decrease)
+            GOD_MODE = config.Bind(
+                "3. Protection Settings",
+                "Enable God Mode (Damage Immunity)",
+                false,
+                "When enabled, prevents all damage during BleedingOut/Reviving states (SetDamageCoeff = 0). " +
+                "HP will not decrease. Always active during Revived state regardless of this setting."
+            );
+
+            // Ghost Mode: Makes player invisible to AI
             GHOST_MODE = config.Bind(
-                "3. Ghost/God Mode",
+                "3. Protection Settings",
                 "Enable Ghost Mode",
                 true,
-                "Makes players invisible to AI while in Critical State"
+                "Makes players invisible to AI during BleedingOut/Reviving states. " +
+                "Never active during Revived state."
             );
 
             HARDCORE_MODE = config.Bind(

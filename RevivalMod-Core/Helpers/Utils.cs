@@ -1,86 +1,113 @@
-﻿using Newtonsoft.Json;
+﻿//====================[ Imports ]====================
 using Comfort.Common;
+using EFT;
+using EFT.InventoryLogic;
+using Newtonsoft.Json;
 using SPT.Common.Http;
 using System;
 using System.Collections.Generic;
-using EFT;
-using EFT.InventoryLogic;
 
 namespace RevivalMod.Helpers
 {
-    internal class Utils
+    //====================[ Utils ]====================
+    internal static class Utils
     {
-        #region Server Routes
-
+        //====================[ Server Routes ]====================
         public static T ServerRoute<T>(string url, object data = default)
         {
-            string json = JsonConvert.SerializeObject(data);
-            var req = RequestHandler.PostJson(url, json);
-            return JsonConvert.DeserializeObject<T>(req);
+            try
+            {
+                string jsonReq = JsonConvert.SerializeObject(data);
+                string jsonRes = RequestHandler.PostJson(url, jsonReq);
+                return JsonConvert.DeserializeObject<T>(jsonRes);
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"ServerRoute<T> error: {ex.Message}");
+                return default;
+            }
         }
+
         public static string ServerRoute(string url, object data = default)
         {
-            string json;
-            if (data is string v)
+            try
             {
-                Dictionary<string, string> dataDict = new()
-                {
-                    { "data", v }
-                };
-                json = JsonConvert.SerializeObject(dataDict);
-            }
-            else
-            {
-                json = JsonConvert.SerializeObject(data);
-            }
+                // Allow passing raw string; wrap as { "data": "<value>" }
+                string json = data is string s
+                    ? JsonConvert.SerializeObject(new Dictionary<string, string> { { "data", s } })
+                    : JsonConvert.SerializeObject(data);
 
-            return RequestHandler.PutJson(url, json);
+                return RequestHandler.PutJson(url, json);
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"ServerRoute error: {ex.Message}");
+                return string.Empty;
+            }
         }
 
-        #endregion
-
-        #region Player Lookups
-
+        //====================[ Player Lookups ]====================
         public static Player GetYourPlayer()
         {
-            Player player = Singleton<GameWorld>.Instance.MainPlayer;
+            if (!Singleton<GameWorld>.Instantiated) return null;
 
-            if (player == null || !player.IsYourPlayer)
-                return null;
-
-            return player;
+            var player = Singleton<GameWorld>.Instance.MainPlayer;
+            return (player != null && player.IsYourPlayer) ? player : null;
         }
 
         public static Player GetPlayerById(string id)
         {
-            Player player = Singleton<GameWorld>.Instance.GetEverExistedPlayerByID(id);
-            if (player == null) return null;
-            return player;
+            if (string.IsNullOrEmpty(id) || !Singleton<GameWorld>.Instantiated) return null;
+            return Singleton<GameWorld>.Instance.GetEverExistedPlayerByID(id);
         }
 
         public static List<Player> GetAllPlayersAndBots()
         {
+            if (!Singleton<GameWorld>.Instantiated) return new List<Player>(0);
             return Singleton<GameWorld>.Instance.AllAlivePlayersList;
         }
 
-        #endregion
+        /// <summary>Nickname if available, else the playerId.</summary>
+        public static string GetPlayerDisplayName(string playerId)
+        {
+            if (string.IsNullOrEmpty(playerId)) return playerId;
 
-        #region Inventory Operations
+            var p = GetPlayerById(playerId);
+            var nick = p?.Profile?.Nickname;
+            return string.IsNullOrEmpty(nick) ? playerId : nick;
+        }
 
-        /// <summary>
-        /// Checks if the player has a defibrillator (or configured revival item) anywhere in their inventory
-        /// </summary>
+        //====================[ Inventory Operations ]====================
+        /// <summary>Find first configured revival item (defib) in inventory.</summary>
+        private static Item FindDefibItem(Player player)
+        {
+            try
+            {
+                var items = player?.Inventory?.AllRealPlayerItems;
+                if (items == null) return null;
+
+                string templateId = RevivalModSettings.REVIVAL_ITEM_ID.Value;
+                foreach (var it in items)
+                {
+                    if (it?.TemplateId == templateId) return it;
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"FindDefibItem error: {ex.Message}");
+            }
+            return null;
+        }
+
         public static bool HasDefib(Player player)
         {
             try
             {
-                foreach (var item in player.Inventory.AllRealPlayerItems)
+                var item = FindDefibItem(player);
+                if (item != null)
                 {
-                    if (item.TemplateId == RevivalModSettings.REVIVAL_ITEM_ID.Value)
-                    {
-                        Plugin.LogSource.LogDebug($"Found defib in inventory: {item.LocalizedName()}");
-                        return true;
-                    }
+                    Plugin.LogSource.LogDebug($"Found defib in inventory: {item.LocalizedName()}");
+                    return true;
                 }
 
                 Plugin.LogSource.LogDebug("No defib found in player inventory");
@@ -88,85 +115,77 @@ namespace RevivalMod.Helpers
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"Error searching for defib: {ex}");
+                Plugin.LogSource.LogError($"HasDefib error: {ex.Message}");
                 return false;
             }
         }
 
-        /// <summary>
-        /// Gets the first defibrillator (or configured revival item) from the player's inventory
-        /// </summary>
         public static Item GetDefib(Player player)
         {
             try
             {
-                foreach (var item in player.Inventory.AllRealPlayerItems)
+                var item = FindDefibItem(player);
+                if (item != null)
                 {
-                    if (item.TemplateId == RevivalModSettings.REVIVAL_ITEM_ID.Value)
-                    {
-                        Plugin.LogSource.LogDebug($"Getting defib from inventory: {item.LocalizedName()}");
-                        return item;
-                    }
+                    Plugin.LogSource.LogDebug($"Getting defib from inventory: {item.LocalizedName()}");
+                    return item;
                 }
-                
+
                 Plugin.LogSource.LogWarning("GetDefib called but no defib found in inventory");
                 return null;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"Error getting defib: {ex}");
+                Plugin.LogSource.LogError($"GetDefib error: {ex.Message}");
                 return null;
             }
         }
 
-        /// <summary>
-        /// Consumes a defibrillator item from the player's inventory (removes and destroys it)
-        /// </summary>
+        /// <summary>Removes and destroys the defib item from inventory.</summary>
         public static void ConsumeDefibItem(Player player, Item defibItem)
         {
             try
             {
+                if (player == null)
+                {
+                    Plugin.LogSource.LogWarning("ConsumeDefibItem: player is null");
+                    return;
+                }
                 if (defibItem == null)
                 {
-                    Plugin.LogSource.LogWarning("Cannot consume defib - item is null");
+                    Plugin.LogSource.LogWarning("ConsumeDefibItem: item is null");
                     return;
                 }
 
-                Plugin.LogSource.LogInfo($"Attempting to consume defib item: {defibItem.LocalizedName()} (ID: {defibItem.Id}, Template: {defibItem.TemplateId})");
-                
-                InventoryController inventoryController = player.InventoryController;
-                
-                // Use Remove operation to destroy the item completely
-                GStruct454 removeResult = InteractionsHandlerClass.Remove(defibItem, inventoryController, true);
+                Plugin.LogSource.LogInfo($"Consuming defib: {defibItem.LocalizedName()} (ID: {defibItem.Id}, Template: {defibItem.TemplateId})");
 
-                if (removeResult.Failed)
+                var inv = player.InventoryController;
+                GStruct454 remove = InteractionsHandlerClass.Remove(defibItem, inv, true);
+
+                if (remove.Failed)
                 {
-                    Plugin.LogSource.LogWarning($"Remove failed: {removeResult.Error}, trying Discard...");
-                    
-                    // Fallback to Discard (deletes the item)
-                    GStruct454 discardResult = InteractionsHandlerClass.Discard(defibItem, inventoryController, true);
-                    
-                    if (discardResult.Failed)
+                    Plugin.LogSource.LogWarning($"Remove failed: {remove.Error}, trying Discard...");
+                    GStruct454 discard = InteractionsHandlerClass.Discard(defibItem, inv, true);
+
+                    if (discard.Failed)
                     {
-                        Plugin.LogSource.LogError($"Both Remove and Discard failed: {discardResult.Error}");
+                        Plugin.LogSource.LogError($"Discard failed: {discard.Error}");
                         return;
                     }
-                    
-                    inventoryController.TryRunNetworkTransaction(discardResult);
+
+                    inv.TryRunNetworkTransaction(discard);
                 }
                 else
                 {
-                    inventoryController.TryRunNetworkTransaction(removeResult);
+                    inv.TryRunNetworkTransaction(remove);
                 }
-                
-                Plugin.LogSource.LogInfo("Defibrillator consumed successfully (removed and destroyed)");
+
+                Plugin.LogSource.LogInfo("Defibrillator consumed successfully");
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"Error consuming defib item: {ex.Message}\n{ex.StackTrace}");
+                Plugin.LogSource.LogError($"ConsumeDefibItem error: {ex.Message}\n{ex.StackTrace}");
             }
         }
-
-        #endregion
     }
 }

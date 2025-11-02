@@ -1,10 +1,33 @@
+//====================[ Imports ]====================
 using LiteNetLib.Utils;
-using System;
-using UnityEngine;
 
 namespace RevivalMod.Fika.Packets
 {
-    public struct ReviveStartedPacket : INetSerializable
+    //====================[ Revival Mod Packet System ]====================
+
+    //====================[ BleedingOutPacket ]====================
+    // Broadcast when a player enters downed/critical state.
+    public struct BleedingOutPacket : INetSerializable
+    {
+        public string playerId;
+        public float timeRemaining;
+
+        public void Deserialize(NetDataReader reader)
+        {
+            playerId = reader.GetString();
+            timeRemaining = reader.GetFloat();
+        }
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(playerId ?? string.Empty);
+            writer.Put(timeRemaining);
+        }
+    }
+
+    //====================[ TeamHelpPacket ]====================
+    // Sent when a teammate begins helping a downed player (hold begins).
+    public struct TeamHelpPacket : INetSerializable
     {
         public string reviveeId;
         public string reviverId;
@@ -17,12 +40,14 @@ namespace RevivalMod.Fika.Packets
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(reviveeId);
-            writer.Put(reviverId);
+            writer.Put(reviveeId ?? string.Empty);
+            writer.Put(reviverId ?? string.Empty);
         }
     }
 
-    public struct ReviveCanceledPacket : INetSerializable
+    //====================[ TeamCancelPacket ]====================
+    // Sent when the teammate releases early (hold cancelled).
+    public struct TeamCancelPacket : INetSerializable
     {
         public string reviveeId;
         public string reviverId;
@@ -35,12 +60,31 @@ namespace RevivalMod.Fika.Packets
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(reviveeId);
-            writer.Put(reviverId);
+            writer.Put(reviveeId ?? string.Empty);
+            writer.Put(reviverId ?? string.Empty);
         }
     }
 
-    public struct ReviveMePacket : INetSerializable
+    //====================[ SelfReviveStartPacket ]====================
+    // Sent when self-revival animation begins.
+    public struct SelfReviveStartPacket : INetSerializable
+    {
+        public string playerId;
+
+        public void Deserialize(NetDataReader reader)
+        {
+            playerId = reader.GetString();
+        }
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(playerId ?? string.Empty);
+        }
+    }
+
+    //====================[ TeamReviveStartPacket ]====================
+    // Sent when team revival animation begins on revivee.
+    public struct TeamReviveStartPacket : INetSerializable
     {
         public string reviveeId;
         public string reviverId;
@@ -53,74 +97,34 @@ namespace RevivalMod.Fika.Packets
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(reviveeId);
-            writer.Put(reviverId);
+            writer.Put(reviveeId ?? string.Empty);
+            writer.Put(reviverId ?? string.Empty);
         }
     }
 
+    //====================[ RevivedPacket ]====================
+    // Sent when revival completes successfully (invulnerability begins).
     public struct RevivedPacket : INetSerializable
     {
-        public string reviverId;
+        public string playerId;
+        public string reviverId; // empty if self-revive
 
         public void Deserialize(NetDataReader reader)
         {
+            playerId = reader.GetString();
             reviverId = reader.GetString();
         }
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(reviverId);
-        }
-    }
-
-    public struct RemovePlayerFromCriticalPlayersListPacket : INetSerializable
-    {
-        public string playerId;
-        public void Deserialize(NetDataReader reader)
-        {
-            playerId = reader.GetString();
-        }
-        public void Serialize(NetDataWriter writer) {
-            writer.Put(playerId); 
-        }
-    }
-
-    public struct PlayerCriticalStatePacket : INetSerializable
-    {
-        public string playerId;
-
-        public void Deserialize(NetDataReader reader)
-        {
-            playerId = reader.GetString();
-        }
-
-        public void Serialize(NetDataWriter writer)
-        {
-            writer.Put(playerId);
-        }
-    }
-
-    // Packet to request the host that runs AI to toggle ghost mode for a player
-    public struct GhostModeTogglePacket : INetSerializable
-    {
-        public string playerId;
-        public bool enterGhostMode;
-
-        public void Deserialize(NetDataReader reader)
-        {
-            playerId = reader.GetString();
-            enterGhostMode = reader.GetBool();
-        }
-
-        public void Serialize(NetDataWriter writer)
-        {
             writer.Put(playerId ?? string.Empty);
-            writer.Put(enterGhostMode);
+            writer.Put(reviverId ?? string.Empty);
         }
     }
 
-    // Packet to sync body part restoration after revival
-    public struct HealthRestoredPacket : INetSerializable
+    //====================[ PlayerStateResetPacket ]====================
+    // Sent when invulnerability ends and player returns to normal.
+    public struct PlayerStateResetPacket : INetSerializable
     {
         public string playerId;
 
@@ -134,5 +138,4 @@ namespace RevivalMod.Fika.Packets
             writer.Put(playerId ?? string.Empty);
         }
     }
-
 }

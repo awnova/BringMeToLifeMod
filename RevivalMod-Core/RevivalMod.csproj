@@ -156,7 +156,7 @@
   <ItemGroup>
     <Compile Include="Components\InteractableBuilder.cs" />
     <Compile Include="Components\BodyInteractable.cs" />
-    <Compile Include="Helpers\BodyPartRestoration.cs" />
+    <Compile Include="Helpers\PlayerRestorations.cs" />
     <Compile Include="Helpers\CustomTimer.cs" />
     <Compile Include="Components\RMSession.cs" />
     <Compile Include="Components\RMPlayer.cs" />
@@ -166,12 +166,16 @@
     <Compile Include="Fika\Packets.cs" />
     <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
     <Compile Include="Helpers\MedicalAnimations.cs" />
+    <Compile Include="Helpers\GodMode.cs" />
+    <Compile Include="Helpers\DeathMode.cs" />
+    <Compile Include="Helpers\GhostMode.cs" />
     <Compile Include="Helpers\RevivalModSettings.cs" />
     <Compile Include="Patches\DeathPatch.cs" />
     <Compile Include="Patches\OnPlayerCreatedPatch.cs" />
     <Compile Include="Patches\AvailableActionsPatch.cs" />
-    <Compile Include="Patches\GhostModeEnemyListPatch.cs" />
+  <Compile Include="Patches\GhostModeEnemyListPatch.cs" />
     <Compile Include="Features\Features.cs" />
+    <Compile Include="Features\DownedStateController.cs" />
     <Compile Include="Helpers\Utils.cs" />
     <Compile Include="Patches\GameStartedPatch.cs" />
     <Compile Include="Plugin.cs" />

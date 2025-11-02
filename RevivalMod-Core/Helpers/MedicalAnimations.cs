@@ -1,326 +1,281 @@
+//====================[ Imports ]====================
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Reflection;
-using UnityEngine;
-using EFT;
-using EFT.InventoryLogic;
 using Comfort.Common;
+using EFT;
+using EFT.HealthSystem;
+using EFT.InventoryLogic;
 using RevivalMod.Components;
+using UnityEngine;
 
+//====================[ MedicalAnimations ]====================
 namespace RevivalMod.Helpers
 {
-    //=============================================[ MedicalAnimations ]====================================================
-    // Handles playing surgical/medical animations for the player without needing any real items.
-    // - Spawns a temp fake item just for the animation
-    // - Uses the item’s UseTime if available, else falls back to defaults
-    // - Lets us change animation speed on the fly
-    // - Cleans up automatically and restores hands at the end
-    //=====================================================================================================================
+    //====================[ MedicalAnimations ]====================
     public static class MedicalAnimations
     {
         //====================[ Constants ]====================
-        public const string SURVKIT_TEMPLATE_ID = "5d02797c86f774203f38e30a";
-        public const string CMS_TEMPLATE_ID     = "5d02778e86f774203e7dedbe";
+        private const string SURVKIT_TEMPLATE_ID = "5d02797c86f774203f38e30a";
+        private const string CMS_TEMPLATE_ID     = "5d02778e86f774203e7dedbe";
 
-        // Static IDs for fake medical items (shared across all clients)
-        public const string FAKE_CMS_ID = "RevivalFakeCms";
-        public const string FAKE_SURVKIT_ID = "RevivalFakeSurv";
+        // Use these exact fake IDs (24 chars each)
+        private const string FAKE_SURVKIT_ID = "FAKE0SURVKIT0ID000000000";
+        private const string FAKE_CMS_ID     = "FAKE0CMS0ID0000000000000";
 
-        private const float DEFAULT_SURVKIT_DURATION = 20f;
-        private const float DEFAULT_CMS_DURATION     = 17f;
-        private const float CLEANUP_BUFFER_SEC       = 0.5f;
+        // Base vanilla animation lengths used to compute speed for UseAtSpeed(...)
+        private const float BASE_SURVKIT_DURATION = 20f; // SurvKit ~20s
+        private const float BASE_CMS_DURATION     = 17f; // CMS    ~17s
 
-        private static readonly Dictionary<SurgicalItemType, (string TemplateId, float DefaultSec)> Spec = new()
-        {
-            { SurgicalItemType.SurvKit, (SURVKIT_TEMPLATE_ID, DEFAULT_SURVKIT_DURATION) },
-            { SurgicalItemType.CMS,     (CMS_TEMPLATE_ID,     DEFAULT_CMS_DURATION)     }
-        };
-
-        //====================[ Cached Reflection ]====================
-        private static readonly Dictionary<Type, MethodInfo> _useTimeMultiplierCache = new();
+        // Timing helpers
+        private const float SET_SPEED_DELAY = 0.2f; // wait before applying speed multiplier
+        private const float END_BUFFER      = 0.3f; // buffer before cleanup
 
         //====================[ Public API ]====================
 
-        // Start a surgical animation using a temp fake item.
-        // Returns true if the animation was started successfully.
-        public static bool PlaySurgicalAnimation(
-            Player player,
-            SurgicalItemType itemType,
-            float animationSpeed = 1f,
-            Action onComplete = null)
-        {
-            if (!ValidatePlayer(player)) return false;
-
-            var (templateId, defaultSec) = Spec[itemType];
-            
-            // Try to get fake item from player state, otherwise create temp item
-            Item item = GetOrCreateFakeItem(player, itemType, templateId);
-            if (item == null)
-            {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create/get item ({itemType}).");
-                return false;
-            }
-
-            // PlayCore returns the actual animation duration (seconds) or null on failure.
-            var started = PlayCore(player, item, defaultSec, animationSpeed, onComplete, itemType.ToString());
-            return started.HasValue;
-        }
-
-        // Start surgical animation and return the estimated animation duration (in seconds), or null on failure.
-        public static float? PlaySurgicalAnimationWithDuration(
-            Player player,
-            SurgicalItemType itemType,
-            float animationSpeed = 1f,
-            Action onComplete = null)
+        // Create the fake item in QuestRaidItems and cache it on RMPlayer.
+        public static Item CreateInQuestInventory(Player player, SurgicalItemType itemType)
         {
             if (!ValidatePlayer(player)) return null;
+            var state = RMSession.GetPlayerState(player.ProfileId);
+            if (state == null) return null;
 
-            var (templateId, defaultSec) = Spec[itemType];
-            
-            // Try to get fake item from player state, otherwise create temp item
-            Item item = GetOrCreateFakeItem(player, itemType, templateId);
-            if (item == null)
-            {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create/get item ({itemType}).");
-                return null;
-            }
+            var cached = GetCached(state, itemType);
+            if (cached != null) return cached;
 
-            return PlayCore(player, item, defaultSec, animationSpeed, onComplete, itemType.ToString());
+            var item = CreateAndAttach(player, itemType);
+            if (item == null) return null;
+
+            SetCached(state, itemType, item);
+            return item;
         }
 
-        // Start a surgical animation and scale its speed so the playback lasts targetDurationSeconds (in seconds).
-        // Returns true if started successfully.
-        public static bool PlaySurgicalAnimationForDuration(
-            Player player,
-            SurgicalItemType itemType,
-            float targetDurationSeconds,
-            Action onComplete = null)
+        // Trigger the use animation for the cached item at a given speed (1 = default). Does not delete the item.
+        public static bool UseAtSpeed(Player player, SurgicalItemType itemType, float speed = 1f, Action onComplete = null)
         {
             if (!ValidatePlayer(player)) return false;
+            var state = RMSession.GetPlayerState(player.ProfileId);
+            if (state == null) return false;
 
-            var (templateId, defaultSec) = Spec[itemType];
-            
-            // Try to get fake item from player state, otherwise create temp item
-            Item item = GetOrCreateFakeItem(player, itemType, templateId);
+            var item = GetCached(state, itemType);
             if (item == null)
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Failed to create/get item ({itemType}).");
+                Plugin.LogSource.LogError($"[MedicalAnimations] No cached {itemType} for {player.ProfileId}. Call CreateInQuestInventory() first.");
                 return false;
             }
 
-            // Guard target duration
-            if (targetDurationSeconds <= 0f)
-                targetDurationSeconds = defaultSec;
+            if (speed <= 0f) speed = 1f;
 
-            // Calculate the speed multiplier so the base animation (defaultSec) will play in targetDurationSeconds.
-            float animationSpeed = defaultSec / targetDurationSeconds;
-
-            var started = PlayCore(player, item, defaultSec, animationSpeed, onComplete, itemType.ToString());
-            return started.HasValue;
+            float baseDuration = itemType == SurgicalItemType.SurvKit ? BASE_SURVKIT_DURATION : BASE_CMS_DURATION;
+            return PlayOnce(player, item, baseDuration, speed, itemType.ToString(), onComplete);
         }
 
-        // Adjust the speed of the current animation (1.0 = normal).
-        public static bool SetAnimationSpeed(Player player, float speedMultiplier)
+        // Play animation with a desired duration (calculates speed automatically).
+        // Subtracts SET_SPEED_DELAY and END_BUFFER so the animation fits the requested window.
+        public static bool UseWithDuration(Player player, SurgicalItemType itemType, float desiredDuration, Action onComplete = null)
+        {
+            if (!ValidatePlayer(player)) return false;
+            var state = RMSession.GetPlayerState(player.ProfileId);
+            if (state == null) return false;
+
+            var item = GetCached(state, itemType);
+            if (item == null)
+            {
+                Plugin.LogSource.LogError($"[MedicalAnimations] No cached {itemType} for {player.ProfileId}. Call CreateInQuestInventory() first.");
+                return false;
+            }
+
+            float baseDuration = itemType == SurgicalItemType.SurvKit ? BASE_SURVKIT_DURATION : BASE_CMS_DURATION;
+
+            float effectiveDuration = desiredDuration - SET_SPEED_DELAY - END_BUFFER;
+            if (effectiveDuration <= 0f)
+            {
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] Desired {desiredDuration:F2}s too short (needs ≥ {(SET_SPEED_DELAY + END_BUFFER):F2}s). Using default speed.");
+                effectiveDuration = baseDuration; // fallback
+            }
+
+            float speed = baseDuration / Mathf.Max(effectiveDuration, 0.001f);
+            return PlayOnce(player, item, baseDuration, speed, itemType.ToString(), onComplete);
+        }
+
+        // Delete/remove the fake item from QuestRaidItems and clear cache.
+        public static void RemoveFromQuestInventory(Player player, SurgicalItemType itemType)
+        {
+            if (!ValidatePlayer(player)) return;
+            var state = RMSession.GetPlayerState(player.ProfileId);
+            if (state == null) return;
+
+            var item = GetCached(state, itemType);
+            if (item != null) SafeDetach(item);
+
+            SetCached(state, itemType, null);
+            SetAnimationSpeed(player, 1f); // safety reset
+        }
+
+        //====================[ Private: Create/Attach ]====================
+
+        private static Item CreateAndAttach(Player player, SurgicalItemType itemType)
         {
             try
             {
-                if (player?.HandsAnimator == null) return false;
+                var factory = Singleton<ItemFactoryClass>.Instance;
+                if (factory == null) return null;
 
-                var anim = player.HandsAnimator;
-                var t = anim.GetType();
+                string templateId = itemType == SurgicalItemType.SurvKit ? SURVKIT_TEMPLATE_ID : CMS_TEMPLATE_ID;
+                string staticId   = itemType == SurgicalItemType.SurvKit ? FAKE_SURVKIT_ID    : FAKE_CMS_ID;
 
-                if (!_useTimeMultiplierCache.TryGetValue(t, out var mi))
+                var item = factory.CreateItem(staticId, templateId, null) as Item;
+                if (item == null) return null;
+
+                if (item is MedsItemClass meds)
                 {
-                    mi = t.GetMethod("SetUseTimeMultiplier",
-                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                    _useTimeMultiplierCache[t] = mi;
+                    var kit = meds.GetItemComponent<MedKitComponent>();
+                    if (kit != null) kit.HpResource = 9999f; // effectively infinite for animation
                 }
 
-                if (mi == null) return false;
-                mi.Invoke(anim, new object[] { speedMultiplier });
+                return TryAddToQuest(player, item) ? item : null;
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[MedicalAnimations] CreateAndAttach failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static bool TryAddToQuest(Player player, Item item)
+        {
+            try
+            {
+                var quest = player?.InventoryController?.Inventory?.QuestRaidItems;
+                if (quest?.Grids == null) return false;
+
+                foreach (var grid in quest.Grids)
+                {
+                    if (grid == null) continue;
+                    var loc = grid.FindFreeSpace(item);
+                    if (loc == null) continue;
+
+                    var r = grid.AddItemWithoutRestrictions(item, loc);
+                    if (r.Succeeded) return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] TryAddToQuest warn: {ex.Message}");
+            }
+            return false;
+        }
+
+        //====================[ Private: Use/Playback ]====================
+
+        private static bool PlayOnce(Player player, Item item, float baseDuration, float speed, string label, Action onComplete)
+        {
+            try
+            {
+                if (item is not MedsItemClass meds)
+                {
+                    Plugin.LogSource.LogWarning($"[MedicalAnimations] {label} item not MedsItemClass.");
+                    return false;
+                }
+
+                player.HealthController.ApplyItem(meds, EBodyPart.Common);
+
+                if (Mathf.Abs(speed - 1f) > 0.01f)
+                    Plugin.StaticCoroutineRunner.StartCoroutine(SetSpeedLater(player, speed));
+
+                // actual animation time at chosen speed (+ buffer for cleanup)
+                float actual = baseDuration / Mathf.Max(speed, 0.001f);
+                float totalDelay = actual + END_BUFFER;
+
+                Plugin.StaticCoroutineRunner.StartCoroutine(EndAfter(player, totalDelay, onComplete));
                 return true;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogWarning($"[MedicalAnimations] Failed to set speed: {ex.Message}");
+                SetAnimationSpeed(player, 1f);
+                Plugin.LogSource.LogError($"[MedicalAnimations] PlayOnce failed: {ex.Message}");
                 return false;
             }
         }
 
-        // Schedule a speed change partway through the animation.
-        public static void ChangeSpeedAfterDelay(Player player, float delay, float newSpeed)
-            => Plugin.StaticCoroutineRunner.StartCoroutine(ChangeSpeedRoutine(player, delay, newSpeed));
-
-        //====================[ Core Logic ]====================
-
-        private static float? PlayCore(
-            Player player,
-            Item item,
-            float defaultSec,
-            float animationSpeed,
-            Action onComplete,
-            string itemLabel)
+        private static IEnumerator SetSpeedLater(Player player, float speed)
         {
-            try
-            {
-                if (animationSpeed <= 0f) animationSpeed = 1f;
-
-                var baseDuration = defaultSec;
-
-                // Cast to MedsItemClass for the medical-specific Proceed overload
-                // This is what sends the ProceedPacket to other players!
-                if (item is MedsItemClass medsItem)
-                {
-                    // Create empty body parts struct
-                    GStruct353<EBodyPart> bodyParts = new();
-                    
-                    // Call the MEDICAL Proceed overload - this sends the network packet!
-                    player.Proceed(
-                        medsItem,
-                        bodyParts,
-                        null,                           // Callback (null is fine)
-                        0,                              // Animation variant
-                        true                            // Scheduled
-                    );
-                }
-                else
-                {
-                    // Fallback for non-medical items (shouldn't happen)
-                    player.Proceed(item, null, true);
-                }
-
-                if (Math.Abs(animationSpeed - 1f) > 0.01f)
-                    SetAnimationSpeed(player, animationSpeed);
-
-                var actual = baseDuration / animationSpeed;
-                var cleanup = actual + CLEANUP_BUFFER_SEC;
-
-                Plugin.StaticCoroutineRunner.StartCoroutine(
-                    CleanupAfterAnimation(player, cleanup, itemLabel, animationSpeed, onComplete));
-
-                return actual;
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogError($"[MedicalAnimations] PlayCore failed: {ex.Message}");
-                return null;
-            }
+            yield return new WaitForSeconds(SET_SPEED_DELAY);
+            SetAnimationSpeed(player, speed);
         }
 
-        // Note: Uses Spec default durations Not real use time.
-        // Waits for animation to finish, then clears hands.
-        private static IEnumerator CleanupAfterAnimation(
-            Player player, float delay, string itemName, float speed, Action onComplete)
+        private static IEnumerator EndAfter(Player player, float delay, Action done)
         {
             yield return new WaitForSeconds(delay);
-
             try
             {
-                var controller = player?.HandsController;
-                var name = controller?.GetType().Name ?? string.Empty;
-
-                // If still using QuickUseItemController, force empty hands
+                var ctrl = player?.HandsController;
+                string name = ctrl?.GetType().Name ?? string.Empty;
                 if (name.IndexOf("QuickUseItem", StringComparison.OrdinalIgnoreCase) >= 0)
                     player?.SetEmptyHands(null);
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogWarning($"[MedicalAnimations] Cleanup error: {ex.Message}");
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] EndAfter cleanup warn: {ex.Message}");
             }
             finally
             {
-                onComplete?.Invoke();
+                SetAnimationSpeed(player, 1f);
+                done?.Invoke();
             }
         }
 
-        // Handles delayed speed changes mid-animation.
-        private static IEnumerator ChangeSpeedRoutine(Player player, float delay, float newSpeed)
-        {
-            yield return new WaitForSeconds(delay);
-            SetAnimationSpeed(player, newSpeed);
-        }
+        //====================[ Private: Cleanup/Detach ]====================
 
-        private static bool ValidatePlayer(Player player)
-            => player != null && player.IsYourPlayer;
-
-        //====================[ Item Retrieval ]====================
-
-        // Get the fake item from player state (for critical players), or create a temp item
-        private static Item GetOrCreateFakeItem(Player player, SurgicalItemType itemType, string templateId)
-        {
-            // Check if player is in critical state and has fake items
-            if (RMSession.HasPlayerState(player.ProfileId))
-            {
-                var playerState = RMSession.GetPlayerState(player.ProfileId);
-                
-                // Use the fake item with static ID if available
-                Item fakeItem = itemType == SurgicalItemType.CMS 
-                    ? playerState.FakeCmsItem 
-                    : playerState.FakeSurvKitItem;
-                
-                if (fakeItem != null)
-                {
-                    Plugin.LogSource.LogInfo($"[MedicalAnimations] Using fake {itemType} item with ID: {fakeItem.Id}");
-                    return fakeItem;
-                }
-            }
-            
-            // Fallback: Create a temp item (for testing or non-critical scenarios)
-            Plugin.LogSource.LogWarning($"[MedicalAnimations] Player not in critical state or fake item missing, creating temp {itemType}");
-            return CreateTempItem(templateId);
-        }
-
-        //====================[ Item Creation ]====================
-
-        // Create a fake medical item with a static ID (for networked revival animations)
-        public static Item CreateFakeMedicalItem(SurgicalItemType itemType)
+        private static void SafeDetach(Item item)
         {
             try
             {
-                var factory = Singleton<ItemFactoryClass>.Instance;
-                if (factory == null)
-                {
-                    Plugin.LogSource.LogError("[MedicalAnimations] ItemFactory not ready yet.");
-                    return null;
-                }
-
-                var (templateId, _) = Spec[itemType];
-                var staticId = itemType == SurgicalItemType.CMS ? FAKE_CMS_ID : FAKE_SURVKIT_ID;
-                
-                return factory.CreateItem(staticId, templateId, null) as Item;
+                var container = item?.Parent?.Container;
+                if (container is StashGridClass grid) grid.RemoveWithoutRestrictions(item);
+                else if (container is Slot slot && ReferenceEquals(slot.ContainedItem, item)) slot.RemoveItemWithoutRestrictions();
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Fake item creation failed: {ex.Message}");
-                return null;
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] SafeDetach warn: {ex.Message}");
             }
         }
 
-        // Make a temporary item (not in inventory).
-        private static Item CreateTempItem(string templateId)
+        //====================[ Private: Utils ]====================
+
+        private static bool ValidatePlayer(Player player) => player != null && player.IsYourPlayer;
+
+        private static Item GetCached(RMPlayer s, SurgicalItemType t) =>
+            t == SurgicalItemType.CMS ? s.FakeCmsItem : s.FakeSurvKitItem;
+
+        private static void SetCached(RMPlayer s, SurgicalItemType t, Item item)
+        {
+            if (t == SurgicalItemType.CMS) s.FakeCmsItem = item;
+            else                           s.FakeSurvKitItem = item;
+        }
+
+        private static bool SetAnimationSpeed(Player player, float mult)
         {
             try
             {
-                var factory = Singleton<ItemFactoryClass>.Instance;
-                if (factory == null)
-                {
-                    Plugin.LogSource.LogError("[MedicalAnimations] ItemFactory not ready yet.");
-                    return null;
-                }
+                var anim = player?.HandsAnimator;
+                if (anim == null) return false;
 
-                var id = NewMongoLikeId();
-                return factory.CreateItem(id, templateId, null) as Item;
+                var mi = anim.GetType().GetMethod("SetUseTimeMultiplier",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (mi == null) return false;
+
+                mi.Invoke(anim, new object[] { mult });
+                return true;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] Item creation failed: {ex.Message}");
-                return null;
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] SetAnimationSpeed warn: {ex.Message}");
+                return false;
             }
         }
 
-        private static string NewMongoLikeId() => Guid.NewGuid().ToString("N").Substring(0, 24);
-
+        //====================[ Enums ]====================
         public enum SurgicalItemType { SurvKit, CMS }
     }
 }

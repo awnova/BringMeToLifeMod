@@ -1,28 +1,27 @@
-﻿using SPT.Reflection.Utils;
-using System;
-using UnityEngine;
+﻿//====================[ Imports ]====================
 using Comfort.Common;
 using Fika.Core.Coop.Utils;
 using Fika.Core.Networking;
+using SPT.Reflection.Utils;
 
 namespace RevivalMod.Fika
 {
+    //====================[ FikaBridge ]====================
     internal class FikaBridge
     {
+        //====================[ Lifecycle ]====================
         public static void PluginEnable()
         {
-            if (!Plugin.FikaInstalled)
-                return;
+            if (!Plugin.FikaInstalled) return;
 
             FikaMethods.InitOnPluginEnabled();
             Plugin.LogSource.LogInfo("Fika integration initialized!");
         }
 
+        //====================[ Host / Identity ]====================
         public static bool IAmHost()
         {
-            if (!Plugin.FikaInstalled)
-                return true;
-
+            if (!Plugin.FikaInstalled) return true;
             return Singleton<FikaServer>.Instantiated;
         }
 
@@ -34,57 +33,61 @@ namespace RevivalMod.Fika
             return FikaBackendUtils.GroupId;
         }
 
-        public static void SendPlayerCriticalStatePacket(string playerId)
+        //====================[ Revival Packet Wrappers ]====================
+        public static void SendBleedingOutPacket(string playerId, float timeRemaining)
         {
-            if (!Plugin.FikaInstalled)
-                return;
+            if (!Plugin.FikaInstalled) return;
 
-            FikaMethods.SendPlayerCriticalStatePacket(playerId);
+            Plugin.LogSource.LogDebug($"Sending bleeding out packet for {playerId}");
+            FikaMethods.SendBleedingOutPacket(playerId, timeRemaining);
         }
 
-        public static void SendRemovePlayerFromCriticalPlayersListPacket(string playerId)
+        public static void SendTeamHelpPacket(string reviveeId, string reviverId)
         {
-            if (!Plugin.FikaInstalled)
-                return;
+            if (!Plugin.FikaInstalled) return;
 
-            Plugin.LogSource.LogDebug("Sending remove player from critical players list packet");
-            FikaMethods.SendRemovePlayerFromCriticalPlayersListPacket(playerId);
+            Plugin.LogSource.LogDebug($"Sending team help packet: {reviverId} helping {reviveeId}");
+            FikaMethods.SendTeamHelpPacket(reviveeId, reviverId);
         }
 
-        public static void SendReviveMePacket(string reviveeId, string reviverId)
+        public static void SendTeamCancelPacket(string reviveeId, string reviverId)
         {
-            if (!Plugin.FikaInstalled)
-                return;
+            if (!Plugin.FikaInstalled) return;
 
-            Plugin.LogSource.LogDebug("Sending revive me packet");
-            FikaMethods.SendReviveMePacket(reviveeId, reviverId);
+            Plugin.LogSource.LogDebug($"Sending team cancel packet: {reviverId} cancelled helping {reviveeId}");
+            FikaMethods.SendTeamCancelPacket(reviveeId, reviverId);
         }
 
-        public static void SendReviveStartedPacket(string reviveeId, string reviverId)
+        public static void SendSelfReviveStartPacket(string playerId)
         {
-            if (!Plugin.FikaInstalled)
-                return;
+            if (!Plugin.FikaInstalled) return;
 
-            Plugin.LogSource.LogDebug("Sending revive started packet");
-            FikaMethods.SendReviveStartedPacket(reviveeId, reviverId);
+            Plugin.LogSource.LogDebug($"Sending self revive start packet for {playerId}");
+            FikaMethods.SendSelfReviveStartPacket(playerId);
         }
 
-        public static void SendReviveCanceledPacket(string reviveeId, string reviverId)
+        public static void SendTeamReviveStartPacket(string reviveeId, string reviverId)
         {
-            if (!Plugin.FikaInstalled)
-                return;
+            if (!Plugin.FikaInstalled) return;
 
-            Plugin.LogSource.LogDebug("Sending revive canceled packet");
-            FikaMethods.SendReviveCanceledPacket(reviveeId, reviverId);
+            Plugin.LogSource.LogDebug($"Sending team revive start packet: {reviverId} reviving {reviveeId}");
+            FikaMethods.SendTeamReviveStartPacket(reviveeId, reviverId);
         }
 
-        public static void SendHealthRestoredPacket(string playerId)
+        public static void SendRevivedPacket(string playerId, string reviverId = "")
         {
-            if (!Plugin.FikaInstalled)
-                return;
+            if (!Plugin.FikaInstalled) return;
 
-            Plugin.LogSource.LogDebug($"Sending health restored packet for player {playerId}");
-            FikaMethods.SendHealthRestoredPacket(playerId);
+            Plugin.LogSource.LogDebug($"Sending revived packet for {playerId}");
+            FikaMethods.SendRevivedPacket(playerId, reviverId);
+        }
+
+        public static void SendPlayerStateResetPacket(string playerId)
+        {
+            if (!Plugin.FikaInstalled) return;
+
+            Plugin.LogSource.LogDebug($"Sending state reset packet for {playerId}");
+            FikaMethods.SendPlayerStateResetPacket(playerId);
         }
     }
 }

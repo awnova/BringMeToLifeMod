@@ -1,3 +1,4 @@
+//====================[ Imports ]====================
 using EFT;
 using EFT.Interactive;
 using EFT.InventoryLogic;
@@ -34,30 +35,28 @@ namespace RevivalMod.Components
 
             if (owner.Player.CurrentState is IdleStateClass)
             {
-                // Show hold prompt using ShowObjectivesPanel (TimerPanel) for the 2-second hold
-                owner.ShowObjectivesPanel("Reviving {0:F1}", REVIVE_HOLD_TIME);
+                // Show hold timer UI
+                VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.Default, "Reviving {0:F1}", REVIVE_HOLD_TIME);
 
-                // Color the objectives panel blue for teammate revival
-                VFX_UI.ColorObjectivesPanelBlue();
-
-                // Start the countdown, and trigger the ActionCompleteHandler when it's done
+                // Start the countdown
                 MovementState currentManagedState = owner.Player.CurrentManagedState;
 
                 ReviveCompleteHandler actionCompleteHandler = new()
                 {
                     owner = owner,
-                    targetId = Revivee.ProfileId
+                    targetId = Revivee.ProfileId,
+                    reviverId = owner.Player.ProfileId
                 };
-                
-                Action<bool> action = new(actionCompleteHandler.Complete);
 
+                Action<bool> action = new(actionCompleteHandler.Complete);
                 currentManagedState.Plant(true, false, REVIVE_HOLD_TIME, action);
 
-                FikaBridge.SendReviveStartedPacket(Revivee.ProfileId, owner.Player.ProfileId);
+                // Send TeamHelpPacket - announce to revivee that someone is helping
+                FikaBridge.SendTeamHelpPacket(Revivee.ProfileId, owner.Player.ProfileId);
             }
             else
             {
-                owner.DisplayPreloaderUiNotification("You can't revive a player while moving");
+                VFX_UI.Text(Color.yellow, "You can't revive a player while moving");
             }
         }
 
@@ -80,13 +79,13 @@ namespace RevivalMod.Components
 
             // Check entire inventory for defib
             bool hasDefib = Utils.HasDefib(owner.Player);
-            
+
             // Use RMSession.IsPlayerCritical as single source of truth
             bool playerCritState = RMSession.IsPlayerCritical(Revivee.ProfileId);
             bool reviveButtonEnabled = playerCritState && hasDefib;
 
             Plugin.LogSource.LogDebug($"Revivee {Revivee.ProfileId} critical state is {playerCritState}, has defib: {hasDefib}");
-           
+
             actionsReturnClass.Actions.Add(new ActionsTypesClass()
             {
                 Action = () => OnRevive(owner),
@@ -101,26 +100,24 @@ namespace RevivalMod.Components
         {
             public GamePlayerOwner owner;
             public string targetId;
+            public string reviverId;
 
             public void Complete(bool result)
             {
-                owner.CloseObjectivesPanel();
-                
+                VFX_UI.HideObjectivePanel();
+
                 if (result)
                 {
-                    // Send packet to trigger animation on revivee
-                    bool success = RevivalFeatures.PerformTeammateRevival(targetId, owner.Player);
-                    
-                    if (success)
-                    {
-                        Plugin.LogSource.LogInfo($"Revive hold completed, teammate now playing animation");
-                    }
+                    // Hold completed - send TeamReviveStartPacket to begin revival animation
+                    FikaBridge.SendTeamReviveStartPacket(targetId, reviverId);
+                    Plugin.LogSource.LogInfo($"Revive hold completed, sent TeamReviveStartPacket for {targetId}");
                 }
                 else
                 {
-                    FikaBridge.SendReviveCanceledPacket(targetId, owner.Player.ProfileId);
-
-                    Plugin.LogSource.LogInfo($"Revive cancelled!");
+                    // Hold cancelled - send TeamCancelPacket
+                    FikaBridge.SendTeamCancelPacket(targetId, reviverId);
+                    VFX_UI.Text(Color.yellow, "Revive cancelled!");
+                    Plugin.LogSource.LogInfo("Revive cancelled!");
                 }
             }
         }
