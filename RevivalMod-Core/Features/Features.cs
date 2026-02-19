@@ -1,4 +1,3 @@
-//====================[ Imports ]====================
 using System;
 using System.Reflection;
 using EFT;
@@ -12,18 +11,9 @@ using UnityEngine;
 
 namespace RevivalMod.Features
 {
-    //====================[ RevivalFeatures ]====================
-    /// <summary>
-    /// Implements a second-chance mechanic for players, allowing them to enter a critical state
-    /// instead of dying, and use a defibrillator to revive.
-    /// </summary>
     internal class RevivalFeatures : ModulePatch
     {
-        //====================[ Core Patch Implementation ]====================
-        // no local state needed anymore
-
         protected override MethodBase GetTargetMethod() =>
-            // Patch the Update method of Player to check for revival and manage states
             AccessTools.Method(typeof(Player), nameof(Player.UpdateTick));
 
         [PatchPostfix]
@@ -31,17 +21,15 @@ namespace RevivalMod.Features
         {
             try
             {
-                // keep world interaction collider synced for every visible player
                 DownedStateController.TickBodyInteractableColliderState(__instance);
+                DownedStateController.TickInvulnerability(__instance);
+                DownedStateController.TickCooldown(__instance);
 
                 if (!__instance.IsYourPlayer) return;
 
-                // dev hotkeys/debug only
-                CheckTestKeybinds(__instance);
+                if (RevivalModSettings.TESTING.Value)
+                    CheckTestKeybinds(__instance);
 
-                // drive the per-frame state machines
-                DownedStateController.TickInvulnerability(__instance);
-                DownedStateController.TickCooldown(__instance);
                 DownedStateController.TickDowned(__instance);
             }
             catch (Exception ex)
@@ -50,86 +38,34 @@ namespace RevivalMod.Features
             }
         }
 
-        //====================[ Test Keybinds (DEV only) ]====================
         private static void CheckTestKeybinds(Player player)
         {
-            // Only enable test keybinds when TESTING mode is active
-            if (!RevivalModSettings.TESTING.Value) return;
-
             try
             {
-                // F3 = SurvKit animation (create cached item and play at default speed)
                 if (Input.GetKeyDown(KeyCode.F3))
                 {
-                    var it = MedicalAnimations.SurgicalItemType.SurvKit;
-                    MedicalAnimations.CreateInQuestInventory(player, it);
-                    MedicalAnimations.UseAtSpeed(player, it, 1f);
+                    MedicalAnimations.CreateInQuestInventory(player, MedicalAnimations.SurgicalItemType.SurvKit);
+                    MedicalAnimations.UseAtSpeed(player, MedicalAnimations.SurgicalItemType.SurvKit, 1f);
                 }
 
-                // F4 = CMS animation (create cached item and play at default speed)
                 if (Input.GetKeyDown(KeyCode.F4))
                 {
-                    var it = MedicalAnimations.SurgicalItemType.CMS;
-                    MedicalAnimations.CreateInQuestInventory(player, it);
-                    MedicalAnimations.UseAtSpeed(player, it, 1f);
+                    MedicalAnimations.CreateInQuestInventory(player, MedicalAnimations.SurgicalItemType.CMS);
+                    MedicalAnimations.UseAtSpeed(player, MedicalAnimations.SurgicalItemType.CMS, 1f);
                 }
 
-                // F7 = enter ghost mode (remove local player from AI enemy lists)
                 if (Input.GetKeyDown(KeyCode.F7))
                 {
-                    try
-                    {
-                        if (player != null && player.IsYourPlayer)
-                        {
-                            RevivalMod.Helpers.GhostMode.EnterGhostModeById(player.ProfileId);
-                            Plugin.LogSource.LogInfo("GhostMode test: F7 pressed - EnterGhostMode called");
-                            NotificationManagerClass.DisplayMessageNotification(
-                                "GhostMode: Entered ghost mode (F7)",
-                                ENotificationDurationType.Default,
-                                ENotificationIconType.Default,
-                                Color.cyan
-                            );
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Plugin.LogSource.LogError($"GhostMode test F7 error: {ex.Message}");
-                        NotificationManagerClass.DisplayMessageNotification(
-                            $"GhostMode F7 error: {ex.Message}",
-                            ENotificationDurationType.Default,
-                            ENotificationIconType.Alert,
-                            Color.red
-                        );
-                    }
+                    GhostMode.EnterGhostModeById(player.ProfileId);
+                    NotificationManagerClass.DisplayMessageNotification(
+                        "GhostMode: Entered (F7)", ENotificationDurationType.Default, ENotificationIconType.Default, Color.cyan);
                 }
 
-                // F8 = exit ghost mode (re-add local player to AI enemy lists)
                 if (Input.GetKeyDown(KeyCode.F8))
                 {
-                    try
-                    {
-                        if (player != null && player.IsYourPlayer)
-                        {
-                            RevivalMod.Helpers.GhostMode.ExitGhostModeById(player.ProfileId);
-                            Plugin.LogSource.LogInfo("GhostMode test: F8 pressed - ExitGhostMode called");
-                            NotificationManagerClass.DisplayMessageNotification(
-                                "GhostMode: Exited ghost mode (F8)",
-                                ENotificationDurationType.Default,
-                                ENotificationIconType.Default,
-                                Color.cyan
-                            );
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Plugin.LogSource.LogError($"GhostMode test F8 error: {ex.Message}");
-                        NotificationManagerClass.DisplayMessageNotification(
-                            $"GhostMode F8 error: {ex.Message}",
-                            ENotificationDurationType.Default,
-                            ENotificationIconType.Alert,
-                            Color.red
-                        );
-                    }
+                    GhostMode.ExitGhostModeById(player.ProfileId);
+                    NotificationManagerClass.DisplayMessageNotification(
+                        "GhostMode: Exited (F8)", ENotificationDurationType.Default, ENotificationIconType.Default, Color.cyan);
                 }
             }
             catch (Exception ex)
@@ -138,9 +74,7 @@ namespace RevivalMod.Features
             }
         }
 
-        //====================[ Public API Wrappers ]====================
-        // (delegate to DownedStateController)
-
+        // Public API wrappers (delegate to DownedStateController)
         public static bool IsPlayerInCriticalState(string playerId) =>
             DownedStateController.IsPlayerInCriticalState(playerId);
 
@@ -159,21 +93,21 @@ namespace RevivalMod.Features
         public static bool PerformTeammateRevival(string targetPlayerId, Player player) =>
             DownedStateController.StartTeammateRevive(targetPlayerId, player?.ProfileId ?? "");
 
-        // Compatibility wrapper used by Harmony patches: allow callers to request a forced death by passing either a
-        // Player instance or a player id string. This mirrors the shape expected by GhostModeDeathPatch and the Plugin
-        // AccessTools lookup.
+        /// <summary>
+        /// Compatibility wrapper used by GhostModeDeathPatch. Accepts Player or string playerId.
+        /// </summary>
         public static void ForcePlayerDeath(object targetArg)
         {
             try
             {
-                Player player = null;
-
-                if (targetArg is Player p) player = p;
-                else if (targetArg is string id) player = Utils.GetPlayerById(id);
-
-                if (player == null) return;
-
-                DownedStateController.ForceBleedout(player);
+                Player player = targetArg switch
+                {
+                    Player p => p,
+                    string id => Utils.GetPlayerById(id),
+                    _ => null
+                };
+                if (player != null)
+                    DownedStateController.ForceBleedout(player);
             }
             catch (Exception ex)
             {

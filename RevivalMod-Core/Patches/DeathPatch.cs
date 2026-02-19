@@ -1,51 +1,59 @@
-﻿//====================[ Imports ]====================
 using System;
 using System.Reflection;
 using EFT;
-using EFT.Communications;
 using EFT.HealthSystem;
 using HarmonyLib;
 using RevivalMod.Features;
 using RevivalMod.Helpers;
+using RevivalMod.Components;
 using SPT.Reflection.Patching;
 
 namespace RevivalMod.Patches
 {
-    //====================[ DeathPatch ]====================
     internal class DeathPatch : ModulePatch
     {
-        //====================[ Target Method ]====================
         protected override MethodBase GetTargetMethod() =>
             AccessTools.Method(typeof(ActiveHealthController), nameof(ActiveHealthController.Kill));
 
-        //====================[ Prefix Patch ]====================
         [PatchPrefix]
         private static bool Prefix(ActiveHealthController __instance, EDamageType damageType)
         {
             try
             {
-                // Pull player from controller (allow AI to die normally)
                 FieldInfo playerField = AccessTools.Field(typeof(ActiveHealthController), "Player");
                 if (playerField?.GetValue(__instance) is not Player player || player.IsAI) return true;
 
-                // Hardcore headshot rule bypasses death prevention
+                string playerId = player.ProfileId;
+                bool isLocalPlayer = player.IsYourPlayer;
+
                 if (DeathMode.ShouldAllowDeathFromHardcoreHeadshot(__instance, damageType)) return true;
 
-                // Death-blocking decision
-                bool shouldBlockDeath = DeathMode.ShouldBlockDeath(player, damageType);
-                if (shouldBlockDeath)
+                if (RMSession.HasPlayerState(playerId))
                 {
-                    // Enter critical state instead of dying
-                    RevivalFeatures.SetPlayerCriticalState(player, true, damageType);
-                    return false; // block Kill()
+                    var st = RMSession.GetPlayerState(playerId);
+
+                    if (st.State is RMState.BleedingOut or RMState.Reviving or RMState.Revived)
+                    {
+                        if (!isLocalPlayer && st.State == RMState.BleedingOut)
+                            return false;
+
+                        if (DeathMode.ShouldBlockDeath(player, damageType))
+                            return false;
+                    }
                 }
 
-                return true; // allow Kill()
+                if (DeathMode.ShouldBlockDeath(player, damageType))
+                {
+                    RevivalFeatures.SetPlayerCriticalState(player, true, damageType);
+                    return false;
+                }
+
+                return true;
             }
             catch (Exception ex)
             {
                 Plugin.LogSource.LogError($"Error in Death prevention patch: {ex.Message}");
-                return true; // fail-open on error
+                return true;
             }
         }
     }

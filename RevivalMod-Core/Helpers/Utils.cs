@@ -1,4 +1,3 @@
-﻿//====================[ Imports ]====================
 using Comfort.Common;
 using EFT;
 using EFT.InventoryLogic;
@@ -9,10 +8,8 @@ using System.Collections.Generic;
 
 namespace RevivalMod.Helpers
 {
-    //====================[ Utils ]====================
     internal static class Utils
     {
-        //====================[ Server Routes ]====================
         public static T ServerRoute<T>(string url, object data = default)
         {
             try
@@ -32,7 +29,6 @@ namespace RevivalMod.Helpers
         {
             try
             {
-                // Allow passing raw string; wrap as { "data": "<value>" }
                 string json = data is string s
                     ? JsonConvert.SerializeObject(new Dictionary<string, string> { { "data", s } })
                     : JsonConvert.SerializeObject(data);
@@ -46,11 +42,9 @@ namespace RevivalMod.Helpers
             }
         }
 
-        //====================[ Player Lookups ]====================
         public static Player GetYourPlayer()
         {
             if (!Singleton<GameWorld>.Instantiated) return null;
-
             var player = Singleton<GameWorld>.Instance.MainPlayer;
             return (player != null && player.IsYourPlayer) ? player : null;
         }
@@ -67,18 +61,14 @@ namespace RevivalMod.Helpers
             return Singleton<GameWorld>.Instance.AllAlivePlayersList;
         }
 
-        /// <summary>Nickname if available, else the playerId.</summary>
         public static string GetPlayerDisplayName(string playerId)
         {
             if (string.IsNullOrEmpty(playerId)) return playerId;
-
             var p = GetPlayerById(playerId);
             var nick = p?.Profile?.Nickname;
             return string.IsNullOrEmpty(nick) ? playerId : nick;
         }
 
-        //====================[ Inventory Operations ]====================
-        /// <summary>Find first configured revival item (defib) in inventory.</summary>
         private static Item FindDefibItem(Player player)
         {
             try
@@ -103,15 +93,7 @@ namespace RevivalMod.Helpers
         {
             try
             {
-                var item = FindDefibItem(player);
-                if (item != null)
-                {
-                    Plugin.LogSource.LogDebug($"Found defib in inventory: {item.LocalizedName()}");
-                    return true;
-                }
-
-                Plugin.LogSource.LogDebug("No defib found in player inventory");
-                return false;
+                return FindDefibItem(player) != null;
             }
             catch (Exception ex)
             {
@@ -124,15 +106,7 @@ namespace RevivalMod.Helpers
         {
             try
             {
-                var item = FindDefibItem(player);
-                if (item != null)
-                {
-                    Plugin.LogSource.LogDebug($"Getting defib from inventory: {item.LocalizedName()}");
-                    return item;
-                }
-
-                Plugin.LogSource.LogWarning("GetDefib called but no defib found in inventory");
-                return null;
+                return FindDefibItem(player);
             }
             catch (Exception ex)
             {
@@ -141,31 +115,31 @@ namespace RevivalMod.Helpers
             }
         }
 
-        /// <summary>Removes and destroys the defib item from inventory.</summary>
         public static void ConsumeDefibItem(Player player, Item defibItem)
+        {
+            ConsumeItem(player, defibItem, "Defibrillator");
+        }
+
+        public static void ConsumeMedicalItem(Player player, Item medicalItem)
+        {
+            ConsumeItem(player, medicalItem, "Medical item");
+        }
+
+        private static void ConsumeItem(Player player, Item item, string label)
         {
             try
             {
-                if (player == null)
-                {
-                    Plugin.LogSource.LogWarning("ConsumeDefibItem: player is null");
-                    return;
-                }
-                if (defibItem == null)
-                {
-                    Plugin.LogSource.LogWarning("ConsumeDefibItem: item is null");
-                    return;
-                }
+                if (player == null || item == null) return;
 
-                Plugin.LogSource.LogInfo($"Consuming defib: {defibItem.LocalizedName()} (ID: {defibItem.Id}, Template: {defibItem.TemplateId})");
+                Plugin.LogSource.LogInfo($"Consuming {label}: {item.LocalizedName()} (Template: {item.TemplateId})");
 
                 var inv = player.InventoryController;
-                GStruct454 remove = InteractionsHandlerClass.Remove(defibItem, inv, true);
+                var remove = InteractionsHandlerClass.Remove(item, inv, true);
 
                 if (remove.Failed)
                 {
                     Plugin.LogSource.LogWarning($"Remove failed: {remove.Error}, trying Discard...");
-                    GStruct454 discard = InteractionsHandlerClass.Discard(defibItem, inv, true);
+                    var discard = InteractionsHandlerClass.Discard(item, inv, true);
 
                     if (discard.Failed)
                     {
@@ -179,12 +153,10 @@ namespace RevivalMod.Helpers
                 {
                     inv.TryRunNetworkTransaction(remove);
                 }
-
-                Plugin.LogSource.LogInfo("Defibrillator consumed successfully");
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"ConsumeDefibItem error: {ex.Message}\n{ex.StackTrace}");
+                Plugin.LogSource.LogError($"Consume{label} error: {ex.Message}\n{ex.StackTrace}");
             }
         }
     }

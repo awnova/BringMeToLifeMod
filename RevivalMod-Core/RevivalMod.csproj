@@ -1,187 +1,53 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{9076ADE2-F4EE-4B5D-B9A6-29A054CF0A7E}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <!-- User-specific SPT paths: adjust these if your installation differs -->
-    <SPT_INSTALL_PATH Condition=" '$(SPT_INSTALL_PATH)' == '' ">C:\\Program Files\\EEFT Launcher\\SPT</SPT_INSTALL_PATH>
-    <SPT_SOURCE_PATH Condition=" '$(SPT_SOURCE_PATH)' == '' ">C:\\Users\\awnov\\Downloads\\sptsorce 3.11.4</SPT_SOURCE_PATH>
-  <!-- If the Fika references folder exists in the SPT source, use it for referenced DLLs -->
-  <SPT_REFERENCE_SUBPATH Condition="Exists('$(SPT_SOURCE_PATH)\\Fika-Headless-1.3.7\\References')">Fika-Headless-1.3.7\References</SPT_REFERENCE_SUBPATH>
-  <SPT_REFERENCE_SUBPATH Condition=" '$(SPT_REFERENCE_SUBPATH)' == '' and Exists('$(SPT_SOURCE_PATH)\\Fika-Plugin-1.2.8\\References')">Fika-Plugin-1.2.8\References</SPT_REFERENCE_SUBPATH>
-  <!-- Default to root of SPT_SOURCE_PATH if no references subfolder is found -->
-  <SPT_REFERENCE_SUBPATH Condition=" '$(SPT_REFERENCE_SUBPATH)' == '' ">.</SPT_REFERENCE_SUBPATH>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>RevivalMod</RootNamespace>
     <AssemblyName>RevivalMod</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <RootNamespace>RevivalMod</RootNamespace>
+    <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <FileAlignment>512</FileAlignment>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <Deterministic>true</Deterministic>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <CoreRefDir>$(MSBuildThisFileDirectory)..\Build\Lib\Fika-Headless-1.4.11\References\</CoreRefDir>
+    <BepInExCoreDir>$(MSBuildThisFileDirectory)..\Build\Lib\spt-4.0.12\static-assets-csharp\BepInEx\core\</BepInExCoreDir>
+    <DecompLibDir>$(MSBuildThisFileDirectory)..\Build\Decomp\Assembly-CSharp\lib\</DecompLibDir>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup>
-    <RunPostBuildEvent>Always</RunPostBuildEvent>
-  </PropertyGroup>
-  <PropertyGroup>
-    <!-- Centralized external libs directory (points to Fika-Plugin references by default) -->
-    <ExternalLibDir>$(MSBuildThisFileDirectory)..\Build\Lib\Fika-Plugin-1.2.8\References\</ExternalLibDir>
-    <!-- Fallback to Fika-Headless references for DLLs only available there -->
-    <FikaHeadlessRefDir>$(MSBuildThisFileDirectory)..\Build\Lib\Fika-Headless-1.3.7\References\</FikaHeadlessRefDir>
-  </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)Assembly-CSharp.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="DissonanceVoip">
-      <HintPath>$(ExternalLibDir)DissonanceVoip.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="ItemComponent.Types, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null" />
-    <Reference Include="PhysicsModule">
-      <HintPath>$(ExternalLibDir)UnityEngine.PhysicsModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="0Harmony">
-      <HintPath>$(ExternalLibDir)0Harmony.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="BepInEx">
-      <HintPath>$(ExternalLibDir)BepInEx.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="spt-common">
-      <HintPath>$(ExternalLibDir)spt-common.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="spt-reflection">
-      <HintPath>$(ExternalLibDir)spt-reflection.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Comfort">
-      <HintPath>$(ExternalLibDir)Comfort.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Comfort.Unity, Version=1.0.0.4, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)Comfort.Unity.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)Newtonsoft.Json.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Sirenix.Serialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)Sirenix.Serialization.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Xml" />
-    <Reference Include="Unity.TextMeshPro, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)Unity.TextMeshPro.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine">
-      <HintPath>$(ExternalLibDir)UnityEngine.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.AssetBundleModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)UnityEngine.AssetBundleModule.dll</HintPath>
-      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.AssetBundleModule.dll')">$(FikaHeadlessRefDir)UnityEngine.AssetBundleModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(ExternalLibDir)UnityEngine.CoreModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.IMGUIModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)UnityEngine.IMGUIModule.dll</HintPath>
-      <HintPath Condition="!Exists('$(ExternalLibDir)UnityEngine.IMGUIModule.dll')">$(FikaHeadlessRefDir)UnityEngine.IMGUIModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>$(ExternalLibDir)UnityEngine.InputLegacyModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.TextRenderingModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)UnityEngine.TextRenderingModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ExternalLibDir)UnityEngine.UI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <!-- UnityEngine.AnimationModule and UnityEngine.UIModule are not present in the current reference set
-         Animation functionality is available via UnityEngine/CoreModule and AnimationSystem.Types
-         UI functionality is provided by UnityEngine.UI and UnityEngine.IMGUIModule which are referenced above. -->
-    <Reference Include="Fika.Core">
-      <HintPath>$(ExternalLibDir)Fika.Core.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Components\InteractableBuilder.cs" />
-    <Compile Include="Components\BodyInteractable.cs" />
-    <Compile Include="Helpers\PlayerRestorations.cs" />
-    <Compile Include="Helpers\CustomTimer.cs" />
-    <Compile Include="Components\RMSession.cs" />
-    <Compile Include="Components\RMPlayer.cs" />
-    <Compile Include="Helpers\VFX_UI.cs" />
-    <Compile Include="Fika\FikaBridge.cs" />
-    <Compile Include="Fika\FikaMethods.cs" />
-    <Compile Include="Fika\Packets.cs" />
-    <Compile Include="Helpers\ConfigurationManagerAttributes.cs" />
-    <Compile Include="Helpers\MedicalAnimations.cs" />
-    <Compile Include="Helpers\GodMode.cs" />
-    <Compile Include="Helpers\DeathMode.cs" />
-    <Compile Include="Helpers\GhostMode.cs" />
-    <Compile Include="Helpers\RevivalModSettings.cs" />
-    <Compile Include="Patches\DeathPatch.cs" />
-    <Compile Include="Patches\OnPlayerCreatedPatch.cs" />
-    <Compile Include="Patches\AvailableActionsPatch.cs" />
-  <Compile Include="Patches\GhostModeEnemyListPatch.cs" />
-    <Compile Include="Features\Features.cs" />
-    <Compile Include="Features\DownedStateController.cs" />
-    <Compile Include="Helpers\Utils.cs" />
-    <Compile Include="Patches\GameStartedPatch.cs" />
-    <Compile Include="Plugin.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 
-  <!-- Post-build event removed - using build script instead -->
+  <ItemGroup>
+    <Reference Include="0Harmony" HintPath="$(BepInExCoreDir)0Harmony.dll" Private="false" />
+    <Reference Include="BepInEx" HintPath="$(BepInExCoreDir)BepInEx.dll" Private="false" />
+    <Reference Include="AnimationSystem.Types" HintPath="$(CoreRefDir)AnimationSystem.Types.dll" Private="false" />
+    <Reference Include="Assembly-CSharp" HintPath="$(CoreRefDir)hollowed.dll" Private="false" />
+    <Reference Include="bsg.componentace.compression.libs.zlib" HintPath="$(CoreRefDir)bsg.componentace.compression.libs.zlib.dll" Private="false" />
+    <Reference Include="bsg.console.core" HintPath="$(CoreRefDir)bsg.console.core.dll" Private="false" />
+    <Reference Include="BSG.Unity.Wires" HintPath="$(CoreRefDir)BSG.Unity.Wires.dll" Private="false" />
+    <Reference Include="Comfort" HintPath="$(CoreRefDir)Comfort.dll" Private="false" />
+    <Reference Include="Comfort.Unity" HintPath="$(CoreRefDir)Comfort.Unity.dll" Private="false" />
+    <Reference Include="CommonExtensions" HintPath="$(CoreRefDir)CommonExtensions.dll" Private="false" />
+    <Reference Include="DissonanceVoip" HintPath="$(CoreRefDir)DissonanceVoip.dll" Private="false" />
+    <Reference Include="Fika.Core" HintPath="$(CoreRefDir)Fika.Core.dll" Private="false" />
+    <Reference Include="ItemComponent.Types" HintPath="$(CoreRefDir)ItemComponent.Types.dll" Private="false" />
+    <Reference Include="ItemTemplate.Types" HintPath="$(DecompLibDir)ItemTemplate.Types.dll" Private="false" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(CoreRefDir)Newtonsoft.Json.dll" Private="false" />
+    <Reference Include="Sirenix.Serialization" HintPath="$(CoreRefDir)Sirenix.Serialization.dll" Private="false" />
+    <Reference Include="spt-common" HintPath="$(CoreRefDir)spt-common.dll" Private="false" />
+    <Reference Include="spt-core" HintPath="$(CoreRefDir)spt-core.dll" Private="false" />
+    <Reference Include="spt-custom" HintPath="$(CoreRefDir)spt-custom.dll" Private="false" />
+    <Reference Include="spt-debugging" HintPath="$(CoreRefDir)spt-debugging.dll" Private="false" />
+    <Reference Include="spt-reflection" HintPath="$(CoreRefDir)spt-reflection.dll" Private="false" />
+    <Reference Include="spt-singleplayer" HintPath="$(CoreRefDir)spt-singleplayer.dll" Private="false" />
+    <Reference Include="Unity.Postprocessing.Runtime" HintPath="$(CoreRefDir)Unity.Postprocessing.Runtime.dll" Private="false" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(CoreRefDir)Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(CoreRefDir)UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.AssetBundleModule" HintPath="$(DecompLibDir)UnityEngine.AssetBundleModule.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(DecompLibDir)UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(DecompLibDir)UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(DecompLibDir)UnityEngine.InputLegacyModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(DecompLibDir)UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(DecompLibDir)UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(CoreRefDir)UnityEngine.UI.dll" Private="false" />
+    <Reference Include="websocket-sharp" HintPath="$(CoreRefDir)websocket-sharp.dll" Private="false" />
+  </ItemGroup>
+
 </Project>

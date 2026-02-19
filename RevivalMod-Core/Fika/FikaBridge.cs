@@ -1,6 +1,6 @@
-﻿//====================[ Imports ]====================
+//====================[ Imports ]====================
 using Comfort.Common;
-using Fika.Core.Coop.Utils;
+using Fika.Core.Main.Utils;
 using Fika.Core.Networking;
 using SPT.Reflection.Utils;
 
@@ -82,12 +82,37 @@ namespace RevivalMod.Fika
             FikaMethods.SendRevivedPacket(playerId, reviverId);
         }
 
-        public static void SendPlayerStateResetPacket(string playerId)
+        public static void SendPlayerStateResetPacket(string playerId, bool isDead, float cooldownSeconds = 0f)
         {
             if (!Plugin.FikaInstalled) return;
 
-            Plugin.LogSource.LogDebug($"Sending state reset packet for {playerId}");
-            FikaMethods.SendPlayerStateResetPacket(playerId);
+            Plugin.LogSource.LogDebug($"Sending state reset packet for {playerId} (isDead={isDead}, cooldown={cooldownSeconds:F0}s)");
+            FikaMethods.SendPlayerStateResetPacket(playerId, isDead, cooldownSeconds);
+        }
+
+        //====================[ Team Healing Packet Wrappers ]====================
+        public static void SendTeamHealPacket(string patientId, string healerId)
+        {
+            if (!Plugin.FikaInstalled) return;
+
+            Plugin.LogSource.LogDebug($"Sending team heal packet: {healerId} healing {patientId}");
+            FikaMethods.SendTeamHealPacket(patientId, healerId);
+        }
+
+        public static void SendTeamHealCompletePacket(string patientId, string healerId)
+        {
+            if (!Plugin.FikaInstalled) return;
+
+            Plugin.LogSource.LogDebug($"Sending team heal complete packet: {healerId} healed {patientId}");
+            FikaMethods.SendTeamHealCompletePacket(patientId, healerId);
+        }
+
+        public static void SendTeamHealCancelPacket(string patientId, string healerId)
+        {
+            if (!Plugin.FikaInstalled) return;
+
+            Plugin.LogSource.LogDebug($"Sending team heal cancel packet: {healerId} cancelled healing {patientId}");
+            FikaMethods.SendTeamHealCancelPacket(patientId, healerId);
         }
     }
 }

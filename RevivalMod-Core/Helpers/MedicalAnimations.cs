@@ -19,9 +19,9 @@ namespace RevivalMod.Helpers
         private const string SURVKIT_TEMPLATE_ID = "5d02797c86f774203f38e30a";
         private const string CMS_TEMPLATE_ID     = "5d02778e86f774203e7dedbe";
 
-        // Use these exact fake IDs (24 chars each)
-        private const string FAKE_SURVKIT_ID = "FAKE0SURVKIT0ID000000000";
-        private const string FAKE_CMS_ID     = "FAKE0CMS0ID0000000000000";
+        // Valid 24-char hex strings required by MongoID (Fika syncs item IDs over the network)
+        private const string FAKE_SURVKIT_ID = "face000000000000000dead1";
+        private const string FAKE_CMS_ID     = "face000000000000000dead2";
 
         // Base vanilla animation lengths used to compute speed for UseAtSpeed(...)
         private const float BASE_SURVKIT_DURATION = 20f; // SurvKit ~20s

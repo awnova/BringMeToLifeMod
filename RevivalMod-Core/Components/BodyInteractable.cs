@@ -1,7 +1,5 @@
-//====================[ Imports ]====================
 using EFT;
 using EFT.Interactive;
-using EFT.InventoryLogic;
 using EFT.UI;
 using System;
 using UnityEngine;
@@ -16,84 +14,50 @@ namespace RevivalMod.Components
         public Player Revivee { get; set; }
         public Player reviver;
 
+        private const float REVIVE_HOLD_TIME = 2f;
+
         public void OnRevive(GamePlayerOwner owner)
         {
-            // Reviver holds for 2 seconds to initiate revival
-            const float REVIVE_HOLD_TIME = 2f;
+            if (Revivee is null || owner.Player is null) return;
 
-            if (Revivee is null)
-            {
-                Plugin.LogSource.LogError("Revivee is null, cannot perform revival.");
-                return;
-            }
-
-            if (owner.Player is null)
-            {
-                Plugin.LogSource.LogError("Interactor is null, cannot perform revival.");
-                return;
-            }
-
-            if (owner.Player.CurrentState is IdleStateClass)
-            {
-                // Show hold timer UI
-                VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.Default, "Reviving {0:F1}", REVIVE_HOLD_TIME);
-
-                // Start the countdown
-                MovementState currentManagedState = owner.Player.CurrentManagedState;
-
-                ReviveCompleteHandler actionCompleteHandler = new()
-                {
-                    owner = owner,
-                    targetId = Revivee.ProfileId,
-                    reviverId = owner.Player.ProfileId
-                };
-
-                Action<bool> action = new(actionCompleteHandler.Complete);
-                currentManagedState.Plant(true, false, REVIVE_HOLD_TIME, action);
-
-                // Send TeamHelpPacket - announce to revivee that someone is helping
-                FikaBridge.SendTeamHelpPacket(Revivee.ProfileId, owner.Player.ProfileId);
-            }
-            else
+            if (owner.Player.CurrentState is not IdleStateClass)
             {
                 VFX_UI.Text(Color.yellow, "You can't revive a player while moving");
+                return;
             }
+
+            VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.Default, "Reviving {0:F1}", REVIVE_HOLD_TIME);
+
+            var handler = new ReviveCompleteHandler
+            {
+                owner = owner,
+                targetId = Revivee.ProfileId,
+                reviverId = owner.Player.ProfileId
+            };
+
+            owner.Player.CurrentManagedState.Plant(true, false, REVIVE_HOLD_TIME, handler.Complete);
+            FikaBridge.SendTeamHelpPacket(Revivee.ProfileId, owner.Player.ProfileId);
         }
 
         public ActionsReturnClass GetActions(GamePlayerOwner owner)
         {
-            ActionsReturnClass actionsReturnClass = new();
+            var actions = new ActionsReturnClass();
 
-            // Null checks to prevent errors
-            if (Revivee == null)
-            {
-                Plugin.LogSource.LogError("GetActions: Revivee is null");
-                return actionsReturnClass;
-            }
+            if (Revivee == null || owner?.Player == null) return actions;
 
-            if (owner?.Player == null)
-            {
-                Plugin.LogSource.LogError("GetActions: Owner or Owner.Player is null");
-                return actionsReturnClass;
-            }
-
-            // Check entire inventory for defib
             bool hasDefib = Utils.HasDefib(owner.Player);
+            bool playerCritical = RMSession.IsPlayerCritical(Revivee.ProfileId);
 
-            // Use RMSession.IsPlayerCritical as single source of truth
-            bool playerCritState = RMSession.IsPlayerCritical(Revivee.ProfileId);
-            bool reviveButtonEnabled = playerCritState && hasDefib;
-
-            Plugin.LogSource.LogDebug($"Revivee {Revivee.ProfileId} critical state is {playerCritState}, has defib: {hasDefib}");
-
-            actionsReturnClass.Actions.Add(new ActionsTypesClass()
+            actions.Actions.Add(new ActionsTypesClass
             {
                 Action = () => OnRevive(owner),
                 Name = "Revive",
-                Disabled = !reviveButtonEnabled
+                Disabled = !(playerCritical && hasDefib)
             });
 
-            return actionsReturnClass;
+            TeamMedical.AddHealActionToBodyInteractable(this, actions, owner);
+
+            return actions;
         }
 
         internal class ReviveCompleteHandler
@@ -108,16 +72,13 @@ namespace RevivalMod.Components
 
                 if (result)
                 {
-                    // Hold completed - send TeamReviveStartPacket to begin revival animation
                     FikaBridge.SendTeamReviveStartPacket(targetId, reviverId);
-                    Plugin.LogSource.LogInfo($"Revive hold completed, sent TeamReviveStartPacket for {targetId}");
+                    Plugin.LogSource.LogInfo($"Revive hold completed for {targetId}");
                 }
                 else
                 {
-                    // Hold cancelled - send TeamCancelPacket
                     FikaBridge.SendTeamCancelPacket(targetId, reviverId);
                     VFX_UI.Text(Color.yellow, "Revive cancelled!");
-                    Plugin.LogSource.LogInfo("Revive cancelled!");
                 }
             }
         }

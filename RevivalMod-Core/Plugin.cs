@@ -1,4 +1,3 @@
-﻿//====================[ Imports ]====================
 using BepInEx;
 using BepInEx.Bootstrap;
 using BepInEx.Logging;
@@ -13,39 +12,34 @@ using UnityEngine;
 
 namespace RevivalMod
 {
-    //====================[ Plugin ]====================
     [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInPlugin("com.kobethuy.BringMeToLifeMod", "BringMeToLifeMod", "1.0.0")]
     public class Plugin : BaseUnityPlugin
     {
-        //====================[ Statics ]====================
         public static ManualLogSource LogSource;
-        public static MonoBehaviour   StaticCoroutineRunner;
+        public static MonoBehaviour StaticCoroutineRunner;
 
-        public static bool FikaInstalled      { get; private set; }
+        public static bool FikaInstalled { get; private set; }
         public static bool IAmDedicatedClient { get; private set; }
 
-        //====================[ Lifecycle ]====================
         private void Awake()
         {
-            FikaInstalled      = Chainloader.PluginInfos.ContainsKey("com.fika.core");
+            FikaInstalled = Chainloader.PluginInfos.ContainsKey("com.fika.core");
             IAmDedicatedClient = Chainloader.PluginInfos.ContainsKey("com.fika.headless");
 
             LogSource = Logger;
-            LogAssemblyInfo();
-
             StaticCoroutineRunner = this;
+
+            LogAssemblyInfo();
             LogSource.LogInfo("Revival plugin loaded!");
 
             RevivalModSettings.Init(Config);
-
             EnableCorePatches();
             EnableGhostModePatches();
         }
 
         private void OnEnable() => FikaBridge.PluginEnable();
 
-        //====================[ Helpers ]====================
         private static void EnableCorePatches()
         {
             new RevivalFeatures().Enable();
@@ -53,6 +47,7 @@ namespace RevivalMod
             new GameStartedPatch().Enable();
             new DeathPatch().Enable();
             new AvailableActionsPatch().Enable();
+            new SpecialSlotDefibPatch().Enable();
         }
 
         private static void EnableGhostModePatches()
@@ -62,10 +57,8 @@ namespace RevivalMod
 
             try
             {
-                // Only enable GhostModeDeathPatch if target exists
                 var deathTarget = AccessTools.Method(typeof(RevivalFeatures), "ForcePlayerDeath");
                 if (deathTarget != null) new GhostModeDeathPatch().Enable();
-                else LogSource.LogWarning("GhostModeDeathPatch not enabled: target method not found");
             }
             catch (Exception ex)
             {
@@ -79,17 +72,6 @@ namespace RevivalMod
             {
                 var asm = Assembly.GetExecutingAssembly();
                 LogSource.LogInfo($"Revival assembly: {asm.GetName().Name} v{asm.GetName().Version}");
-                LogSource.LogInfo($"Revival assembly location: {asm.Location}");
-
-                try
-                {
-                    var fi = new System.IO.FileInfo(asm.Location);
-                    LogSource.LogInfo($"Revival assembly last write (UTC): {fi.LastWriteTimeUtc:o}");
-                }
-                catch (Exception ex)
-                {
-                    LogSource.LogWarning($"Could not read assembly file info: {ex.Message}");
-                }
             }
             catch (Exception ex)
             {

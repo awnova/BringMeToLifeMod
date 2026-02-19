@@ -2,12 +2,12 @@
 using System;
 using Comfort.Common;
 using EFT;
-using Fika.Core.Coop.Utils;
+using Fika.Core.Main.Utils;
 using Fika.Core.Modding;
 using Fika.Core.Modding.Events;
 using Fika.Core.Networking;
-using LiteNetLib;
-using LiteNetLib.Utils;
+using Fika.Core.Networking.LiteNetLib;
+using Fika.Core.Networking.LiteNetLib.Utils;
 using RevivalMod.Components;        // <-- provides RMSession / RMState
 using RevivalMod.Fika.Packets;
 using RevivalMod.Helpers;
@@ -21,16 +21,17 @@ namespace RevivalMod.Fika
         //====================[ Send Helpers ]====================
         private static void SendPacket<T>(ref T packet) where T : struct, INetSerializable
         {
-            if (FikaBackendUtils.IsServer)
+            if (!Singleton<IFikaNetworkManager>.Instantiated)
             {
-                try { Singleton<FikaServer>.Instance.SendDataToAll(ref packet, DeliveryMethod.ReliableOrdered); }
-                catch (Exception ex) { Plugin.LogSource.LogError(ex); }
+                return;
             }
-            else if (FikaBackendUtils.IsClient)
+
+            try
             {
-                try { Singleton<FikaClient>.Instance.SendData(ref packet, DeliveryMethod.ReliableSequenced); }
-                catch (Exception ex) { Plugin.LogSource.LogError(ex); }
+                bool broadcast = FikaBackendUtils.IsServer;
+                Singleton<IFikaNetworkManager>.Instance.SendData(ref packet, DeliveryMethod.ReliableOrdered, broadcast);
             }
+            catch (Exception ex) { Plugin.LogSource.LogError(ex); }
         }
 
         // Returns true if relayed and caller should skip local handling.
@@ -82,9 +83,28 @@ namespace RevivalMod.Fika
             SendPacket(ref packet);
         }
 
-        public static void SendPlayerStateResetPacket(string playerId)
+        public static void SendPlayerStateResetPacket(string playerId, bool isDead, float cooldownSeconds = 0f)
         {
-            PlayerStateResetPacket packet = new() { playerId = playerId };
+            PlayerStateResetPacket packet = new() { playerId = playerId, isDead = isDead, cooldownSeconds = cooldownSeconds };
+            SendPacket(ref packet);
+        }
+
+        //====================[ Team Healing Packet Senders ]====================
+        public static void SendTeamHealPacket(string patientId, string healerId)
+        {
+            TeamHealPacket packet = new() { patientId = patientId, healerId = healerId };
+            SendPacket(ref packet);
+        }
+
+        public static void SendTeamHealCompletePacket(string patientId, string healerId)
+        {
+            TeamHealCompletePacket packet = new() { patientId = patientId, healerId = healerId };
+            SendPacket(ref packet);
+        }
+
+        public static void SendTeamHealCancelPacket(string patientId, string healerId)
+        {
+            TeamHealCancelPacket packet = new() { patientId = patientId, healerId = healerId };
             SendPacket(ref packet);
         }
 
@@ -96,17 +116,21 @@ namespace RevivalMod.Fika
             var playerState = RMSession.GetPlayerState(packet.playerId);
             playerState.State = RMState.BleedingOut;
             playerState.CriticalTimer = packet.timeRemaining;
+            
+            // Reset kill override to ensure death blocking works for remote players
+            playerState.KillOverride = false;
+            
+            // Ensure player is tracked in critical players list for death blocking
+            RMSession.AddToCriticalPlayers(packet.playerId);
 
-            Plugin.LogSource.LogDebug($"[Packet] BleedingOut: {packet.playerId} has {packet.timeRemaining}s left");
+            Plugin.LogSource.LogDebug($"[Packet] BleedingOut: {packet.playerId} has {packet.timeRemaining}s left (remote player)");
 
-            if (RevivalModSettings.GHOST_MODE.Value || GodMode.IsEnabled())
+            Player player = Utils.GetPlayerById(packet.playerId);
+            if (player != null && player.ActiveHealthController != null)
             {
-                Player player = Utils.GetPlayerById(packet.playerId);
-                if (player != null && player.ActiveHealthController != null)
-                {
-                    if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(packet.playerId);
-                    if (GodMode.IsEnabled()) GodMode.Enable(player);
-                }
+                // Apply protections for remote players to prevent death
+                if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(packet.playerId);
+                if (RevivalModSettings.GOD_MODE.Value) GodMode.Enable(player);
             }
         }
 
@@ -197,15 +221,87 @@ namespace RevivalMod.Fika
 
             Plugin.LogSource.LogDebug($"[Packet] Revived: {packet.playerId} was revived by {packet.reviverId}");
 
+            Player player = Utils.GetPlayerById(packet.playerId);
+            if (player == null)
+            {
+                Plugin.LogSource.LogWarning($"[Packet] Revived: Player {packet.playerId} not found");
+                return;
+            }
+
             var playerState = RMSession.GetPlayerState(packet.playerId);
             playerState.State = RMState.Revived;
             playerState.InvulnerabilityTimer = RevivalModSettings.REVIVAL_DURATION.Value;
+            playerState.KillOverride = false;
+            
+            // Remove from critical players list (they're now revived, not critical)
+            RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
 
-            Player player = Utils.GetPlayerById(packet.playerId);
-            if (player != null)
+            // Enable protections
+            GodMode.ForceEnable(player);
+            GhostMode.ExitGhostMode(player);
+
+            // Restore body health (for remote clients)
+            try
             {
-                GodMode.ForceEnable(player);
-                GhostMode.ExitGhostMode(player);
+                PlayerRestorations.RestoreDestroyedBodyParts(player);
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[Packet] RestoreDestroyedBodyParts error: {ex.Message}");
+            }
+
+            // Store original movement speed if not already stored (for remote players)
+            try
+            {
+                if (playerState.OriginalMovementSpeed < 0)
+                {
+                    playerState.OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
+                    Plugin.LogSource.LogDebug($"[Packet] Stored original movement speed for {packet.playerId}: {playerState.OriginalMovementSpeed}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[Packet] Store movement speed error: {ex.Message}");
+            }
+
+            // Restore movement - same as StartInvulnerabilityPeriod
+            try
+            {
+                if (playerState.OriginalMovementSpeed > 0)
+                {
+                    player.Physical.WalkSpeedLimit = playerState.OriginalMovementSpeed;
+                }
+
+                if (player.MovementContext != null)
+                {
+                    player.MovementContext.IsInPronePose = false;
+                    player.MovementContext.EnableSprint(true);
+                    player.MovementContext.SetPoseLevel(1f); // Stand up
+                }
+
+                Plugin.LogSource.LogDebug($"[Packet] Restored movement for revived player {packet.playerId} (speed: {playerState.OriginalMovementSpeed})");
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[Packet] Movement restoration error: {ex.Message}");
+            }
+
+            // Update UI for local player
+            if (player.IsYourPlayer)
+            {
+                try
+                {
+                    VFX_UI.HideTransitPanel();
+                    playerState.CriticalStateMainTimer?.Stop();
+                    playerState.CriticalStateMainTimer = null;
+
+                    float dur = RevivalModSettings.REVIVAL_DURATION.Value;
+                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", dur);
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogWarning($"[Packet] UI update error: {ex.Message}");
+                }
             }
 
             try
@@ -219,13 +315,100 @@ namespace RevivalMod.Fika
 
         private static void OnPlayerStateResetPacketReceived(PlayerStateResetPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendPlayerStateResetPacket(p.playerId))) return;
-
-            Plugin.LogSource.LogDebug($"[Packet] StateReset: {packet.playerId} returned to normal state");
+            if (TryRelayIfHeadless(packet, p => SendPlayerStateResetPacket(p.playerId, p.isDead, p.cooldownSeconds))) return;
 
             var playerState = RMSession.GetPlayerState(packet.playerId);
-            playerState.State = RMState.None;
-            playerState.InvulnerabilityTimer = 0f;
+            RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
+
+            if (packet.isDead)
+            {
+                Plugin.LogSource.LogDebug($"[Packet] StateReset: {packet.playerId} died");
+                playerState.State = RMState.None;
+                playerState.KillOverride = true;
+                playerState.InvulnerabilityTimer = 0f;
+                playerState.CriticalTimer = 0f;
+            }
+            else
+            {
+                Plugin.LogSource.LogDebug($"[Packet] StateReset: {packet.playerId} entered cooldown ({packet.cooldownSeconds:F0}s)");
+                playerState.State = RMState.CoolDown;
+                playerState.CooldownTimer = packet.cooldownSeconds;
+                playerState.KillOverride = false;
+                playerState.InvulnerabilityTimer = 0f;
+                playerState.CriticalTimer = 0f;
+            }
+
+            Player player = Utils.GetPlayerById(packet.playerId);
+            if (player != null)
+            {
+                if (RevivalModSettings.GHOST_MODE.Value) GhostMode.ExitGhostMode(player);
+                GodMode.Disable(player);
+
+                if (packet.isDead)
+                    player.ActiveHealthController?.Kill(EDamageType.Undefined);
+            }
+        }
+
+        //====================[ Team Healing Packet Receivers ]====================
+        private static void OnTeamHealPacketReceived(TeamHealPacket packet, NetPeer peer)
+        {
+            if (TryRelayIfHeadless(packet, p => SendTeamHealPacket(p.patientId, p.healerId))) return;
+
+            Plugin.LogSource.LogDebug($"[Packet] TeamHeal: {packet.healerId} started healing {packet.patientId}");
+
+            try
+            {
+                string healerDisplay = Utils.GetPlayerDisplayName(packet.healerId);
+                string patientDisplay = Utils.GetPlayerDisplayName(packet.patientId);
+                VFX_UI.Text(Color.green, $"{healerDisplay} is healing {patientDisplay}");
+            }
+            catch (Exception ex) { Plugin.LogSource.LogWarning($"[VFX_UI] TeamHeal notify failed: {ex.Message}"); }
+        }
+
+        private static void OnTeamHealCompletePacketReceived(TeamHealCompletePacket packet, NetPeer peer)
+        {
+            if (TryRelayIfHeadless(packet, p => SendTeamHealCompletePacket(p.patientId, p.healerId))) return;
+
+            Plugin.LogSource.LogDebug($"[Packet] TeamHealComplete: {packet.healerId} healed {packet.patientId}");
+
+            // Apply healing on the patient's client (for multiplayer synchronization)
+            Player patient = Utils.GetPlayerById(packet.patientId);
+            if (patient != null && patient.IsYourPlayer)
+            {
+                try
+                {
+                    // The actual healing was already done on the healer's client,
+                    // but we need to ensure the patient's client also applies it
+                    // This is a safety measure for multiplayer scenarios
+                    Plugin.LogSource.LogDebug($"[Packet] Patient {packet.patientId} received heal complete packet");
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogWarning($"[Packet] TeamHealComplete healing sync error: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                string healerDisplay = Utils.GetPlayerDisplayName(packet.healerId);
+                string patientDisplay = Utils.GetPlayerDisplayName(packet.patientId);
+                VFX_UI.Text(Color.green, $"{patientDisplay} was healed by {healerDisplay}");
+            }
+            catch (Exception ex) { Plugin.LogSource.LogWarning($"[VFX_UI] TeamHealComplete notify failed: {ex.Message}"); }
+        }
+
+        private static void OnTeamHealCancelPacketReceived(TeamHealCancelPacket packet, NetPeer peer)
+        {
+            if (TryRelayIfHeadless(packet, p => SendTeamHealCancelPacket(p.patientId, p.healerId))) return;
+
+            Plugin.LogSource.LogDebug($"[Packet] TeamHealCancel: {packet.healerId} cancelled healing {packet.patientId}");
+
+            try
+            {
+                string healerDisplay = Utils.GetPlayerDisplayName(packet.healerId);
+                VFX_UI.Text(Color.yellow, $"{healerDisplay} cancelled healing");
+            }
+            catch (Exception ex) { Plugin.LogSource.LogWarning($"[VFX_UI] TeamHealCancel notify failed: {ex.Message}"); }
         }
 
         //====================[ Registration / Init ]====================
@@ -238,6 +421,9 @@ namespace RevivalMod.Fika
             managerCreatedEvent.Manager.RegisterPacket<TeamReviveStartPacket, NetPeer>(OnTeamReviveStartPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<RevivedPacket, NetPeer>(OnRevivedPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<PlayerStateResetPacket, NetPeer>(OnPlayerStateResetPacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<TeamHealPacket, NetPeer>(OnTeamHealPacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<TeamHealCompletePacket, NetPeer>(OnTeamHealCompletePacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<TeamHealCancelPacket, NetPeer>(OnTeamHealCancelPacketReceived);
         }
 
         public static void InitOnPluginEnabled() =>

@@ -1,12 +1,7 @@
-//====================[ Imports ]====================
-using LiteNetLib.Utils;
+using Fika.Core.Networking.LiteNetLib.Utils;
 
 namespace RevivalMod.Fika.Packets
 {
-    //====================[ Revival Mod Packet System ]====================
-
-    //====================[ BleedingOutPacket ]====================
-    // Broadcast when a player enters downed/critical state.
     public struct BleedingOutPacket : INetSerializable
     {
         public string playerId;
@@ -25,117 +20,84 @@ namespace RevivalMod.Fika.Packets
         }
     }
 
-    //====================[ TeamHelpPacket ]====================
-    // Sent when a teammate begins helping a downed player (hold begins).
     public struct TeamHelpPacket : INetSerializable
     {
         public string reviveeId;
         public string reviverId;
 
-        public void Deserialize(NetDataReader reader)
-        {
-            reviveeId = reader.GetString();
-            reviverId = reader.GetString();
-        }
-
-        public void Serialize(NetDataWriter writer)
-        {
-            writer.Put(reviveeId ?? string.Empty);
-            writer.Put(reviverId ?? string.Empty);
-        }
+        public void Deserialize(NetDataReader reader) { reviveeId = reader.GetString(); reviverId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(reviveeId ?? ""); writer.Put(reviverId ?? ""); }
     }
 
-    //====================[ TeamCancelPacket ]====================
-    // Sent when the teammate releases early (hold cancelled).
     public struct TeamCancelPacket : INetSerializable
     {
         public string reviveeId;
         public string reviverId;
 
-        public void Deserialize(NetDataReader reader)
-        {
-            reviveeId = reader.GetString();
-            reviverId = reader.GetString();
-        }
-
-        public void Serialize(NetDataWriter writer)
-        {
-            writer.Put(reviveeId ?? string.Empty);
-            writer.Put(reviverId ?? string.Empty);
-        }
+        public void Deserialize(NetDataReader reader) { reviveeId = reader.GetString(); reviverId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(reviveeId ?? ""); writer.Put(reviverId ?? ""); }
     }
 
-    //====================[ SelfReviveStartPacket ]====================
-    // Sent when self-revival animation begins.
     public struct SelfReviveStartPacket : INetSerializable
     {
         public string playerId;
 
-        public void Deserialize(NetDataReader reader)
-        {
-            playerId = reader.GetString();
-        }
-
-        public void Serialize(NetDataWriter writer)
-        {
-            writer.Put(playerId ?? string.Empty);
-        }
+        public void Deserialize(NetDataReader reader) { playerId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(playerId ?? ""); }
     }
 
-    //====================[ TeamReviveStartPacket ]====================
-    // Sent when team revival animation begins on revivee.
     public struct TeamReviveStartPacket : INetSerializable
     {
         public string reviveeId;
         public string reviverId;
 
-        public void Deserialize(NetDataReader reader)
-        {
-            reviveeId = reader.GetString();
-            reviverId = reader.GetString();
-        }
-
-        public void Serialize(NetDataWriter writer)
-        {
-            writer.Put(reviveeId ?? string.Empty);
-            writer.Put(reviverId ?? string.Empty);
-        }
+        public void Deserialize(NetDataReader reader) { reviveeId = reader.GetString(); reviverId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(reviveeId ?? ""); writer.Put(reviverId ?? ""); }
     }
 
-    //====================[ RevivedPacket ]====================
-    // Sent when revival completes successfully (invulnerability begins).
     public struct RevivedPacket : INetSerializable
     {
         public string playerId;
-        public string reviverId; // empty if self-revive
+        public string reviverId;
 
-        public void Deserialize(NetDataReader reader)
-        {
-            playerId = reader.GetString();
-            reviverId = reader.GetString();
-        }
-
-        public void Serialize(NetDataWriter writer)
-        {
-            writer.Put(playerId ?? string.Empty);
-            writer.Put(reviverId ?? string.Empty);
-        }
+        public void Deserialize(NetDataReader reader) { playerId = reader.GetString(); reviverId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(playerId ?? ""); writer.Put(reviverId ?? ""); }
     }
 
-    //====================[ PlayerStateResetPacket ]====================
-    // Sent when invulnerability ends and player returns to normal.
     public struct PlayerStateResetPacket : INetSerializable
     {
         public string playerId;
+        public bool isDead;
+        public float cooldownSeconds;
 
-        public void Deserialize(NetDataReader reader)
-        {
-            playerId = reader.GetString();
-        }
+        public void Deserialize(NetDataReader reader) { playerId = reader.GetString(); isDead = reader.GetBool(); cooldownSeconds = reader.GetFloat(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(playerId ?? ""); writer.Put(isDead); writer.Put(cooldownSeconds); }
+    }
 
-        public void Serialize(NetDataWriter writer)
-        {
-            writer.Put(playerId ?? string.Empty);
-        }
+    public struct TeamHealPacket : INetSerializable
+    {
+        public string patientId;
+        public string healerId;
+
+        public void Deserialize(NetDataReader reader) { patientId = reader.GetString(); healerId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(patientId ?? ""); writer.Put(healerId ?? ""); }
+    }
+
+    public struct TeamHealCompletePacket : INetSerializable
+    {
+        public string patientId;
+        public string healerId;
+
+        public void Deserialize(NetDataReader reader) { patientId = reader.GetString(); healerId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(patientId ?? ""); writer.Put(healerId ?? ""); }
+    }
+
+    public struct TeamHealCancelPacket : INetSerializable
+    {
+        public string patientId;
+        public string healerId;
+
+        public void Deserialize(NetDataReader reader) { patientId = reader.GetString(); healerId = reader.GetString(); }
+        public void Serialize(NetDataWriter writer) { writer.Put(patientId ?? ""); writer.Put(healerId ?? ""); }
     }
 }
