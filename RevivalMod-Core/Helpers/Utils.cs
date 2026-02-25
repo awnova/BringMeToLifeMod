@@ -125,6 +125,21 @@ namespace RevivalMod.Helpers
             ConsumeItem(player, medicalItem, "Medical item");
         }
 
+        /// <summary>
+        /// Removes an item from the player's inventory using direct grid/slot
+        /// removal — the same approach MedicalAnimations.SafeDetach uses.
+        ///
+        /// We intentionally avoid InteractionsHandlerClass.Remove + TryRunNetworkTransaction
+        /// because TryRunNetworkTransaction is async, and calling it fire-and-forget
+        /// acquires the InventoryController's transaction lock synchronously. When
+        /// consumption happens on the same frame as MedicalAnimations.PlayOnce →
+        /// ApplyItem (which also needs the transaction lock), the unawaited lock
+        /// blocks the medical animation from starting.
+        ///
+        /// Direct grid removal has no transaction involvement, so ApplyItem can
+        /// proceed on the same frame without contention. The end-of-raid save
+        /// will reflect the updated inventory.
+        /// </summary>
         private static void ConsumeItem(Player player, Item item, string label)
         {
             try
@@ -133,25 +148,33 @@ namespace RevivalMod.Helpers
 
                 Plugin.LogSource.LogInfo($"Consuming {label}: {item.LocalizedName()} (Template: {item.TemplateId})");
 
-                var inv = player.InventoryController;
-                var remove = InteractionsHandlerClass.Remove(item, inv, true);
-
-                if (remove.Failed)
+                var parent = item.Parent;
+                if (parent == null)
                 {
-                    Plugin.LogSource.LogWarning($"Remove failed: {remove.Error}, trying Discard...");
-                    var discard = InteractionsHandlerClass.Discard(item, inv, true);
+                    Plugin.LogSource.LogWarning($"{label} item has no parent — already detached?");
+                    return;
+                }
 
-                    if (discard.Failed)
-                    {
-                        Plugin.LogSource.LogError($"Discard failed: {discard.Error}");
-                        return;
-                    }
-
-                    inv.TryRunNetworkTransaction(discard);
+                var container = parent.Container;
+                if (container is StashGridClass grid)
+                {
+                    grid.RemoveWithoutRestrictions(item);
+                    Plugin.LogSource.LogInfo($"{label} consumed (removed from grid)");
+                }
+                else if (container is Slot slot && ReferenceEquals(slot.ContainedItem, item))
+                {
+                    slot.RemoveItemWithoutRestrictions();
+                    Plugin.LogSource.LogInfo($"{label} consumed (removed from slot)");
                 }
                 else
                 {
-                    inv.TryRunNetworkTransaction(remove);
+                    // Fallback: use InteractionsHandlerClass but skip TryRunNetworkTransaction
+                    // to avoid transaction-lock contention with ApplyItem on the same frame.
+                    var remove = InteractionsHandlerClass.Remove(item, player.InventoryController, false);
+                    if (remove.Succeeded)
+                        Plugin.LogSource.LogInfo($"{label} consumed (Remove fallback)");
+                    else
+                        Plugin.LogSource.LogError($"{label} Remove fallback failed: {remove.Error}");
                 }
             }
             catch (Exception ex)

@@ -19,9 +19,9 @@ namespace RevivalMod.Helpers
         private const string SURVKIT_TEMPLATE_ID = "5d02797c86f774203f38e30a";
         private const string CMS_TEMPLATE_ID     = "5d02778e86f774203e7dedbe";
 
-        // Valid 24-char hex strings required by MongoID (Fika syncs item IDs over the network)
-        private const string FAKE_SURVKIT_ID = "face000000000000000dead1";
-        private const string FAKE_CMS_ID     = "face000000000000000dead2";
+        // Type prefixes for per-player fake item IDs (4-char hex prefix + 20-char ProfileId suffix = 24-char MongoID)
+        private const string SURVKIT_ID_PREFIX = "dea1";
+        private const string CMS_ID_PREFIX     = "dea2";
 
         // Base vanilla animation lengths used to compute speed for UseAtSpeed(...)
         private const float BASE_SURVKIT_DURATION = 20f; // SurvKit ~20s
@@ -106,10 +106,71 @@ namespace RevivalMod.Helpers
             if (state == null) return;
 
             var item = GetCached(state, itemType);
-            if (item != null) SafeDetach(item);
+            if (item != null)
+            {
+                // Cancel the active MedEffect BEFORE detaching the item from inventory.
+                // MedEffect.Residue() unconditionally calls Item.Parent.GetOwner() at the
+                // end of both the normal-completion and interrupted code paths. If the item
+                // is detached first, the next health-controller tick calls Residue() on an
+                // orphaned item (no Parent) and throws "Trying to get parent of an item
+                // that doesn't have a parent". Calling RemoveMedEffect() here drives
+                // ForceResidue() → method_0() → Residue() synchronously while Parent is
+                // still valid, then removes the effect from the controller's list.
+                try { player.ActiveHealthController?.RemoveMedEffect(); }
+                catch (Exception ex) { Plugin.LogSource.LogWarning($"[MedicalAnimations] RemoveMedEffect warn: {ex.Message}"); }
+
+                SafeDetach(item);
+            }
 
             SetCached(state, itemType, null);
             SetAnimationSpeed(player, 1f); // safety reset
+        }
+
+        /// <summary>
+        /// Removes both fake surgical items (SurvKit + CMS) from QuestRaidItems.
+        /// Must be called at every exit point from downed state to prevent fake items
+        /// from being included in the end-of-raid inventory save and causing server
+        /// deserialization errors on /client/match/local/end.
+        /// </summary>
+        public static void CleanupAllFakeItems(Player player)
+        {
+            RemoveFromQuestInventory(player, SurgicalItemType.SurvKit);
+            RemoveFromQuestInventory(player, SurgicalItemType.CMS);
+        }
+
+        /// <summary>
+        /// Creates fake surgical items in QuestRaidItems for a remote (non-local) player.
+        /// Required so Fika health-sync packets can resolve the item ID on all clients.
+        /// </summary>
+        public static void EnsureFakeItemsForRemotePlayer(Player player)
+        {
+            if (player == null || player.IsYourPlayer) return;
+            var state = RMSession.GetPlayerState(player.ProfileId);
+            if (state == null) return;
+
+            foreach (var itemType in new[] { SurgicalItemType.CMS, SurgicalItemType.SurvKit })
+            {
+                if (GetCached(state, itemType) != null) continue;
+                var item = CreateAndAttach(player, itemType);
+                if (item != null) SetCached(state, itemType, item);
+            }
+        }
+
+        /// <summary>
+        /// Removes fake surgical items from QuestRaidItems for a remote (non-local) player.
+        /// </summary>
+        public static void CleanupFakeItemsForRemotePlayer(Player player)
+        {
+            if (player == null || player.IsYourPlayer) return;
+            var state = RMSession.GetPlayerState(player.ProfileId);
+            if (state == null) return;
+
+            foreach (var itemType in new[] { SurgicalItemType.SurvKit, SurgicalItemType.CMS })
+            {
+                var item = GetCached(state, itemType);
+                if (item != null) SafeDetach(item);
+                SetCached(state, itemType, null);
+            }
         }
 
         //====================[ Private: Create/Attach ]====================
@@ -122,15 +183,15 @@ namespace RevivalMod.Helpers
                 if (factory == null) return null;
 
                 string templateId = itemType == SurgicalItemType.SurvKit ? SURVKIT_TEMPLATE_ID : CMS_TEMPLATE_ID;
-                string staticId   = itemType == SurgicalItemType.SurvKit ? FAKE_SURVKIT_ID    : FAKE_CMS_ID;
+                string itemId     = GenerateFakeItemId(player.ProfileId, itemType);
 
-                var item = factory.CreateItem(staticId, templateId, null) as Item;
+                var item = factory.CreateItem(itemId, templateId, null) as Item;
                 if (item == null) return null;
 
                 if (item is MedsItemClass meds)
                 {
                     var kit = meds.GetItemComponent<MedKitComponent>();
-                    if (kit != null) kit.HpResource = 9999f; // effectively infinite for animation
+                    if (kit != null) kit.HpResource = 1f; // single use
                 }
 
                 return TryAddToQuest(player, item) ? item : null;
@@ -244,6 +305,22 @@ namespace RevivalMod.Helpers
         //====================[ Private: Utils ]====================
 
         private static bool ValidatePlayer(Player player) => player != null && player.IsYourPlayer;
+
+        /// <summary>
+        /// Generates a deterministic, per-player unique fake item ID.
+        /// Format: 4-char type prefix + last 20 chars of ProfileId = valid 24-char MongoID hex string.
+        /// Because this is deterministic, all Fika clients independently derive the same ID for the
+        /// same player, so health-sync packets resolve to the correct item without extra coordination.
+        /// </summary>
+        private static string GenerateFakeItemId(string profileId, SurgicalItemType itemType)
+        {
+            string prefix = itemType == SurgicalItemType.SurvKit ? SURVKIT_ID_PREFIX : CMS_ID_PREFIX;
+            // ProfileId is a 24-char hex string; take the last 20 chars as a player-unique suffix.
+            string suffix = profileId.Length >= 24
+                ? profileId.Substring(4)
+                : profileId.PadLeft(20, '0').Substring(0, 20);
+            return prefix + suffix;
+        }
 
         private static Item GetCached(RMPlayer s, SurgicalItemType t) =>
             t == SurgicalItemType.CMS ? s.FakeCmsItem : s.FakeSurvKitItem;

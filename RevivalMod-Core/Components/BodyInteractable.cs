@@ -72,6 +72,23 @@ namespace RevivalMod.Components
 
                 if (result)
                 {
+                    // Authorize with the server before telling peers to start the revive.
+                    // TryAuthorizeReviveStart transitions the server's state from
+                    // BleedingOut → Reviving and guards against cooldowns / duplicates.
+                    if (!RevivalAuthority.TryAuthorizeReviveStart(targetId, reviverId, "team", out var denyReason))
+                    {
+                        FikaBridge.SendTeamCancelPacket(targetId, reviverId);
+                        VFX_UI.Text(Color.yellow, string.IsNullOrEmpty(denyReason) ? "Revive denied" : denyReason);
+                        return;
+                    }
+
+                    // Consume the reviver's defib if configured
+                    if (!RevivalModSettings.TESTING.Value && RevivalModSettings.CONSUME_DEFIB_ON_TEAMMATE_REVIVE.Value)
+                    {
+                        var defib = Utils.GetDefib(owner.Player);
+                        if (defib != null) Utils.ConsumeDefibItem(owner.Player, defib);
+                    }
+
                     FikaBridge.SendTeamReviveStartPacket(targetId, reviverId);
                     Plugin.LogSource.LogInfo($"Revive hold completed for {targetId}");
                 }

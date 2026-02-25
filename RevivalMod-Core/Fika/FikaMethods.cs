@@ -108,6 +108,20 @@ namespace RevivalMod.Fika
             SendPacket(ref packet);
         }
 
+        public static void SendPlayerStateResyncPacket(string playerId, RMPlayer st)
+        {
+            PlayerStateResyncPacket packet = new()
+            {
+                playerId      = playerId,
+                state         = (int)st.State,
+                criticalTimer = st.CriticalTimer,
+                invulTimer    = st.InvulnerabilityTimer,
+                cooldownTimer = st.CooldownTimer,
+                reviverId     = st.CurrentReviverId ?? ""
+            };
+            SendPacket(ref packet);
+        }
+
         //====================[ Packet Receivers ]====================
         private static void OnBleedingOutPacketReceived(BleedingOutPacket packet, NetPeer peer)
         {
@@ -128,6 +142,7 @@ namespace RevivalMod.Fika
             Player player = Utils.GetPlayerById(packet.playerId);
             if (player != null && player.ActiveHealthController != null)
             {
+                MedicalAnimations.EnsureFakeItemsForRemotePlayer(player);
                 // Apply protections for remote players to prevent death
                 if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(packet.playerId);
                 if (RevivalModSettings.GOD_MODE.Value) GodMode.Enable(player);
@@ -149,6 +164,22 @@ namespace RevivalMod.Fika
                 string reviverName = Utils.GetPlayerDisplayName(packet.reviverId);
                 string reviveeName = Utils.GetPlayerDisplayName(packet.reviveeId);
                 VFX_UI.Text(Color.cyan, $"{reviverName} is helping {reviveeName}");
+
+                // If we are the revivee, replace the self-revive prompt with a "being revived" indicator
+                Player reviveePlayer = Utils.GetPlayerById(packet.reviveeId);
+                if (reviveePlayer != null && reviveePlayer.IsYourPlayer)
+                {
+                    // Cancel any in-progress self-revive key hold so the KeyUp/KeyHeld
+                    // checks in HandleSelfRevival_RequestSession won't fire and corrupt
+                    // our IsBeingRevived state.
+                    playerState.SelfRevivalKeyHoldDuration.Clear();
+
+                    VFX_UI.HideObjectivePanel();
+                    playerState.RevivePromptTimer?.Stop();
+                    playerState.RevivePromptTimer = null;
+                    VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.BottomCenter,
+                        $"{reviverName} is reviving you...");
+                }
             }
             catch (Exception ex) { Plugin.LogSource.LogWarning($"[VFX_UI] TeamHelp notify failed: {ex.Message}"); }
         }
@@ -162,6 +193,22 @@ namespace RevivalMod.Fika
             var playerState = RMSession.GetPlayerState(packet.reviveeId);
             playerState.State = RMState.BleedingOut;
             playerState.IsBeingRevived = false;
+            playerState.CurrentReviverId = string.Empty;
+
+            // If we are the revivee, restore the self-revive prompt
+            Player reviveePlayer = Utils.GetPlayerById(packet.reviveeId);
+            if (reviveePlayer != null && reviveePlayer.IsYourPlayer)
+            {
+                VFX_UI.HideObjectivePanel();
+                playerState.RevivePromptTimer?.Stop();
+                playerState.RevivePromptTimer = null;
+
+                if (RevivalModSettings.SELF_REVIVAL_ENABLED.Value && Utils.HasDefib(reviveePlayer))
+                {
+                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter,
+                        $"Revive! [{RevivalModSettings.SELF_REVIVAL_KEY.Value}]");
+                }
+            }
 
             try
             {
@@ -184,6 +231,12 @@ namespace RevivalMod.Fika
 
             RMSession.UpdatePlayerState(packet.playerId, playerState);
 
+            // Ensure fake items exist now — ApplyItem fires immediately on the
+            // reviving player's client, sending a health-sync packet that observers
+            // must be able to resolve by item ID.
+            var selfRevivePlayer = Utils.GetPlayerById(packet.playerId);
+            if (selfRevivePlayer != null) MedicalAnimations.EnsureFakeItemsForRemotePlayer(selfRevivePlayer);
+
             try
             {
                 string display = Utils.GetPlayerDisplayName(packet.playerId);
@@ -205,6 +258,12 @@ namespace RevivalMod.Fika
             playerState.CurrentReviverId = packet.reviverId;
 
             RMSession.UpdatePlayerState(packet.reviveeId, playerState);
+
+            // Ensure fake items exist now — ApplyItem fires immediately on the
+            // reviving player's client, sending a health-sync packet that observers
+            // must be able to resolve by item ID.
+            var teamReviveePlayer = Utils.GetPlayerById(packet.reviveeId);
+            if (teamReviveePlayer != null) MedicalAnimations.EnsureFakeItemsForRemotePlayer(teamReviveePlayer);
 
             try
             {
@@ -235,6 +294,9 @@ namespace RevivalMod.Fika
             
             // Remove from critical players list (they're now revived, not critical)
             RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
+
+            // Clean up fake items used for revival animations
+            MedicalAnimations.CleanupFakeItemsForRemotePlayer(player);
 
             // Enable protections
             GodMode.ForceEnable(player);
@@ -341,6 +403,7 @@ namespace RevivalMod.Fika
             Player player = Utils.GetPlayerById(packet.playerId);
             if (player != null)
             {
+                MedicalAnimations.CleanupFakeItemsForRemotePlayer(player);
                 if (RevivalModSettings.GHOST_MODE.Value) GhostMode.ExitGhostMode(player);
                 GodMode.Disable(player);
 
@@ -411,6 +474,98 @@ namespace RevivalMod.Fika
             catch (Exception ex) { Plugin.LogSource.LogWarning($"[VFX_UI] TeamHealCancel notify failed: {ex.Message}"); }
         }
 
+        private static void RelayResyncPacket(PlayerStateResyncPacket packet) => SendPacket(ref packet);
+
+        private static void OnPlayerStateResyncPacketReceived(PlayerStateResyncPacket packet, NetPeer peer)
+        {
+            if (TryRelayIfHeadless(packet, RelayResyncPacket)) return;
+
+            // We are the authority for our own state — never overwrite ourselves from a resync.
+            var local = Utils.GetYourPlayer();
+            if (local != null && local.ProfileId == packet.playerId) return;
+
+            var st       = RMSession.GetPlayerState(packet.playerId);
+            var incoming = (RMState)packet.state;
+            var prev     = st.State;
+
+            // Always update timers — they are time-sensitive values even when state hasn't changed.
+            st.CriticalTimer        = packet.criticalTimer;
+            st.InvulnerabilityTimer = packet.invulTimer;
+            st.CooldownTimer        = packet.cooldownTimer;
+            st.CurrentReviverId     = packet.reviverId;
+
+            // If state is already correct there is nothing further to apply.
+            if (st.State == incoming) return;
+
+            st.State = incoming;
+
+            Player player = Utils.GetPlayerById(packet.playerId);
+
+            try
+            {
+                switch (incoming)
+                {
+                    case RMState.BleedingOut:
+                    case RMState.Reviving:
+                        RMSession.AddToCriticalPlayers(packet.playerId);
+                        st.KillOverride = false;
+                        if (player != null)
+                        {
+                            // Ensure fake items exist for late-joiners who missed the
+                            // original BleedingOut/ReviveStart packets and received only
+                            // this resync; without them, any in-flight health-sync from
+                            // ApplyItem will NullRef in CreateMedsController.
+                            MedicalAnimations.EnsureFakeItemsForRemotePlayer(player);
+                            if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(packet.playerId);
+                            if (RevivalModSettings.GOD_MODE.Value)   GodMode.Enable(player);
+                        }
+                        break;
+
+                    case RMState.Revived:
+                        RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
+                        st.KillOverride = false;
+                        if (player != null)
+                        {
+                            GodMode.ForceEnable(player);
+                            GhostMode.ExitGhostMode(player);
+                            try { PlayerRestorations.RestoreDestroyedBodyParts(player); } catch { }
+                            try
+                            {
+                                if (player.MovementContext != null)
+                                {
+                                    player.MovementContext.IsInPronePose = false;
+                                    player.MovementContext.SetPoseLevel(1f);
+                                    player.MovementContext.EnableSprint(true);
+                                }
+                                // Re-attach movement hooks unsubscribed when player went down
+                                player.MovementContext.OnStateChanged -= player.method_17;
+                                player.MovementContext.OnStateChanged += player.method_17;
+                                player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
+                                player.MovementContext.PhysicalConditionChanged += player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
+                            }
+                            catch { }
+                        }
+                        break;
+
+                    case RMState.CoolDown:
+                    case RMState.None:
+                        RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
+                        if (player != null)
+                        {
+                            GhostMode.ExitGhostMode(player);
+                            GodMode.Disable(player);
+                        }
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[Resync] Apply-state error for {packet.playerId}: {ex.Message}");
+            }
+
+            Plugin.LogSource.LogInfo($"[Resync] {packet.playerId} state {prev} → {incoming}");
+        }
+
         //====================[ Registration / Init ]====================
         public static void OnFikaNetManagerCreated(FikaNetworkManagerCreatedEvent managerCreatedEvent)
         {
@@ -424,6 +579,7 @@ namespace RevivalMod.Fika
             managerCreatedEvent.Manager.RegisterPacket<TeamHealPacket, NetPeer>(OnTeamHealPacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<TeamHealCompletePacket, NetPeer>(OnTeamHealCompletePacketReceived);
             managerCreatedEvent.Manager.RegisterPacket<TeamHealCancelPacket, NetPeer>(OnTeamHealCancelPacketReceived);
+            managerCreatedEvent.Manager.RegisterPacket<PlayerStateResyncPacket, NetPeer>(OnPlayerStateResyncPacketReceived);
         }
 
         public static void InitOnPluginEnabled() =>

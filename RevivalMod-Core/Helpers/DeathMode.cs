@@ -113,7 +113,11 @@ namespace RevivalMod.Helpers
                 if (RevivalModSettings.GHOST_MODE.Value) GhostMode.ExitGhostMode(player);
                 GodMode.Disable(player);
 
+                try { MedicalAnimations.CleanupAllFakeItems(player); }
+                catch (Exception ex) { Plugin.LogSource.LogError($"[DeathMode] CleanupFakeItems error: {ex.Message}"); }
+
                 Fika.FikaBridge.SendPlayerStateResetPacket(id, isDead: true);
+                st.ResyncCooldown = -1f; // immediate resync before kill
 
                 EDamageType dmg = st.PlayerDamageType;
                 var chest = player.ActiveHealthController.Dictionary_0[EBodyPart.Chest].Health;

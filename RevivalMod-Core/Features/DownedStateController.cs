@@ -115,6 +115,7 @@ namespace RevivalMod.Features
                 ShowCriticalStateUI(player, st);
                 FikaBridge.SendBleedingOutPacket(id, st.CriticalTimer);
                 RevivalAuthority.NotifyBeginCritical(id);
+                st.ResyncCooldown = -1f; // immediate resync on state entry
 
                 if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(id);
                 if (RevivalModSettings.GOD_MODE.Value) GodMode.Enable(player);
@@ -138,6 +139,9 @@ namespace RevivalMod.Features
                 PlayerRestorations.RestorePlayerMovement(player);
             }
 
+            try { MedicalAnimations.CleanupAllFakeItems(player); }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] ExitDowned CleanupFakeItems error: {ex.Message}"); }
+
             GodMode.Disable(player);
         }
 
@@ -157,14 +161,23 @@ namespace RevivalMod.Features
 
             if (st.CriticalStateMainTimer is { IsRunning: true })
             {
+                // Accurate DateTime-based countdown drives the authoritative timer.
                 TimeSpan remain = st.CriticalStateMainTimer.GetTimeSpan();
                 st.CriticalTimer = (float)remain.TotalSeconds;
+            }
+            else if (st.State == RMState.BleedingOut)
+            {
+                // UI panel wasn't available yet (common on Fika clients before first render).
+                // Count down directly so bleedout still triggers, and retry showing the panel.
+                st.CriticalTimer -= Time.deltaTime;
+                if (st.CriticalStateMainTimer == null)
+                    TryLazyShowTransitTimer(player, st);
             }
 
             HandleSelfRevival_RequestSession(player, st);
             ObserveRevivingState(player, st);
 
-            if (st.CriticalTimer <= 0f || Input.GetKeyDown(RevivalModSettings.GIVE_UP_KEY.Value))
+            if (st.State == RMState.BleedingOut && (st.CriticalTimer <= 0f || Input.GetKeyDown(RevivalModSettings.GIVE_UP_KEY.Value)))
             {
                 ClearTimers(st);
                 DeathMode.ForceBleedout(player);
@@ -206,6 +219,25 @@ namespace RevivalMod.Features
 
         public static void ForceBleedout(Player player) => DeathMode.ForceBleedout(player);
 
+        /// <summary>
+        /// Periodically broadcasts our own state to all peers so late-joiners and
+        /// packet-loss victims can recover accurate state without a full reconnect.
+        /// Call once per frame for the local player only.
+        /// </summary>
+        public static void TickResync(Player player)
+        {
+            if (!player.IsYourPlayer) return;
+
+            var st = GetState(player);
+            if (st.State == RMState.None) return;   // nothing interesting to broadcast
+
+            st.ResyncCooldown -= Time.deltaTime;
+            if (st.ResyncCooldown > 0f) return;
+
+            st.ResyncCooldown = 5f;                 // rebroadcast every 5 seconds
+            FikaBridge.SendPlayerStateResyncPacket(player.ProfileId, st);
+        }
+
         // ── UI ──────────────────────────────────────────────────────────
 
         private static void ShowCriticalStateUI(Player player, RMPlayer st)
@@ -232,6 +264,24 @@ namespace RevivalMod.Features
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] ShowCriticalStateUI error: {ex.Message}"); }
         }
 
+        /// <summary>
+        /// Called every tick while CriticalStateMainTimer is null during BleedingOut.
+        /// Retries creating the transit panel timer with the remaining time, so it picks
+        /// up as soon as LocationTransitTimerPanel becomes available (fixes Fika client
+        /// first-death where the panel is not yet initialized on the opening frame).
+        /// Does NOT re-show the "DOWNED" notification or the self-revive objective.
+        /// </summary>
+        private static void TryLazyShowTransitTimer(Player player, RMPlayer st)
+        {
+            if (!player.IsYourPlayer) return;
+            st.CriticalStateMainTimer = VFX_UI.TransitPanel(
+                VFX_UI.Gradient(Color.red, Color.black),
+                VFX_UI.Position.MiddleCenter,
+                "BLEEDING OUT",
+                Math.Max(0.1f, st.CriticalTimer)
+            );
+        }
+
         // ── Critical Effects ────────────────────────────────────────────
 
         private static void ApplyCriticalEffects(Player player)
@@ -255,13 +305,25 @@ namespace RevivalMod.Features
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] ApplyCriticalEffects error: {ex.Message}"); }
         }
 
+        private static IEnumerator DeferredSetEmptyHands(Player player)
+        {
+            yield return null; // wait one frame so pending animation events (e.g. OnAddAmmoInChamber) fire normally
+            try { if (player != null) player.SetEmptyHands(null); }
+            catch (Exception ex) { Plugin.LogSource.LogWarning($"[DownedStateController] DeferredSetEmptyHands warn: {ex.Message}"); }
+        }
+
         private static void ApplyRevivableState(Player player)
         {
             try
             {
                 PlayerRestorations.SetAwarenessZero(player);
 
-                player.SetEmptyHands(null);
+                // Defer by one frame: SetEmptyHands triggers a hands-controller transition.
+                // Calling it mid-tick (while Kill() fires inside UpdateTick) leaves pending
+                // animation events (like OnAddAmmoInChamber) to fire against a torn-down
+                // FirearmController, causing a NullRef in PoolManagerClass.CreateItem.
+                Plugin.StaticCoroutineRunner.StartCoroutine(DeferredSetEmptyHands(player));
+
                 player.MovementContext.EnableSprint(false);
                 player.MovementContext.SetPoseLevel(0f, true);
                 player.MovementContext.IsInPronePose = true;
@@ -293,6 +355,12 @@ namespace RevivalMod.Features
         {
             if (!RevivalModSettings.SELF_REVIVAL_ENABLED.Value) return;
 
+            // Block self-revive input while a teammate is actively reviving us.
+            // CurrentReviverId is set by OnTeamHelpPacketReceived and cleared by
+            // OnTeamCancelPacketReceived, so this correctly gates the entire hold.
+            if (!string.IsNullOrEmpty(st.CurrentReviverId) && st.CurrentReviverId != player.ProfileId)
+                return;
+
             KeyCode key = RevivalModSettings.SELF_REVIVAL_KEY.Value;
 
             if (Input.GetKeyDown(key))
@@ -323,6 +391,9 @@ namespace RevivalMod.Features
 
                     if (RevivalAuthority.TryAuthorizeReviveStart(player.ProfileId, player.ProfileId, "self", out var denyReason))
                     {
+                        if (!RevivalModSettings.TESTING.Value)
+                            Utils.ConsumeDefibItem(player, Utils.GetDefib(player));
+
                         st.State = RMState.Reviving;
                         RMSession.UpdatePlayerState(player.ProfileId, st);
                         FikaBridge.SendSelfReviveStartPacket(player.ProfileId);
@@ -364,10 +435,6 @@ namespace RevivalMod.Features
                 ? RevivalModSettings.TEAMMATE_REVIVE_ANIMATION_DURATION.Value
                 : RevivalModSettings.SELF_REVIVE_ANIMATION_DURATION.Value;
 
-            var itemType = source == ReviveSource.Team
-                ? MedicalAnimations.SurgicalItemType.CMS
-                : MedicalAnimations.SurgicalItemType.SurvKit;
-
             st.CriticalStateMainTimer?.Stop();
             st.CriticalStateMainTimer = VFX_UI.TransitPanel(
                 VFX_UI.Gradient(Color.red, Color.green),
@@ -383,7 +450,22 @@ namespace RevivalMod.Features
                     VFX_UI.Position.BottomCenter, "Being Revived {0:F1}", revivalDuration);
             }
 
-            _ = MedicalAnimations.UseWithDuration(player, itemType, revivalDuration);
+            // Only play a meds-item animation (which calls ApplyItem and generates Fika
+            // HealthSyncPackets referencing our per-player fake item IDs) for SELF-revivals,
+            // where the local player animates their own hands.
+            //
+            // For TEAM revivals we intentionally skip UseWithDuration: the fake item
+            // (generated per-player via dea1/dea2 prefix + ProfileId suffix) lives in
+            // QuestRaidItems but is NOT registered in Fika's per-player network item cache
+            // built at session start.  Any HealthSyncPacket the host receives that references
+            // these IDs will cause "Could not find item" → NullRef spam in
+            // NetworkHealthControllerAbstractClass.  The revival completion is driven purely
+            // by the DelayedActionAfterSeconds coroutine below, so the animation call is not
+            // needed for correctness.
+            if (source == ReviveSource.Self)
+            {
+                _ = MedicalAnimations.UseWithDuration(player, MedicalAnimations.SurgicalItemType.SurvKit, revivalDuration);
+            }
 
             Plugin.StaticCoroutineRunner.StartCoroutine(
                 DelayedActionAfterSeconds(revivalDuration, () => OnRevivalAnimationComplete(player)));
@@ -395,12 +477,12 @@ namespace RevivalMod.Features
         {
             if (player is null) return;
             var st = GetState(player);
+            if (st.State != RMState.Reviving) return;
+
             var src = (ReviveSource)st.ReviveRequestedSource;
 
             if (src == ReviveSource.Self)
             {
-                if (!RevivalModSettings.TESTING.Value)
-                    Utils.ConsumeDefibItem(player, Utils.GetDefib(player));
                 CompleteRevival(player, "", "Defibrillator used successfully! You are temporarily invulnerable but limited in movement.");
             }
             else
@@ -448,6 +530,7 @@ namespace RevivalMod.Features
 
             RevivalAuthority.NotifyReviveComplete(player.ProfileId, reviverId);
             FikaBridge.SendRevivedPacket(player.ProfileId, reviverId);
+            var __st = GetState(player); __st.ResyncCooldown = -1f; // immediate resync
             FinishRevive(player, player.ProfileId, message);
         }
 
@@ -472,6 +555,9 @@ namespace RevivalMod.Features
 
             RMSession.RemovePlayerFromCriticalPlayers(playerId);
 
+            try { MedicalAnimations.CleanupAllFakeItems(player); }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] CleanupFakeItems error: {ex.Message}"); }
+
             VFX_UI.Text(Color.green, msg);
             Plugin.LogSource.LogInfo($"[Downed] revive complete for {playerId}");
         }
@@ -487,8 +573,20 @@ namespace RevivalMod.Features
                 if (player.MovementContext != null)
                 {
                     player.MovementContext.IsInPronePose = false;
+                    player.MovementContext.SetPoseLevel(1f);
                     player.MovementContext.EnableSprint(true);
                 }
+
+                // Re-attach event hooks that were removed in ApplyRevivableState so that
+                // EFT's movement state machine and weapon animation system work again.
+                try
+                {
+                    player.MovementContext.OnStateChanged -= player.method_17;
+                    player.MovementContext.OnStateChanged += player.method_17;
+                    player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
+                    player.MovementContext.PhysicalConditionChanged += player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
+                }
+                catch (Exception ex) { Plugin.LogSource.LogWarning($"[DownedStateController] Re-hook movement events error: {ex.Message}"); }
 
                 if (player.IsYourPlayer)
                 {
@@ -520,6 +618,7 @@ namespace RevivalMod.Features
             {
                 RevivalAuthority.NotifyEndInvulnerability(player.ProfileId, RevivalModSettings.REVIVAL_COOLDOWN.Value);
                 FikaBridge.SendPlayerStateResetPacket(player.ProfileId, isDead: false, RevivalModSettings.REVIVAL_COOLDOWN.Value);
+                GetState(player).ResyncCooldown = -1f; // immediate resync
                 VFX_UI.HideObjectivePanel();
                 VFX_UI.Text(Color.cyan, $"Invulnerability ended. Revival cooldown: {RevivalModSettings.REVIVAL_COOLDOWN.Value:F0}s");
             }

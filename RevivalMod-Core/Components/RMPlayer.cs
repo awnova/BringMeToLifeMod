@@ -38,6 +38,8 @@ namespace RevivalMod.Components
         public float CriticalTimer { get; set; }
         public float InvulnerabilityTimer { get; set; }
         public float CooldownTimer { get; set; }
+        /// <summary>Countdown until next periodic state resync broadcast. -1 triggers immediate send.</summary>
+        public float ResyncCooldown { get; set; }
 
         // Stored gameplay values
         public float OriginalAwareness { get; set; } = -1f;

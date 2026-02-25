@@ -100,4 +100,39 @@ namespace RevivalMod.Fika.Packets
         public void Deserialize(NetDataReader reader) { patientId = reader.GetString(); healerId = reader.GetString(); }
         public void Serialize(NetDataWriter writer) { writer.Put(patientId ?? ""); writer.Put(healerId ?? ""); }
     }
+
+    /// <summary>
+    /// Periodic state heartbeat broadcast by every player in a non-None state.
+    /// Sent every ~5 seconds and immediately on state transitions.
+    /// Allows late-joining clients and clients that missed earlier packets to catch up.
+    /// </summary>
+    public struct PlayerStateResyncPacket : INetSerializable
+    {
+        public string playerId;
+        public int    state;           // RMState cast to int
+        public float  criticalTimer;
+        public float  invulTimer;
+        public float  cooldownTimer;
+        public string reviverId;
+
+        public void Deserialize(NetDataReader reader)
+        {
+            playerId      = reader.GetString();
+            state         = reader.GetInt();
+            criticalTimer = reader.GetFloat();
+            invulTimer    = reader.GetFloat();
+            cooldownTimer = reader.GetFloat();
+            reviverId     = reader.GetString();
+        }
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(playerId      ?? "");
+            writer.Put(state);
+            writer.Put(criticalTimer);
+            writer.Put(invulTimer);
+            writer.Put(cooldownTimer);
+            writer.Put(reviverId     ?? "");
+        }
+    }
 }

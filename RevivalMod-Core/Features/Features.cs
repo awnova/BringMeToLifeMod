@@ -24,6 +24,7 @@ namespace RevivalMod.Features
                 DownedStateController.TickBodyInteractableColliderState(__instance);
                 DownedStateController.TickInvulnerability(__instance);
                 DownedStateController.TickCooldown(__instance);
+                DownedStateController.TickResync(__instance);
 
                 if (!__instance.IsYourPlayer) return;
 

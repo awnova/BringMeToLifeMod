@@ -114,5 +114,18 @@ namespace RevivalMod.Fika
             Plugin.LogSource.LogDebug($"Sending team heal cancel packet: {healerId} cancelled healing {patientId}");
             FikaMethods.SendTeamHealCancelPacket(patientId, healerId);
         }
+
+        //====================[ Periodic State Resync ]====================
+
+        /// <summary>
+        /// Broadcasts the local player's full revival state to all peers.
+        /// Called periodically while in any non-None state and immediately on transitions.
+        /// </summary>
+        public static void SendPlayerStateResyncPacket(string playerId, Components.RMPlayer st)
+        {
+            if (!Plugin.FikaInstalled) return;
+
+            FikaMethods.SendPlayerStateResyncPacket(playerId, st);
+        }
     }
 }
