@@ -191,7 +191,21 @@ namespace RevivalMod.Helpers
                 if (item is MedsItemClass meds)
                 {
                     var kit = meds.GetItemComponent<MedKitComponent>();
-                    if (kit != null) kit.HpResource = 1f; // single use
+                    if (kit != null)
+                    {
+                        kit.HpResource = 1f; // single use
+
+                        // CMS templates have HpResourceRate == 0, meaning they can only
+                        // fix DestroyedPart effects — not heal HP.  When the downed
+                        // player has no destroyed body parts (RestoreVitalsToMinimum
+                        // already restored them), BSG's DoMedEffect finds nothing
+                        // healable and silently sets FailedToApply = true, causing the
+                        // animation to never play.  Wrapping IMedkitResource with a
+                        // positive HpResourceRate lets DoMedEffect find any body part
+                        // below max HP as a valid target.
+                        if (itemType == SurgicalItemType.CMS)
+                            kit.IMedkitResource = new FakeMedkitResource(kit.IMedkitResource);
+                    }
                 }
 
                 return TryAddToQuest(player, item) ? item : null;
@@ -239,7 +253,18 @@ namespace RevivalMod.Helpers
                     return false;
                 }
 
-                player.HealthController.ApplyItem(meds, EBodyPart.Common);
+                // Use Player.Proceed() to properly initiate a medical item use.
+                // Proceed() creates a MedsController (hands-controller switch with the
+                // proper 1st-person animation) and — critically — in Fika, FikaPlayer's
+                // override sends a ProceedPacket so remote clients create an
+                // ObservedMedsController and play the 3rd-person med-use animation.
+                // Internally the MedsController calls DoMedEffect() which fires
+                // HealthSyncPackets through Fika's ClientHealthController, keeping all
+                // clients' health state in sync.  The fake items have deterministic IDs
+                // (dea1/dea2 prefix + ProfileId) that all Fika clients independently
+                // create via EnsureFakeItemsForRemotePlayer, so FindItemById on remote
+                // clients succeeds when handling the ProceedPacket.
+                player.Proceed(meds, new GStruct382<EBodyPart>(EBodyPart.Common), null, 0, false);
 
                 if (Mathf.Abs(speed - 1f) > 0.01f)
                     Plugin.StaticCoroutineRunner.StartCoroutine(SetSpeedLater(player, speed));
@@ -270,10 +295,11 @@ namespace RevivalMod.Helpers
             yield return new WaitForSeconds(delay);
             try
             {
-                var ctrl = player?.HandsController;
-                string name = ctrl?.GetType().Name ?? string.Empty;
-                if (name.IndexOf("QuickUseItem", StringComparison.OrdinalIgnoreCase) >= 0)
-                    player?.SetEmptyHands(null);
+                // Switch back to empty hands.  The MedsController started by Proceed()
+                // may still be active if the MedEffect hasn't finished (our custom
+                // duration may differ from the item's native UseTime).  SetEmptyHands
+                // forces a hands-controller transition that cancels the operation.
+                player?.SetEmptyHands(null);
             }
             catch (Exception ex)
             {
@@ -350,6 +376,26 @@ namespace RevivalMod.Helpers
                 Plugin.LogSource.LogWarning($"[MedicalAnimations] SetAnimationSpeed warn: {ex.Message}");
                 return false;
             }
+        }
+
+        //====================[ IMedkitResource Wrapper ]====================
+
+        /// <summary>
+        /// Wraps the real template's IMedkitResource but overrides HpResourceRate to a
+        /// positive value.  CMS templates ship with HpResourceRate == 0 (they can only
+        /// fix DestroyedPart, not heal HP).  BSG's DoMedEffect calls
+        /// TryGetBodyPartToApply → CanBeHealed which requires HpResourceRate > 0 to
+        /// consider non-destroyed body parts that are below max HP.  Without this,
+        /// DoMedEffect returns null and the animation silently fails (FailedToApply).
+        /// SurvKit already has HpResourceRate > 0 in its template, so it works natively.
+        /// </summary>
+        private sealed class FakeMedkitResource : IMedkitResource
+        {
+            private readonly IMedkitResource _original;
+            public FakeMedkitResource(IMedkitResource original) => _original = original;
+            public int MaxHpResource => _original.MaxHpResource;
+            public float HpResourceRate => 1f; // Force positive so CanBeHealed passes
+            public EBodyPart[] BodyPartPriority => _original.BodyPartPriority;
         }
 
         //====================[ Enums ]====================

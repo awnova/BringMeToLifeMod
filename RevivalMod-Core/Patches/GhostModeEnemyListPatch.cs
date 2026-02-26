@@ -3,110 +3,59 @@ using System;
 using System.Reflection;
 using EFT;
 using HarmonyLib;
-using RevivalMod.Features;
 using RevivalMod.Helpers;
 using SPT.Reflection.Patching;
 
 namespace RevivalMod.Patches
 {
-    //====================[ GhostModeCriticalStatePatch ]====================
-    internal class GhostModeCriticalStatePatch : ModulePatch
-    {
-        //====================[ Target Method ]====================
-        protected override MethodBase GetTargetMethod() =>
-            // Hook into RevivalFeatures.SetPlayerCriticalState
-            AccessTools.Method(typeof(RevivalFeatures), "SetPlayerCriticalState");
-
-        //====================[ Postfix ]====================
-        [PatchPostfix]
-        private static void PatchPostfix(
-            Player player,
-            [HarmonyArgument(1)] bool isCritical,
-            EDamageType damageType)
-        {
-            try
-            {
-                if (player == null || !player.IsYourPlayer) return;
-
-                // Toggle ghost mode to match critical state; avoid redundant transitions
-                bool inGhost = GhostMode.IsPlayerInGhostMode(player.ProfileId);
-                if (isCritical && !inGhost) GhostMode.EnterGhostMode(player);
-                else if (!isCritical && inGhost) GhostMode.ExitGhostMode(player);
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogError($"GhostMode (critical state): {ex.Message}");
-            }
-        }
-    }
-
-    //====================[ GhostModeRevivalPatch ]====================
-    internal class GhostModeRevivalPatch : ModulePatch
+    /// <summary>
+    /// Harmony prefix on <see cref="BotsGroup.AddEnemy(IPlayer, EBotEnemyCause)"/>.
+    /// Blocks bots from acquiring a player who is currently in ghost mode (downed/critical).
+    ///
+    /// Without this patch, bots immediately re-detect and re-add downed players after
+    /// GhostMode.EnterGhostMode removes them, because the player is still alive (1 HP)
+    /// and visible in the scene.
+    /// </summary>
+    internal class GhostModeAddEnemyPatch : ModulePatch
     {
         //====================[ Target Method ]====================
         protected override MethodBase GetTargetMethod()
         {
-            var method = AccessTools.Method(typeof(RevivalFeatures), "TryPerformRevivalByTeammate");
-            if (method == null) Plugin.LogSource.LogError("GhostModeRevivalPatch: target not found");
+            // public bool BotsGroup.AddEnemy(IPlayer person, EBotEnemyCause cause)
+            var method = AccessTools.Method(
+                typeof(BotsGroup),
+                nameof(BotsGroup.AddEnemy),
+                new[] { typeof(IPlayer), typeof(EBotEnemyCause) });
+
+            if (method == null)
+                Plugin.LogSource.LogError("[GhostModeAddEnemyPatch] target method BotsGroup.AddEnemy not found!");
+
             return method;
         }
 
-        //====================[ Postfix ]====================
+        //====================[ Prefix ]====================
         // ReSharper disable InconsistentNaming
-        #pragma warning disable IDE1006, SA1313 // Harmony requires __result magic name
-        [PatchPostfix]
-        private static void PatchPostfix([HarmonyArgument(0)] string reviveeId, bool __result)
+        #pragma warning disable IDE1006, SA1313
+        [PatchPrefix]
+        private static bool PatchPrefix(IPlayer person, ref bool __result)
         #pragma warning restore IDE1006, SA1313
         // ReSharper restore InconsistentNaming
         {
             try
             {
-                // Prefer positive branch to avoid "redundant control flow jump" warnings
-                if (__result)
+                if (person != null && GhostMode.IsGhosted(person.ProfileId))
                 {
-                    var player = Utils.GetPlayerById(reviveeId);
-                    if (player != null && player.IsYourPlayer)
-                    {
-                        // Exit ghost mode when the local player is revived
-                        GhostMode.ExitGhostMode(player);
-                    }
+                    // Block the add — player is downed and should be invisible to AI.
+                    __result = false;
+                    return false; // skip original
                 }
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"GhostMode (revival): {ex.Message}");
+                Plugin.LogSource.LogError($"[GhostModeAddEnemyPatch] error: {ex.Message}");
             }
-        }
-    }
 
-    //====================[ GhostModeDeathPatch ]====================
-    internal class GhostModeDeathPatch : ModulePatch
-    {
-        //====================[ Target Method ]====================
-        protected override MethodBase GetTargetMethod()
-        {
-            var method = AccessTools.Method(typeof(RevivalFeatures), "ForcePlayerDeath");
-            if (method == null) Plugin.LogSource.LogError("GhostModeDeathPatch: target not found");
-            return method;
-        }
-
-        //====================[ Postfix ]====================
-        [PatchPostfix]
-        private static void PatchPostfix([HarmonyArgument(0)] object targetArg)
-        {
-            try
-            {
-                Player player = targetArg as Player;
-                if (player == null && targetArg is string id) player = Utils.GetPlayerById(id);
-                if (player == null || !player.IsYourPlayer) return;
-
-                // Cleanup handled elsewhere; intentionally no ghost-mode call here.
-                // GhostMode.ExitGhostMode(player);
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogError($"GhostMode (death): {ex.Message}");
-            }
+            return true; // run original
         }
     }
 }

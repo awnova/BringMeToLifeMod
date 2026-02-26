@@ -1,0 +1,9 @@
+{
+  "modId": "RevivalMod",
+  "name": "RevivalMod Server",
+  "author": "KaikiNoodles",
+  "version": "2.0.0",
+  "description": "Server-side authority and database hooks for RevivalMod.",
+  "sptVersion": "4.0.12",
+  "entryAssembly": "RevivalMod.Server.dll"
+}

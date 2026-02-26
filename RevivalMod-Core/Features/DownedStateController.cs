@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Comfort.Common;
 using EFT;
 using EFT.Communications;
@@ -17,10 +18,21 @@ namespace RevivalMod.Features
     {
         private enum ReviveSource { Self = 0, Team = 1 }
 
+        // OPTIMIZATION: Cache to avoid running GetComponentsInChildren every tick
+        private static readonly Dictionary<string, BoxCollider> _colliderCache = new Dictionary<string, BoxCollider>();
+
+        // OPTIMIZATION: Static array prevents allocating memory on every tick/method call
+        private static readonly EBodyPart[] TrackedBodyParts =
+        {
+            EBodyPart.Head, EBodyPart.Chest, EBodyPart.Stomach,
+            EBodyPart.LeftArm, EBodyPart.RightArm, EBodyPart.LeftLeg, EBodyPart.RightLeg
+        };
+
         private static IEnumerator DelayedActionAfterSeconds(float seconds, Action action)
         {
+            if (action == null) yield break;
             yield return new WaitForSeconds(seconds);
-            try { action?.Invoke(); }
+            try { action.Invoke(); }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] delayed action error: {ex.Message}"); }
         }
 
@@ -52,27 +64,33 @@ namespace RevivalMod.Features
 
                 if (!isCritical)
                 {
-                    var parts = new[]
+                    // OPTIMIZATION: Using the static TrackedBodyParts array
+                    for (int i = 0; i < TrackedBodyParts.Length; i++)
                     {
-                        EBodyPart.Head, EBodyPart.Chest, EBodyPart.Stomach,
-                        EBodyPart.LeftArm, EBodyPart.RightArm, EBodyPart.LeftLeg, EBodyPart.RightLeg
-                    };
-                    foreach (var part in parts)
-                    {
-                        var hp = player.HealthController.GetBodyPartHealth(part);
+                        var hp = player.HealthController.GetBodyPartHealth(TrackedBodyParts[i]);
                         if (hp.Current < hp.Maximum) { isInjured = true; break; }
                     }
                 }
 
                 bool shouldEnable = isCritical || isInjured;
 
-                foreach (var bi in player.GetComponentsInChildren<BodyInteractable>(true))
+                // OPTIMIZATION: Check cache first. Unity's == null handles destroyed objects safely.
+                if (!_colliderCache.TryGetValue(player.ProfileId, out var col) || col == null)
                 {
-                    if (bi.Revivee != null && bi.Revivee.ProfileId == player.ProfileId && bi.TryGetComponent<BoxCollider>(out var col))
+                    foreach (var bi in player.GetComponentsInChildren<BodyInteractable>(true))
                     {
-                        if (col.enabled != shouldEnable) col.enabled = shouldEnable;
-                        break;
+                        if (bi.Revivee != null && bi.Revivee.ProfileId == player.ProfileId && bi.TryGetComponent<BoxCollider>(out var foundCol))
+                        {
+                            col = foundCol;
+                            _colliderCache[player.ProfileId] = col;
+                            break;
+                        }
                     }
+                }
+
+                if (col != null && col.enabled != shouldEnable)
+                {
+                    col.enabled = shouldEnable;
                 }
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] TickCollider error: {ex.Message}"); }
@@ -101,26 +119,31 @@ namespace RevivalMod.Features
                 st.PlayerDamageType = damageType;
                 st.State = RMState.BleedingOut;
                 st.CriticalTimer = RevivalModSettings.CRITICAL_STATE_TIME.Value;
-
-                MedicalAnimations.CreateInQuestInventory(player, MedicalAnimations.SurgicalItemType.CMS);
-                MedicalAnimations.CreateInQuestInventory(player, MedicalAnimations.SurgicalItemType.SurvKit);
-
                 st.RevivalRequested = false;
                 st.ReviveRequestedSource = 0;
 
-                ApplyCriticalEffects(player);
-                ApplyRevivableState(player);
-
                 RMSession.AddToCriticalPlayers(id);
-                ShowCriticalStateUI(player, st);
-                FikaBridge.SendBleedingOutPacket(id, st.CriticalTimer);
-                RevivalAuthority.NotifyBeginCritical(id);
-                st.ResyncCooldown = -1f; // immediate resync on state entry
+
+                RestoreVitalsToMinimum(player);
 
                 if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(id);
                 if (RevivalModSettings.GOD_MODE.Value) GodMode.Enable(player);
 
-                Plugin.LogSource.LogInfo($"[Downed] Player {id} entered critical state");
+                if (player.IsYourPlayer)
+                {
+                    MedicalAnimations.CreateInQuestInventory(player, MedicalAnimations.SurgicalItemType.CMS);
+                    MedicalAnimations.CreateInQuestInventory(player, MedicalAnimations.SurgicalItemType.SurvKit);
+
+                    ApplyCriticalEffects(player);
+                    ApplyRevivableState(player);
+
+                    ShowCriticalStateUI(player, st);
+                    FikaBridge.SendBleedingOutPacket(id, st.CriticalTimer);
+                    RevivalAuthority.NotifyBeginCritical(id);
+                    st.ResyncCooldown = -1f; 
+                }
+
+                Plugin.LogSource.LogInfo($"[Downed] Player {id} entered critical state (local={player.IsYourPlayer})");
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] EnterDowned error: {ex.Message}"); }
         }
@@ -143,6 +166,7 @@ namespace RevivalMod.Features
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] ExitDowned CleanupFakeItems error: {ex.Message}"); }
 
             GodMode.Disable(player);
+            _colliderCache.Remove(player.ProfileId); // Clean up cache
         }
 
         // ── Per-Frame Ticks ─────────────────────────────────────────────
@@ -161,14 +185,11 @@ namespace RevivalMod.Features
 
             if (st.CriticalStateMainTimer is { IsRunning: true })
             {
-                // Accurate DateTime-based countdown drives the authoritative timer.
                 TimeSpan remain = st.CriticalStateMainTimer.GetTimeSpan();
                 st.CriticalTimer = (float)remain.TotalSeconds;
             }
             else if (st.State == RMState.BleedingOut)
             {
-                // UI panel wasn't available yet (common on Fika clients before first render).
-                // Count down directly so bleedout still triggers, and retry showing the panel.
                 st.CriticalTimer -= Time.deltaTime;
                 if (st.CriticalStateMainTimer == null)
                     TryLazyShowTransitTimer(player, st);
@@ -219,22 +240,17 @@ namespace RevivalMod.Features
 
         public static void ForceBleedout(Player player) => DeathMode.ForceBleedout(player);
 
-        /// <summary>
-        /// Periodically broadcasts our own state to all peers so late-joiners and
-        /// packet-loss victims can recover accurate state without a full reconnect.
-        /// Call once per frame for the local player only.
-        /// </summary>
         public static void TickResync(Player player)
         {
             if (!player.IsYourPlayer) return;
 
             var st = GetState(player);
-            if (st.State == RMState.None) return;   // nothing interesting to broadcast
+            if (st.State == RMState.None) return; 
 
             st.ResyncCooldown -= Time.deltaTime;
             if (st.ResyncCooldown > 0f) return;
 
-            st.ResyncCooldown = 5f;                 // rebroadcast every 5 seconds
+            st.ResyncCooldown = 5f; 
             FikaBridge.SendPlayerStateResyncPacket(player.ProfileId, st);
         }
 
@@ -264,13 +280,6 @@ namespace RevivalMod.Features
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] ShowCriticalStateUI error: {ex.Message}"); }
         }
 
-        /// <summary>
-        /// Called every tick while CriticalStateMainTimer is null during BleedingOut.
-        /// Retries creating the transit panel timer with the remaining time, so it picks
-        /// up as soon as LocationTransitTimerPanel becomes available (fixes Fika client
-        /// first-death where the panel is not yet initialized on the opening frame).
-        /// Does NOT re-show the "DOWNED" notification or the self-revive objective.
-        /// </summary>
         private static void TryLazyShowTransitTimer(Player player, RMPlayer st)
         {
             if (!player.IsYourPlayer) return;
@@ -283,6 +292,32 @@ namespace RevivalMod.Features
         }
 
         // ── Critical Effects ────────────────────────────────────────────
+
+        private static void RestoreVitalsToMinimum(Player player)
+        {
+            try
+            {
+                var hc = player.ActiveHealthController;
+                if (hc == null) return;
+
+                // OPTIMIZATION: TrackedBodyParts array reused here
+                for (int i = 0; i < TrackedBodyParts.Length; i++)
+                {
+                    var part = TrackedBodyParts[i];
+                    if (!hc.IsBodyPartDestroyed(part)) continue;
+                    if (!hc.FullRestoreBodyPart(part)) continue;
+
+                    var hp = hc.GetBodyPartHealth(part);
+                    float delta = 1f - hp.Current;
+                    if (delta < -0.01f)
+                        hc.ChangeHealth(part, delta, default);
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[DownedStateController] RestoreVitalsToMinimum error: {ex.Message}");
+            }
+        }
 
         private static void ApplyCriticalEffects(Player player)
         {
@@ -307,7 +342,7 @@ namespace RevivalMod.Features
 
         private static IEnumerator DeferredSetEmptyHands(Player player)
         {
-            yield return null; // wait one frame so pending animation events (e.g. OnAddAmmoInChamber) fire normally
+            yield return null; 
             try { if (player != null) player.SetEmptyHands(null); }
             catch (Exception ex) { Plugin.LogSource.LogWarning($"[DownedStateController] DeferredSetEmptyHands warn: {ex.Message}"); }
         }
@@ -318,10 +353,6 @@ namespace RevivalMod.Features
             {
                 PlayerRestorations.SetAwarenessZero(player);
 
-                // Defer by one frame: SetEmptyHands triggers a hands-controller transition.
-                // Calling it mid-tick (while Kill() fires inside UpdateTick) leaves pending
-                // animation events (like OnAddAmmoInChamber) to fire against a torn-down
-                // FirearmController, causing a NullRef in PoolManagerClass.CreateItem.
                 Plugin.StaticCoroutineRunner.StartCoroutine(DeferredSetEmptyHands(player));
 
                 player.MovementContext.EnableSprint(false);
@@ -355,9 +386,6 @@ namespace RevivalMod.Features
         {
             if (!RevivalModSettings.SELF_REVIVAL_ENABLED.Value) return;
 
-            // Block self-revive input while a teammate is actively reviving us.
-            // CurrentReviverId is set by OnTeamHelpPacketReceived and cleared by
-            // OnTeamCancelPacketReceived, so this correctly gates the entire hold.
             if (!string.IsNullOrEmpty(st.CurrentReviverId) && st.CurrentReviverId != player.ProfileId)
                 return;
 
@@ -381,10 +409,13 @@ namespace RevivalMod.Features
                 VFX_UI.EnsureTransitPanelPosition();
             }
 
-            if (Input.GetKey(key) && st.SelfRevivalKeyHoldDuration.ContainsKey(key))
+            // OPTIMIZATION: Use TryGetValue to avoid searching the dictionary twice
+            if (Input.GetKey(key) && st.SelfRevivalKeyHoldDuration.TryGetValue(key, out float currentHoldTime))
             {
-                st.SelfRevivalKeyHoldDuration[key] += Time.deltaTime;
-                if (st.SelfRevivalKeyHoldDuration[key] >= 2f)
+                currentHoldTime += Time.deltaTime;
+                st.SelfRevivalKeyHoldDuration[key] = currentHoldTime;
+
+                if (currentHoldTime >= 2f)
                 {
                     st.SelfRevivalKeyHoldDuration.Remove(key);
                     st.ReviveRequestedSource = (int)ReviveSource.Self;
@@ -450,21 +481,13 @@ namespace RevivalMod.Features
                     VFX_UI.Position.BottomCenter, "Being Revived {0:F1}", revivalDuration);
             }
 
-            // Only play a meds-item animation (which calls ApplyItem and generates Fika
-            // HealthSyncPackets referencing our per-player fake item IDs) for SELF-revivals,
-            // where the local player animates their own hands.
-            //
-            // For TEAM revivals we intentionally skip UseWithDuration: the fake item
-            // (generated per-player via dea1/dea2 prefix + ProfileId suffix) lives in
-            // QuestRaidItems but is NOT registered in Fika's per-player network item cache
-            // built at session start.  Any HealthSyncPacket the host receives that references
-            // these IDs will cause "Could not find item" → NullRef spam in
-            // NetworkHealthControllerAbstractClass.  The revival completion is driven purely
-            // by the DelayedActionAfterSeconds coroutine below, so the animation call is not
-            // needed for correctness.
             if (source == ReviveSource.Self)
             {
                 _ = MedicalAnimations.UseWithDuration(player, MedicalAnimations.SurgicalItemType.SurvKit, revivalDuration);
+            }
+            else
+            {
+                _ = MedicalAnimations.UseWithDuration(player, MedicalAnimations.SurgicalItemType.CMS, revivalDuration);
             }
 
             Plugin.StaticCoroutineRunner.StartCoroutine(
@@ -483,11 +506,11 @@ namespace RevivalMod.Features
 
             if (src == ReviveSource.Self)
             {
-                CompleteRevival(player, "", "Defibrillator used successfully! You are temporarily invulnerable but limited in movement.");
+                CompleteRevival(player, string.Empty, "Defibrillator used successfully! You are temporarily invulnerable but limited in movement.");
             }
             else
             {
-                CompleteRevival(player, st.CurrentReviverId ?? "", "Revived by teammate! You are temporarily invulnerable.");
+                CompleteRevival(player, st.CurrentReviverId ?? string.Empty, "Revived by teammate! You are temporarily invulnerable.");
             }
         }
 
@@ -517,7 +540,7 @@ namespace RevivalMod.Features
         {
             if (player is null) return;
             var st = GetState(player);
-            CompleteRevival(player, st.CurrentReviverId ?? "", "Revived by teammate! You are temporarily invulnerable.");
+            CompleteRevival(player, st.CurrentReviverId ?? string.Empty, "Revived by teammate! You are temporarily invulnerable.");
         }
 
         private static void CompleteRevival(Player player, string reviverId, string message)
@@ -530,7 +553,7 @@ namespace RevivalMod.Features
 
             RevivalAuthority.NotifyReviveComplete(player.ProfileId, reviverId);
             FikaBridge.SendRevivedPacket(player.ProfileId, reviverId);
-            var __st = GetState(player); __st.ResyncCooldown = -1f; // immediate resync
+            var __st = GetState(player); __st.ResyncCooldown = -1f; 
             FinishRevive(player, player.ProfileId, message);
         }
 
@@ -577,8 +600,6 @@ namespace RevivalMod.Features
                     player.MovementContext.EnableSprint(true);
                 }
 
-                // Re-attach event hooks that were removed in ApplyRevivableState so that
-                // EFT's movement state machine and weapon animation system work again.
                 try
                 {
                     player.MovementContext.OnStateChanged -= player.method_17;
@@ -602,9 +623,8 @@ namespace RevivalMod.Features
         private static void EndInvulnerability(Player player)
         {
             var st = GetState(player);
-            st.CurrentReviverId = "";
+            st.CurrentReviverId = string.Empty;
 
-            if (RevivalModSettings.GHOST_MODE.Value) GhostMode.ExitGhostMode(player);
             GodMode.Disable(player);
 
             RemoveRevivableState(player);
@@ -618,7 +638,7 @@ namespace RevivalMod.Features
             {
                 RevivalAuthority.NotifyEndInvulnerability(player.ProfileId, RevivalModSettings.REVIVAL_COOLDOWN.Value);
                 FikaBridge.SendPlayerStateResetPacket(player.ProfileId, isDead: false, RevivalModSettings.REVIVAL_COOLDOWN.Value);
-                GetState(player).ResyncCooldown = -1f; // immediate resync
+                GetState(player).ResyncCooldown = -1f; 
                 VFX_UI.HideObjectivePanel();
                 VFX_UI.Text(Color.cyan, $"Invulnerability ended. Revival cooldown: {RevivalModSettings.REVIVAL_COOLDOWN.Value:F0}s");
             }
@@ -632,7 +652,6 @@ namespace RevivalMod.Features
                 if (st.HasStoredAwareness)
                 {
                     PlayerRestorations.RestoreAwareness(player);
-                    if (RevivalModSettings.GHOST_MODE.Value) GhostMode.ExitGhostMode(player);
                 }
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] RemoveRevivableState error: {ex.Message}"); }
@@ -663,7 +682,8 @@ namespace RevivalMod.Features
                 player.MovementContext.IsInPronePose = true;
                 player.ActiveHealthController.SetStaminaCoeff(1f);
 
-                if (st.State != RMState.Reviving) player.SetEmptyHands(null);
+                if (st.State != RMState.Reviving && !st.IsBeingRevived)
+                    player.SetEmptyHands(null);
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] ApplyDownedMovementRestrictions error: {ex.Message}"); }
         }

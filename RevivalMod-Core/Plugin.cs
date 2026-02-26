@@ -1,7 +1,6 @@
 using BepInEx;
 using BepInEx.Bootstrap;
 using BepInEx.Logging;
-using HarmonyLib;
 using RevivalMod.Features;
 using RevivalMod.Fika;
 using RevivalMod.Helpers;
@@ -52,17 +51,14 @@ namespace RevivalMod
 
         private static void EnableGhostModePatches()
         {
-            new GhostModeCriticalStatePatch().Enable();
-            new GhostModeRevivalPatch().Enable();
-
             try
             {
-                var deathTarget = AccessTools.Method(typeof(RevivalFeatures), "ForcePlayerDeath");
-                if (deathTarget != null) new GhostModeDeathPatch().Enable();
+                new GhostModeAddEnemyPatch().Enable();
+                LogSource.LogInfo("GhostModeAddEnemyPatch enabled (blocks BotsGroup.AddEnemy for ghosted players).");
             }
             catch (Exception ex)
             {
-                LogSource.LogError($"Error enabling GhostModeDeathPatch: {ex.Message}");
+                LogSource.LogError($"Error enabling GhostModeAddEnemyPatch: {ex.Message}");
             }
         }
 

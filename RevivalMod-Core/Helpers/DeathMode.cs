@@ -110,7 +110,10 @@ namespace RevivalMod.Helpers
                 RMSession.RemovePlayerFromCriticalPlayers(id);
                 RevivalAuthority.NotifyReset(id);
 
-                if (RevivalModSettings.GHOST_MODE.Value) GhostMode.ExitGhostMode(player);
+                // Clear the ghost flag so bots aren't permanently blocked from this player,
+                // but do NOT re-add to enemy lists — Kill() will fire BSG's death handlers
+                // which clean up enemy lists automatically.
+                GhostMode.ClearGhostFlag(id);
                 GodMode.Disable(player);
 
                 try { MedicalAnimations.CleanupAllFakeItems(player); }

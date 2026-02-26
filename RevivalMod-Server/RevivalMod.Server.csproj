@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>RevivalMod.Server</AssemblyName>
+    <RootNamespace>RevivalMod.Server</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="SPTarkov.Common" Version="4.0.12" />
+    <PackageReference Include="SPTarkov.DI" Version="4.0.12" />
+    <PackageReference Include="SPTarkov.Reflection" Version="4.0.12" />
+    <PackageReference Include="SPTarkov.Server.Core" Version="4.0.12" />
+    <PackageReference Include="SPTarkov.Server.Web" Version="4.0.12" />
+    <PackageReference Include="SemanticVersioning" Version="3.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="mod.manifest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

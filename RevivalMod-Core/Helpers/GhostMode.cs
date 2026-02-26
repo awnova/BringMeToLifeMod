@@ -6,14 +6,30 @@ using UnityEngine;
 namespace RevivalMod.Helpers
 {
     /// <summary>
-    /// Removes a player from AI enemy lists while downed/critical, then restores on exit.
+    /// Removes a player from AI enemy lists while downed/critical, then re-adds on exit.
+    ///
+    /// Key design:
+    ///   • Enter: removes the player from every current BotEnemiesController + BotsGroup
+    ///     AND registers the player as "ghosted" so the AddEnemy Harmony patch blocks
+    ///     bots from re-acquiring the player while downed.
+    ///   • Exit: un-registers the ghosted flag, then does a FRESH scan of all bot groups
+    ///     and forcefully re-adds the player as an enemy.  This handles bots that spawned
+    ///     while the player was downed (which the old snapshot approach missed).
     /// </summary>
     public static class GhostMode
     {
-        private static readonly Dictionary<string, List<BotEnemiesController>> _playerEnemyLists = new();
-        private static readonly Dictionary<string, List<BotsGroup>> _playerGroupLists = new();
-        private static readonly Dictionary<string, Dictionary<BotEnemiesController, EnemyInfo>> _originalEnemyInfos = new();
-        private static readonly Dictionary<string, HashSet<BotsGroup>> _originalGroupSets = new();
+        // ── Persistent ghosted set (checked by GhostModeAddEnemyPatch) ──
+        private static readonly HashSet<string> _ghostedPlayers = new();
+
+        /// <summary>
+        /// Returns true if the given player profile is currently ghosted
+        /// (should be invisible to AI).  Called by the AddEnemy patch.
+        /// </summary>
+        public static bool IsGhosted(string profileId) => _ghostedPlayers.Contains(profileId);
+
+        public static bool IsPlayerInGhostMode(string profileId) => _ghostedPlayers.Contains(profileId);
+
+        // ── Enter ───────────────────────────────────────────────────────
 
         public static void EnterGhostMode(Player player)
         {
@@ -22,29 +38,41 @@ namespace RevivalMod.Helpers
 
             try
             {
-                Plugin.LogSource.LogInfo($"[GhostMode] Enter for {player.Profile.Nickname}");
-                ResetBuckets(playerId);
+                Plugin.LogSource.LogInfo($"[GhostMode] Enter for {player.Profile.Nickname} ({playerId})");
 
-                var allBots = FindAllBotControllers();
-                var allGroups = FindAllBotGroups();
+                // Mark as ghosted FIRST so the AddEnemy patch blocks re-acquisition
+                // even if a bot tries to add the player mid-removal.
+                _ghostedPlayers.Add(playerId);
 
-                foreach (var ec in allBots)
+                int removedBots = 0;
+                int removedGroups = 0;
+
+                // Remove from every BotEnemiesController
+                foreach (var bo in FindAllBotOwners())
                 {
+                    var ec = bo?.EnemiesController;
                     if (ec == null || !ec.EnemyInfos.ContainsKey(player)) continue;
-                    _originalEnemyInfos[playerId][ec] = ec.EnemyInfos[player];
-                    ec.Remove(player);
-                    _playerEnemyLists[playerId].Add(ec);
+
+                    try { ec.Remove(player); removedBots++; }
+                    catch (Exception ex)
+                    {
+                        Plugin.LogSource.LogWarning($"[GhostMode] ec.Remove error: {ex.Message}");
+                    }
                 }
 
-                foreach (var g in allGroups)
+                // Remove from every BotsGroup
+                foreach (var g in FindAllBotGroups())
                 {
                     if (g == null || !g.Enemies.ContainsKey(player)) continue;
-                    _originalGroupSets[playerId].Add(g);
-                    g.RemoveEnemy(player, EBotEnemyCause.initial);
-                    _playerGroupLists[playerId].Add(g);
+
+                    try { g.RemoveEnemy(player, EBotEnemyCause.initial); removedGroups++; }
+                    catch (Exception ex)
+                    {
+                        Plugin.LogSource.LogWarning($"[GhostMode] g.RemoveEnemy error: {ex.Message}");
+                    }
                 }
 
-                Plugin.LogSource.LogInfo($"[GhostMode] Done: bots={_playerEnemyLists[playerId].Count}, groups={_playerGroupLists[playerId].Count}");
+                Plugin.LogSource.LogInfo($"[GhostMode] Enter done: removed from {removedBots} bot controllers, {removedGroups} groups");
             }
             catch (Exception ex)
             {
@@ -57,8 +85,17 @@ namespace RevivalMod.Helpers
             try
             {
                 var p = Utils.GetPlayerById(playerId);
-                if (p != null) { EnterGhostMode(p); return; }
-                ResetBuckets(playerId);
+                if (p != null)
+                {
+                    EnterGhostMode(p);
+                }
+                else
+                {
+                    // Player object not available on this machine — just set the flag
+                    // so the AddEnemy patch blocks any future acquisition.
+                    _ghostedPlayers.Add(playerId);
+                    Plugin.LogSource.LogWarning($"[GhostMode] EnterById: player object not found for {playerId}, flag set only");
+                }
             }
             catch (Exception ex)
             {
@@ -66,32 +103,57 @@ namespace RevivalMod.Helpers
             }
         }
 
+        // ── Exit ────────────────────────────────────────────────────────
+
         public static void ExitGhostMode(Player player)
         {
             if (player == null) return;
             string playerId = player.ProfileId;
 
+            if (!_ghostedPlayers.Remove(playerId))
+            {
+                // Not ghosted — nothing to do.
+                return;
+            }
+
             try
             {
-                Plugin.LogSource.LogInfo($"[GhostMode] Exit for {player.Profile.Nickname}");
+                Plugin.LogSource.LogInfo($"[GhostMode] Exit for {player.Profile.Nickname} ({playerId})");
 
-                if (_originalEnemyInfos.TryGetValue(playerId, out var map))
+                int addedGroups = 0;
+
+                // Do a FRESH scan: add the revived player as an enemy to every bot
+                // group that doesn't already have them.  BotsGroup.AddEnemy cascades
+                // into BotMemoryClass.AddEnemy for every group member, so we don't
+                // need to touch individual BotEnemiesControllers.
+                foreach (var g in FindAllBotGroups())
                 {
-                    foreach (var kv in map)
+                    if (g == null || g.Enemies.ContainsKey(player)) continue;
+
+                    // Skip if the player is a member of this group (friendly AI squad)
+                    bool isMember = false;
+                    for (int i = 0; i < g.MembersCount; i++)
                     {
-                        if (kv.Key != null) kv.Key.SetInfo(player, kv.Value);
+                        if (g.Member(i)?.GetPlayer?.Id == player.Id)
+                        {
+                            isMember = true;
+                            break;
+                        }
+                    }
+                    if (isMember) continue;
+
+                    try
+                    {
+                        if (g.AddEnemy(player, EBotEnemyCause.initial))
+                            addedGroups++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Plugin.LogSource.LogWarning($"[GhostMode] g.AddEnemy error: {ex.Message}");
                     }
                 }
 
-                if (_originalGroupSets.TryGetValue(playerId, out var set))
-                {
-                    foreach (var g in set)
-                    {
-                        if (g != null) g.AddEnemy(player, EBotEnemyCause.initial);
-                    }
-                }
-
-                CleanupPlayerData(playerId);
+                Plugin.LogSource.LogInfo($"[GhostMode] Exit done: re-added to {addedGroups} bot groups");
             }
             catch (Exception ex)
             {
@@ -104,8 +166,16 @@ namespace RevivalMod.Helpers
             try
             {
                 var p = Utils.GetPlayerById(playerId);
-                if (p != null) { ExitGhostMode(p); return; }
-                CleanupPlayerData(playerId);
+                if (p != null)
+                {
+                    ExitGhostMode(p);
+                }
+                else
+                {
+                    // Player object not available — just clear the flag.
+                    _ghostedPlayers.Remove(playerId);
+                    Plugin.LogSource.LogWarning($"[GhostMode] ExitById: player object not found for {playerId}, flag cleared only");
+                }
             }
             catch (Exception ex)
             {
@@ -113,43 +183,41 @@ namespace RevivalMod.Helpers
             }
         }
 
-        public static bool IsPlayerInGhostMode(string playerId)
+        // ── Cleanup ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Clears the ghosted flag WITHOUT re-adding to enemy lists.
+        /// Use when the player is truly dying (ForceBleedout) — BSG's own
+        /// death handlers will clean up enemy lists after Kill() runs.
+        /// </summary>
+        public static void ClearGhostFlag(string playerId)
         {
-            bool anyBots = _playerEnemyLists.TryGetValue(playerId, out var bl) && bl.Count > 0;
-            bool anyGroups = _playerGroupLists.TryGetValue(playerId, out var gl) && gl.Count > 0;
-            return anyBots || anyGroups;
+            _ghostedPlayers.Remove(playerId);
         }
 
-        private static void ResetBuckets(string playerId)
+        /// <summary>
+        /// Clears all ghost state (e.g. on raid end).
+        /// </summary>
+        public static void Reset()
         {
-            _playerEnemyLists[playerId] = new List<BotEnemiesController>();
-            _playerGroupLists[playerId] = new List<BotsGroup>();
-            _originalEnemyInfos[playerId] = new Dictionary<BotEnemiesController, EnemyInfo>();
-            _originalGroupSets[playerId] = new HashSet<BotsGroup>();
+            _ghostedPlayers.Clear();
         }
 
-        private static void CleanupPlayerData(string playerId)
-        {
-            _playerEnemyLists.Remove(playerId);
-            _playerGroupLists.Remove(playerId);
-            _originalEnemyInfos.Remove(playerId);
-            _originalGroupSets.Remove(playerId);
-        }
+        // ── Helpers ─────────────────────────────────────────────────────
 
-        private static List<BotEnemiesController> FindAllBotControllers()
+        private static List<BotOwner> FindAllBotOwners()
         {
-            var list = new List<BotEnemiesController>();
+            var list = new List<BotOwner>();
             try
             {
                 foreach (var bo in UnityEngine.Object.FindObjectsOfType<BotOwner>())
                 {
-                    var ec = bo?.EnemiesController;
-                    if (ec != null) list.Add(ec);
+                    if (bo != null) list.Add(bo);
                 }
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[GhostMode] FindAllBotControllers error: {ex.Message}");
+                Plugin.LogSource.LogError($"[GhostMode] FindAllBotOwners error: {ex.Message}");
             }
             return list;
         }

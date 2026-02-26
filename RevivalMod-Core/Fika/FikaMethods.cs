@@ -9,6 +9,7 @@ using Fika.Core.Networking;
 using Fika.Core.Networking.LiteNetLib;
 using Fika.Core.Networking.LiteNetLib.Utils;
 using RevivalMod.Components;        // <-- provides RMSession / RMState
+using RevivalMod.Features;
 using RevivalMod.Fika.Packets;
 using RevivalMod.Helpers;
 using UnityEngine;
@@ -440,10 +441,10 @@ namespace RevivalMod.Fika
             {
                 try
                 {
-                    // The actual healing was already done on the healer's client,
-                    // but we need to ensure the patient's client also applies it
-                    // This is a safety measure for multiplayer scenarios
-                    Plugin.LogSource.LogDebug($"[Packet] Patient {packet.patientId} received heal complete packet");
+                    // Apply healing on the patient's own client.  The patient's
+                    // ActiveHealthController (Fika's ClientHealthController) will
+                    // send HealthSyncPackets so all remote clients see the HP update.
+                    TeamMedical.ApplyHealingToPatient(patient);
                 }
                 catch (Exception ex)
                 {
