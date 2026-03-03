@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace RevivalMod.Server;
+namespace KeepMeAlive.Server;
 
 public sealed class RevivalServerConfig
 {

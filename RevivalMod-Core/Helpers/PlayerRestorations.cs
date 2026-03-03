@@ -1,26 +1,47 @@
+//====================[ Imports ]====================
 using System;
 using EFT;
 using EFT.HealthSystem;
-using RevivalMod.Components;
+using KeepMeAlive.Components;
 
-namespace RevivalMod.Helpers
+namespace KeepMeAlive.Helpers
 {
+    //====================[ PlayerRestorations ]====================
     internal static class PlayerRestorations
     {
+        //====================[ Health Restoration ]====================
         public static void RestoreDestroyedBodyParts(Player player)
         {
-            if (player == null) return;
-            if (!RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS.Value) return;
+            if (player == null)
+            {
+                return;
+            }
+            
+            if (!RevivalModSettings.RESTORE_DESTROYED_BODY_PARTS.Value)
+            {
+                return;
+            }
 
             try
             {
                 var hc = player.ActiveHealthController;
-                if (hc == null) return;
+                if (hc == null)
+                {
+                    return;
+                }
 
                 foreach (EBodyPart part in Enum.GetValues(typeof(EBodyPart)))
                 {
-                    if (part == EBodyPart.Common) continue;
-                    if (!hc.IsBodyPartDestroyed(part)) continue;
+                    if (part == EBodyPart.Common)
+                    {
+                        continue;
+                    }
+                    
+                    if (!hc.IsBodyPartDestroyed(part))
+                    {
+                        continue;
+                    }
+                    
                     RestoreOneBodyPart(hc, part);
                 }
             }
@@ -34,14 +55,20 @@ namespace RevivalMod.Helpers
         {
             try
             {
-                if (!hc.FullRestoreBodyPart(part)) return;
+                if (!hc.FullRestoreBodyPart(part))
+                {
+                    return;
+                }
 
                 var currentHealth = hc.GetBodyPartHealth(part);
                 float pct = GetRestorePercentFor(part);
                 float newHp = currentHealth.Maximum * pct;
                 float delta = newHp - currentHealth.Current;
+                
                 if (!delta.Equals(0f))
+                {
                     hc.ChangeHealth(part, delta, default);
+                }
 
                 hc.RemoveNegativeEffects(part);
             }
@@ -51,24 +78,31 @@ namespace RevivalMod.Helpers
             }
         }
 
-        private static float GetRestorePercentFor(EBodyPart part) =>
-            part switch
-            {
-                EBodyPart.Head => RevivalModSettings.RESTORE_HEAD_PERCENTAGE.Value / 100f,
-                EBodyPart.Chest => RevivalModSettings.RESTORE_CHEST_PERCENTAGE.Value / 100f,
-                EBodyPart.Stomach => RevivalModSettings.RESTORE_STOMACH_PERCENTAGE.Value / 100f,
-                EBodyPart.LeftArm or EBodyPart.RightArm => RevivalModSettings.RESTORE_ARMS_PERCENTAGE.Value / 100f,
-                EBodyPart.LeftLeg or EBodyPart.RightLeg => RevivalModSettings.RESTORE_LEGS_PERCENTAGE.Value / 100f,
-                _ => 0.5f
-            };
+        private static float GetRestorePercentFor(EBodyPart part) => part switch
+        {
+            EBodyPart.Head => RevivalModSettings.RESTORE_HEAD_PERCENTAGE.Value / 100f,
+            EBodyPart.Chest => RevivalModSettings.RESTORE_CHEST_PERCENTAGE.Value / 100f,
+            EBodyPart.Stomach => RevivalModSettings.RESTORE_STOMACH_PERCENTAGE.Value / 100f,
+            EBodyPart.LeftArm or EBodyPart.RightArm => RevivalModSettings.RESTORE_ARMS_PERCENTAGE.Value / 100f,
+            EBodyPart.LeftLeg or EBodyPart.RightLeg => RevivalModSettings.RESTORE_LEGS_PERCENTAGE.Value / 100f,
+            _ => 0.5f
+        };
 
+        //====================[ Movement Restoration ]====================
         public static void StoreOriginalMovementSpeed(Player player)
         {
-            if (player is null) return;
+            if (player is null)
+            {
+                return;
+            }
+            
             try
             {
                 var st = RMSession.GetPlayerState(player.ProfileId);
-                if (st.OriginalMovementSpeed < 0) st.OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
+                if (st.OriginalMovementSpeed < 0)
+                {
+                    st.OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
+                }
             }
             catch (Exception ex)
             {
@@ -78,12 +112,18 @@ namespace RevivalMod.Helpers
 
         public static void RestorePlayerMovement(Player player)
         {
-            if (player is null) return;
+            if (player is null)
+            {
+                return;
+            }
+            
             try
             {
                 var st = RMSession.GetPlayerState(player.ProfileId);
                 if (st.OriginalMovementSpeed > 0)
+                {
                     player.Physical.WalkSpeedLimit = st.OriginalMovementSpeed;
+                }
 
                 player.MovementContext.SetPoseLevel(1f);
                 player.MovementContext.EnableSprint(true);
@@ -94,9 +134,14 @@ namespace RevivalMod.Helpers
             }
         }
 
+        //====================[ Awareness Restoration ]====================
         public static void SetAwarenessZero(Player player)
         {
-            if (player is null) return;
+            if (player is null)
+            {
+                return;
+            }
+            
             try
             {
                 var st = RMSession.GetPlayerState(player.ProfileId);
@@ -105,6 +150,7 @@ namespace RevivalMod.Helpers
                     st.OriginalAwareness = player.Awareness;
                     st.HasStoredAwareness = true;
                 }
+                
                 player.Awareness = 0f;
             }
             catch (Exception ex)
@@ -115,7 +161,11 @@ namespace RevivalMod.Helpers
 
         public static void RestoreAwareness(Player player)
         {
-            if (player is null) return;
+            if (player is null)
+            {
+                return;
+            }
+            
             try
             {
                 var st = RMSession.GetPlayerState(player.ProfileId);

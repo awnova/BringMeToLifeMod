@@ -1,12 +1,14 @@
+//====================[ Imports ]====================
 using EFT;
 using EFT.Interactive;
 using UnityEngine;
 
-namespace RevivalMod.Components
+namespace KeepMeAlive.Components
 {
+    //====================[ InteractableBuilder ]====================
     public class InteractableBuilder<T> where T : InteractableObject
     {
-
+        //====================[ Fields ]====================
         private static string _name;
         private static Vector3 _position;
         private static Vector3 _scale;
@@ -14,6 +16,7 @@ namespace RevivalMod.Components
         private static Player _player;
         private static bool _debug;
 
+        //====================[ Builder Methods ]====================
         public static GameObject Build(string name, Vector3 position, Vector3 scale, Transform parent, Player player, bool debug)
         {
             _name = name;
@@ -27,6 +30,7 @@ namespace RevivalMod.Components
             {
                 Plugin.LogSource.LogDebug("InteractableBuilder<" + typeof(T) + "> created");
             }
+            
             return CreateGameObject();
         }
 

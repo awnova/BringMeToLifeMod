@@ -1,22 +1,27 @@
+//====================[ Imports ]====================
 using System;
+using System.Collections.Generic;
 using EFT;
 using EFT.HealthSystem;
 using EFT.Communications;
 using EFT.UI;
-using RevivalMod.Components;
-using RevivalMod.Features;
+using KeepMeAlive.Components;
+using KeepMeAlive.Features;
 using UnityEngine;
 
-namespace RevivalMod.Helpers
+namespace KeepMeAlive.Helpers
 {
-    /// <summary>
-    /// Centralized death-blocking rules used by DeathPatch.
-    /// </summary>
+    //====================[ DeathMode ]====================
+    // Centralized death-blocking rules used by DeathPatch.
     public static class DeathMode
     {
-        /// <summary>
-        /// Returns true to block death (enter/keep critical/invuln), false to allow death.
-        /// </summary>
+        //====================[ Fields ]====================
+        // Throttle log spam: track last log time per player
+        private static readonly Dictionary<string, float> LastLogTime = new Dictionary<string, float>();
+        private const float LOG_THROTTLE_SECONDS = 5f;
+
+        //====================[ Core Rules ]====================
+        // Returns true to block death (enter/keep critical/invuln), false to allow death.
         public static bool ShouldBlockDeath(Player player, EDamageType damageType)
         {
             if (player is null || player.IsAI) return false;
@@ -33,7 +38,14 @@ namespace RevivalMod.Helpers
             {
                 if (RevivalModSettings.DEATH_BLOCK_IN_CRITICAL.Value)
                 {
-                    Plugin.LogSource.LogDebug($"[DeathMode] {playerId} critical; blocking death from {damageType}.");
+                    // Throttle log spam - only log once every few seconds
+                    float currentTime = Time.time;
+                    if (!LastLogTime.TryGetValue(playerId, out float lastTime) || 
+                        currentTime - lastTime >= LOG_THROTTLE_SECONDS)
+                    {
+                        Plugin.LogSource.LogDebug($"[DeathMode] {playerId} critical; blocking death from {damageType}.");
+                        LastLogTime[playerId] = currentTime;
+                    }
                     return true;
                 }
                 return false;
@@ -46,24 +58,26 @@ namespace RevivalMod.Helpers
             }
 
             if (RevivalFeatures.IsRevivalOnCooldown(playerId))
+            {
                 return false;
+            }
 
             Plugin.LogSource.LogInfo($"[DeathMode] PREVENT: {playerId} lethal {damageType} -> enter critical.");
             return true;
         }
 
-        /// <summary>
-        /// Hardcore headshot rule. Returns true to allow death immediately.
-        /// </summary>
+        // Hardcore headshot rule. Returns true to allow death immediately.
         public static bool ShouldAllowDeathFromHardcoreHeadshot(ActiveHealthController healthController, EDamageType damageType)
         {
-            if (!RevivalModSettings.HARDCORE_MODE.Value ||
-                !RevivalModSettings.HARDCORE_HEADSHOT_DEFAULT_DEAD.Value)
+            if (!RevivalModSettings.HARDCORE_MODE.Value || !RevivalModSettings.HARDCORE_HEADSHOT_DEFAULT_DEAD.Value)
+            {
                 return false;
+            }
 
-            if (damageType != EDamageType.Bullet ||
-                healthController.GetBodyPartHealth(EBodyPart.Head, true).Current >= 1f)
+            if (damageType != EDamageType.Bullet || healthController.GetBodyPartHealth(EBodyPart.Head, true).Current >= 1f)
+            {
                 return false;
+            }
 
             float roll = UnityEngine.Random.Range(0f, 100f);
 
@@ -83,9 +97,8 @@ namespace RevivalMod.Helpers
             return true;
         }
 
-        /// <summary>
-        /// Force the player to die now (end of critical bleed-out).
-        /// </summary>
+        //====================[ Executions ]====================
+        // Force the player to die now (end of critical bleed-out).
         public static void ForceBleedout(Player player)
         {
             if (player is null) return;
@@ -100,8 +113,10 @@ namespace RevivalMod.Helpers
                 st.IsPlayingRevivalAnimation = false;
                 st.State = RMState.None;
 
-                st.CriticalStateMainTimer?.Stop(); st.CriticalStateMainTimer = null;
-                st.RevivePromptTimer?.Stop(); st.RevivePromptTimer = null;
+                st.CriticalStateMainTimer?.Stop(); 
+                st.CriticalStateMainTimer = null;
+                st.RevivePromptTimer?.Stop(); 
+                st.RevivePromptTimer = null;
 
                 VFX_UI.HideTransitPanel();
                 VFX_UI.HideObjectivePanel();
@@ -110,22 +125,28 @@ namespace RevivalMod.Helpers
                 RMSession.RemovePlayerFromCriticalPlayers(id);
                 RevivalAuthority.NotifyReset(id);
 
-                // Clear the ghost flag so bots aren't permanently blocked from this player,
-                // but do NOT re-add to enemy lists — Kill() will fire BSG's death handlers
-                // which clean up enemy lists automatically.
+                // Clear ghost flag but don't re-add to enemy lists — Kill() fires BSG's death handlers to auto-cleanup.
                 GhostMode.ClearGhostFlag(id);
                 GodMode.Disable(player);
 
-                try { MedicalAnimations.CleanupAllFakeItems(player); }
-                catch (Exception ex) { Plugin.LogSource.LogError($"[DeathMode] CleanupFakeItems error: {ex.Message}"); }
+                try 
+                { 
+                    MedicalAnimations.CleanupAllFakeItems(player); 
+                }
+                catch (Exception ex) 
+                { 
+                    Plugin.LogSource.LogError($"[DeathMode] CleanupFakeItems error: {ex.Message}"); 
+                }
 
                 Fika.FikaBridge.SendPlayerStateResetPacket(id, isDead: true);
                 st.ResyncCooldown = -1f; // immediate resync before kill
 
+                // Clean up log throttle tracker
+                LastLogTime.Remove(id);
+
                 EDamageType dmg = st.PlayerDamageType;
                 var chest = player.ActiveHealthController.Dictionary_0[EBodyPart.Chest].Health;
-                player.ActiveHealthController.Dictionary_0[EBodyPart.Chest].Health =
-                    new HealthValue(0f, chest.Maximum, 0f);
+                player.ActiveHealthController.Dictionary_0[EBodyPart.Chest].Health = new HealthValue(0f, chest.Maximum, 0f);
 
                 player.ActiveHealthController.Kill(dmg);
 

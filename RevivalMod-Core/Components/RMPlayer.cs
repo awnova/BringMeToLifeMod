@@ -1,11 +1,13 @@
+//====================[ Imports ]====================
 using System.Collections.Generic;
 using EFT;
 using EFT.InventoryLogic;
-using RevivalMod.Helpers;
+using KeepMeAlive.Helpers;
 using UnityEngine;
 
-namespace RevivalMod.Components
+namespace KeepMeAlive.Components
 {
+    //====================[ Enums ]====================
     public enum RMState
     {
         None,
@@ -15,48 +17,50 @@ namespace RevivalMod.Components
         Revived
     }
 
+    //====================[ RMPlayer ]====================
     public class RMPlayer
     {
-        // Authoritative state
+        //====================[ State ]====================
         public RMState State { get; set; } = RMState.None;
 
-        // Derived flags
+        //====================[ Derived Flags ]====================
         public bool IsCritical => State is RMState.BleedingOut or RMState.Reviving;
         public bool IsInvulnerable => State == RMState.Revived;
 
-        // Runtime flags
+        //====================[ Runtime Flags ]====================
         public bool KillOverride { get; set; }
         public bool IsPlayingRevivalAnimation { get; set; }
         public bool IsBeingRevived { get; set; }
 
-        // Session / request info
+        //====================[ Session Info ]====================
         public bool RevivalRequested { get; set; }
-        public int ReviveRequestedSource { get; set; } // 0 = Self, 1 = Team
+        // 0 = Self, 1 = Team
+        public int ReviveRequestedSource { get; set; } 
         public string CurrentReviverId { get; set; } = string.Empty;
 
-        // Timers
+        //====================[ Timers ]====================
         public float CriticalTimer { get; set; }
         public float InvulnerabilityTimer { get; set; }
         public float CooldownTimer { get; set; }
-        /// <summary>Countdown until next periodic state resync broadcast. -1 triggers immediate send.</summary>
+        // Countdown until next periodic state resync broadcast. -1 triggers immediate send.
         public float ResyncCooldown { get; set; }
 
-        // Stored gameplay values
+        //====================[ Stored Values ]====================
         public float OriginalAwareness { get; set; } = -1f;
         public bool HasStoredAwareness { get; set; }
         public float OriginalMovementSpeed { get; set; } = -1f;
         public long LastRevivalTimesByPlayer { get; set; }
         public EDamageType PlayerDamageType { get; set; } = EDamageType.Undefined;
 
-        // Cached fake items for revival animations
+        //====================[ Cached Items ]====================
         public Item FakeCmsItem { get; set; }
         public Item FakeSurvKitItem { get; set; }
 
-        // Per-player UI timers
+        //====================[ UI Timers ]====================
         public CustomTimer CriticalStateMainTimer { get; set; }
         public CustomTimer RevivePromptTimer { get; set; }
 
-        // Input tracking
+        //====================[ Input Tracking ]====================
         public Dictionary<KeyCode, float> SelfRevivalKeyHoldDuration { get; set; } = new();
     }
 }

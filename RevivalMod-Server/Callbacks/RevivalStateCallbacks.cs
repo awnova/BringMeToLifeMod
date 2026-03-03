@@ -1,9 +1,9 @@
-using RevivalMod.Server.Services;
+using KeepMeAlive.Server.Services;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Utils;
 
-namespace RevivalMod.Server.Callbacks;
+namespace KeepMeAlive.Server.Callbacks;
 
 [Injectable]
 public class RevivalStateCallbacks(HttpResponseUtil httpResponseUtil)

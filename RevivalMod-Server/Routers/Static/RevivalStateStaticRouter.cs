@@ -1,9 +1,9 @@
-using RevivalMod.Server.Callbacks;
+using KeepMeAlive.Server.Callbacks;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Utils;
 
-namespace RevivalMod.Server.Routers.Static;
+namespace KeepMeAlive.Server.Routers.Static;
 
 [Injectable]
 public class RevivalStateStaticRouter(RevivalStateCallbacks callbacks, JsonUtil jsonUtil) : StaticRouter(jsonUtil, [

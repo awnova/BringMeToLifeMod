@@ -1,4 +1,4 @@
-namespace RevivalMod.Server.Models.Revival;
+namespace KeepMeAlive.Server.Models.Revival;
 
 public enum RevivalState
 {

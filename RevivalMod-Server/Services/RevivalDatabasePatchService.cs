@@ -4,7 +4,7 @@ using SPTarkov.Server.Core.Servers;
 using System.Collections;
 using System.Reflection;
 
-namespace RevivalMod.Server.Services;
+namespace KeepMeAlive.Server.Services;
 
 [Injectable(InjectionType.Singleton)]
 public class RevivalDatabasePatchService(ISptLogger<RevivalDatabasePatchService> logger,

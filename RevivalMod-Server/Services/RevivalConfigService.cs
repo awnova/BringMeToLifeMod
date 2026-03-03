@@ -3,7 +3,7 @@ using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.Helpers;
 using SPTarkov.Server.Core.Utils;
 
-namespace RevivalMod.Server.Services;
+namespace KeepMeAlive.Server.Services;
 
 [Injectable(InjectionType.Singleton)]
 public class RevivalConfigService(ModHelper modHelper, JsonUtil jsonUtil)

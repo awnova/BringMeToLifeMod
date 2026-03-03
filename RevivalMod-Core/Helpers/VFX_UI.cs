@@ -7,7 +7,7 @@ using Comfort.Common;
 using EFT.UI;
 using EFT.Communications;
 
-namespace RevivalMod.Helpers
+namespace KeepMeAlive.Helpers
 {
     //====================[ VFX_UI ]====================
     public static class VFX_UI
@@ -27,7 +27,13 @@ namespace RevivalMod.Helpers
             public readonly Color From;
             public readonly Color To;
             public readonly bool  IsGradient;
-            private ColorSpec(Color from, Color to, bool isGradient) { From = from; To = to; IsGradient = isGradient; }
+            
+            private ColorSpec(Color from, Color to, bool isGradient) 
+            { 
+                From = from; 
+                To = to; 
+                IsGradient = isGradient; 
+            }
 
             public static ColorSpec Solid(Color c)             => new ColorSpec(c, c, false);
             public static ColorSpec Gradient(Color from, Color to) => new ColorSpec(from, to, true);
@@ -91,7 +97,10 @@ namespace RevivalMod.Helpers
         public static CustomTimer TransitPanel(ColorSpec color, Position pos, string label, float seconds = 0f)
         {
             var ui = MonoBehaviourSingleton<GameUI>.Instance?.LocationTransitTimerPanel;
-            if (ui == null) return null;
+            if (ui == null)
+            {
+                return null;
+            }
 
             try
             {
@@ -101,11 +110,19 @@ namespace RevivalMod.Helpers
                 if (s_transitRect != null)
                 {
                     var fitter = s_transitRect.GetComponent<ContentSizeFitter>();
-                    if (fitter != null) fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                    if (fitter != null)
+                    {
+                        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                    }
+                    
                     s_transitRect.sizeDelta = new Vector2(318, 51);
                     s_transitImage = s_transitRect.GetComponent<Image>();
                     ApplyAnchorPosition(s_transitRect, pos == Position.Default ? Position.MiddleCenter : pos);
-                    if (IsUnityAlive(s_transitImage)) s_transitImage.color = color.From;
+                    
+                    if (IsUnityAlive(s_transitImage))
+                    {
+                        s_transitImage.color = color.From;
+                    }
                 }
 
                 s_transitText = ui.GetComponentInChildren<TextMeshProUGUI>();
@@ -128,8 +145,17 @@ namespace RevivalMod.Helpers
 
                     timer.OnCompleted += () =>
                     {
-                        try { if (ui != null && ui.isActiveAndEnabled) ui.Close(); }
-                        catch (Exception ex) { Plugin.LogSource.LogWarning($"TransitPanel close warn: {ex.Message}"); }
+                        try
+                        {
+                            if (ui != null && ui.isActiveAndEnabled)
+                            {
+                                ui.Close();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Plugin.LogSource.LogWarning($"TransitPanel close warn: {ex.Message}");
+                        }
                     };
 
                     return timer;
@@ -151,15 +177,27 @@ namespace RevivalMod.Helpers
             try
             {
                 var ui = MonoBehaviourSingleton<GameUI>.Instance?.LocationTransitTimerPanel;
-                if (ui != null && ui.isActiveAndEnabled) ui.Close();
+                if (ui != null && ui.isActiveAndEnabled)
+                {
+                    ui.Close();
+                }
             }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"HideTransitPanel warn: {ex.Message}"); }
-            finally { s_transitLoopActive = false; }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"HideTransitPanel warn: {ex.Message}");
+            }
+            finally
+            {
+                s_transitLoopActive = false;
+            }
         }
 
         public static void EnsureTransitPanelPosition()
         {
-            if (IsUnityAlive(s_transitRect)) ApplyAnchorPosition(s_transitRect, Position.MiddleCenter);
+            if (IsUnityAlive(s_transitRect))
+            {
+                ApplyAnchorPosition(s_transitRect, Position.MiddleCenter);
+            }
         }
 
         //====================[ ObjectivePanel (BattleUIPanelExtraction) ]====================
@@ -169,12 +207,18 @@ namespace RevivalMod.Helpers
         public static CustomTimer ObjectivePanel(ColorSpec color, Position pos, string label, float seconds = 0f)
         {
             var gameUI = MonoBehaviourSingleton<GameUI>.Instance;
-            if (gameUI == null) return null;
+            if (gameUI == null)
+            {
+                return null;
+            }
 
             try
             {
                 s_extractionPanel = IsUnityAlive(s_extractionPanel) ? s_extractionPanel : gameUI.BattleUiPanelExtraction;
-                if (s_extractionPanel == null) return null;
+                if (s_extractionPanel == null)
+                {
+                    return null;
+                }
 
                 s_extractionPanel.Show(label);
 
@@ -189,9 +233,15 @@ namespace RevivalMod.Helpers
                 }
 
                 if (IsUnityAlive(s_extractionRect))
+                {
                     ApplyAnchorPosition(s_extractionRect, pos == Position.Default ? Position.BottomCenter : pos);
+                }
 
-                if (IsUnityAlive(s_extractionImage)) s_extractionImage.color = color.From;
+                if (IsUnityAlive(s_extractionImage))
+                {
+                    s_extractionImage.color = color.From;
+                }
+                
                 if (IsUnityAlive(s_extractionText))
                 {
                     s_extractionText.enableAutoSizing = false;
@@ -212,12 +262,19 @@ namespace RevivalMod.Helpers
 
                     s_extractionOnDone = () =>
                     {
-                        try { s_extractionPanel?.Close(); }
-                        catch (Exception ex) { Plugin.LogSource.LogWarning($"ObjectivePanel close warn: {ex.Message}"); }
+                        try
+                        {
+                            s_extractionPanel?.Close();
+                        }
+                        catch (Exception ex)
+                        {
+                            Plugin.LogSource.LogWarning($"ObjectivePanel close warn: {ex.Message}");
+                        }
                     };
 
                     s_extractionTimer.OnTick += s_extractionOnTick;
                     s_extractionTimer.OnCompleted += s_extractionOnDone;
+                    
                     return s_extractionTimer;
                 }
 
@@ -234,9 +291,19 @@ namespace RevivalMod.Helpers
 
         public static void HideObjectivePanel()
         {
-            try { s_extractionPanel?.Close(); }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"HideObjectivePanel warn: {ex.Message}"); }
-            finally { s_extractionLoopActive = false; UnwireAndStopExtractionTimer(); }
+            try
+            {
+                s_extractionPanel?.Close();
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"HideObjectivePanel warn: {ex.Message}");
+            }
+            finally
+            {
+                s_extractionLoopActive = false;
+                UnwireAndStopExtractionTimer();
+            }
         }
 
         //====================[ EventPanel (EventStatePanel) ]====================
@@ -246,12 +313,18 @@ namespace RevivalMod.Helpers
         public static CustomTimer EventPanel(ColorSpec color, Position pos, string label, float seconds = 0f)
         {
             var gameUI = MonoBehaviourSingleton<GameUI>.Instance;
-            if (gameUI == null) return null;
+            if (gameUI == null)
+            {
+                return null;
+            }
 
             try
             {
                 s_eventPanel = IsUnityAlive(s_eventPanel) ? s_eventPanel : gameUI.EventStatePanel;
-                if (s_eventPanel == null) return null;
+                if (s_eventPanel == null)
+                {
+                    return null;
+                }
 
                 s_eventPanel.Display();
 
@@ -266,9 +339,15 @@ namespace RevivalMod.Helpers
                 }
 
                 if (IsUnityAlive(s_eventRect))
+                {
                     ApplyAnchorPosition(s_eventRect, pos == Position.Default ? Position.BottomCenter : pos);
+                }
 
-                if (IsUnityAlive(s_eventImage)) s_eventImage.color = color.From;
+                if (IsUnityAlive(s_eventImage))
+                {
+                    s_eventImage.color = color.From;
+                }
+                
                 if (IsUnityAlive(s_eventText))
                 {
                     s_eventText.enableAutoSizing = false;
@@ -289,12 +368,19 @@ namespace RevivalMod.Helpers
 
                     s_eventOnDone = () =>
                     {
-                        try { s_eventPanel?.Close(); }
-                        catch (Exception ex) { Plugin.LogSource.LogWarning($"EventPanel close warn: {ex.Message}"); }
+                        try
+                        {
+                            s_eventPanel?.Close();
+                        }
+                        catch (Exception ex)
+                        {
+                            Plugin.LogSource.LogWarning($"EventPanel close warn: {ex.Message}");
+                        }
                     };
 
                     s_eventTimer.OnTick += s_eventOnTick;
                     s_eventTimer.OnCompleted += s_eventOnDone;
+                    
                     return s_eventTimer;
                 }
 
@@ -311,9 +397,19 @@ namespace RevivalMod.Helpers
 
         public static void HideEventPanel()
         {
-            try { s_eventPanel?.Close(); }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"HideEventPanel warn: {ex.Message}"); }
-            finally { s_eventLoopActive = false; UnwireAndStopEventTimer(); }
+            try
+            {
+                s_eventPanel?.Close();
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"HideEventPanel warn: {ex.Message}");
+            }
+            finally
+            {
+                s_eventLoopActive = false;
+                UnwireAndStopEventTimer();
+            }
         }
 
         //====================[ UsingPanel ]====================
@@ -323,12 +419,18 @@ namespace RevivalMod.Helpers
         public static CustomTimer UsingPanel(ColorSpec color, Position pos, string label, float seconds = 0f)
         {
             var gameUI = MonoBehaviourSingleton<GameUI>.Instance;
-            if (gameUI == null) return null;
+            if (gameUI == null)
+            {
+                return null;
+            }
 
             try
             {
                 s_usingPanel = IsUnityAlive(s_usingPanel) ? s_usingPanel : gameUI.UsingPanel;
-                if (s_usingPanel == null) return null;
+                if (s_usingPanel == null)
+                {
+                    return null;
+                }
 
                 s_usingPanel.ShowGameObject();
 
@@ -343,9 +445,15 @@ namespace RevivalMod.Helpers
                 }
 
                 if (IsUnityAlive(s_usingRect))
+                {
                     ApplyAnchorPosition(s_usingRect, pos == Position.Default ? Position.MiddleCenter : pos);
+                }
 
-                if (IsUnityAlive(s_usingImage)) s_usingImage.color = color.From;
+                if (IsUnityAlive(s_usingImage))
+                {
+                    s_usingImage.color = color.From;
+                }
+                
                 if (IsUnityAlive(s_usingText))
                 {
                     s_usingText.enableAutoSizing = false;
@@ -366,21 +474,35 @@ namespace RevivalMod.Helpers
 
                     s_usingOnDone = () =>
                     {
-                        try { s_usingPanel.Close(); }
+                        try
+                        {
+                            s_usingPanel.Close();
+                        }
                         catch (Exception e1)
                         {
                             Plugin.LogSource.LogWarning($"UsingPanel close failed, trying HideGameObject: {e1.Message}");
-                            try { s_usingPanel.HideGameObject(); }
+                            try
+                            {
+                                s_usingPanel.HideGameObject();
+                            }
                             catch (Exception e2)
                             {
                                 Plugin.LogSource.LogWarning($"UsingPanel hide failed, disabling GO: {e2.Message}");
-                                try { s_usingPanel.gameObject.SetActive(false); } catch (Exception e3) { Plugin.LogSource.LogError($"UsingPanel deactivate error: {e3.Message}"); }
+                                try
+                                {
+                                    s_usingPanel.gameObject.SetActive(false);
+                                }
+                                catch (Exception e3)
+                                {
+                                    Plugin.LogSource.LogError($"UsingPanel deactivate error: {e3.Message}");
+                                }
                             }
                         }
                     };
 
                     s_usingTimer.OnTick += s_usingOnTick;
                     s_usingTimer.OnCompleted += s_usingOnDone;
+                    
                     return s_usingTimer;
                 }
 
@@ -401,21 +523,41 @@ namespace RevivalMod.Helpers
             {
                 if (s_usingPanel != null)
                 {
-                    try { s_usingPanel.Close(); }
+                    try
+                    {
+                        s_usingPanel.Close();
+                    }
                     catch (Exception e1)
                     {
                         Plugin.LogSource.LogWarning($"HideUsingPanel close failed, trying HideGameObject: {e1.Message}");
-                        try { s_usingPanel.HideGameObject(); }
+                        try
+                        {
+                            s_usingPanel.HideGameObject();
+                        }
                         catch (Exception e2)
                         {
                             Plugin.LogSource.LogWarning($"HideUsingPanel hide failed, disabling GO: {e2.Message}");
-                            try { s_usingPanel.gameObject.SetActive(false); } catch (Exception e3) { Plugin.LogSource.LogError($"HideUsingPanel deactivate error: {e3.Message}"); }
+                            try
+                            {
+                                s_usingPanel.gameObject.SetActive(false);
+                            }
+                            catch (Exception e3)
+                            {
+                                Plugin.LogSource.LogError($"HideUsingPanel deactivate error: {e3.Message}");
+                            }
                         }
                     }
                 }
             }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"HideUsingPanel outer warn: {ex.Message}"); }
-            finally { s_usingLoopActive = false; UnwireAndStopUsingTimer(); }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"HideUsingPanel outer warn: {ex.Message}");
+            }
+            finally
+            {
+                s_usingLoopActive = false;
+                UnwireAndStopUsingTimer();
+            }
         }
 
         //====================[ Bulk Cleanup ]====================
@@ -434,22 +576,39 @@ namespace RevivalMod.Helpers
             {
                 if (label.IndexOf('{') >= 0)
                 {
-                    try   { text.text = string.Format(label, Math.Max(0f, (float)span.TotalSeconds)); }
-                    catch { text.text = $"{label}: {formatted}"; }
+                    try
+                    {
+                        text.text = string.Format(label, Math.Max(0f, (float)span.TotalSeconds));
+                    }
+                    catch
+                    {
+                        text.text = $"{label}: {formatted}";
+                    }
                 }
-                else text.text = $"{label}: {formatted}";
+                else
+                {
+                    text.text = $"{label}: {formatted}";
+                }
             }
 
             if (IsUnityAlive(img))
             {
-                if (color.IsGradient && p01 >= 0f) img.color = LerpPreserveA(color.From, color.To, p01);
-                else                                img.color = color.From;
+                if (color.IsGradient && p01 >= 0f)
+                {
+                    img.color = LerpPreserveA(color.From, color.To, p01);
+                }
+                else
+                {
+                    img.color = color.From;
+                }
             }
         }
 
+        
         private static void ApplyAnchorPosition(RectTransform panel, Position pos)
         {
             Vector2 anchor, pivot, offset;
+            
             switch (pos)
             {
                 case Position.TopLeft:       anchor = pivot = new Vector2(0f,   1f);   offset = new Vector2( 100, -50); break;
@@ -463,12 +622,13 @@ namespace RevivalMod.Helpers
                 case Position.BottomRight:   anchor = pivot = new Vector2(1f,   0f);   offset = new Vector2(-100,  50); break;
                 default:                     anchor = pivot = new Vector2(0.5f, 0.5f); offset = new Vector2(   0,   0); break;
             }
+            
             panel.anchorMin = panel.anchorMax = anchor;
             panel.pivot = pivot;
             panel.anchoredPosition = offset;
         }
 
-        private static bool  IsUnityAlive(UnityEngine.Object o) => o != null;
+        private static bool IsUnityAlive(UnityEngine.Object o) => o != null;
 
         private static Color LerpPreserveA(Color a, Color b, float t)
         {
@@ -484,13 +644,29 @@ namespace RevivalMod.Helpers
             {
                 if (s_extractionTimer != null)
                 {
-                    if (s_extractionOnTick != null) s_extractionTimer.OnTick      -= s_extractionOnTick;
-                    if (s_extractionOnDone != null) s_extractionTimer.OnCompleted -= s_extractionOnDone;
+                    if (s_extractionOnTick != null)
+                    {
+                        s_extractionTimer.OnTick -= s_extractionOnTick;
+                    }
+                    
+                    if (s_extractionOnDone != null)
+                    {
+                        s_extractionTimer.OnCompleted -= s_extractionOnDone;
+                    }
+                    
                     s_extractionTimer.Stop();
                 }
             }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"UnwireAndStopExtractionTimer warn: {ex.Message}"); }
-            finally { s_extractionTimer = null; s_extractionOnTick = null; s_extractionOnDone = null; }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"UnwireAndStopExtractionTimer warn: {ex.Message}");
+            }
+            finally
+            {
+                s_extractionTimer = null;
+                s_extractionOnTick = null;
+                s_extractionOnDone = null;
+            }
         }
 
         private static void UnwireAndStopEventTimer()
@@ -499,13 +675,29 @@ namespace RevivalMod.Helpers
             {
                 if (s_eventTimer != null)
                 {
-                    if (s_eventOnTick != null) s_eventTimer.OnTick      -= s_eventOnTick;
-                    if (s_eventOnDone != null) s_eventTimer.OnCompleted -= s_eventOnDone;
+                    if (s_eventOnTick != null)
+                    {
+                        s_eventTimer.OnTick -= s_eventOnTick;
+                    }
+                    
+                    if (s_eventOnDone != null)
+                    {
+                        s_eventTimer.OnCompleted -= s_eventOnDone;
+                    }
+                    
                     s_eventTimer.Stop();
                 }
             }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"UnwireAndStopEventTimer warn: {ex.Message}"); }
-            finally { s_eventTimer = null; s_eventOnTick = null; s_eventOnDone = null; }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"UnwireAndStopEventTimer warn: {ex.Message}");
+            }
+            finally
+            {
+                s_eventTimer = null;
+                s_eventOnTick = null;
+                s_eventOnDone = null;
+            }
         }
 
         private static void UnwireAndStopUsingTimer()
@@ -514,48 +706,90 @@ namespace RevivalMod.Helpers
             {
                 if (s_usingTimer != null)
                 {
-                    if (s_usingOnTick != null) s_usingTimer.OnTick      -= s_usingOnTick;
-                    if (s_usingOnDone != null) s_usingTimer.OnCompleted -= s_usingOnDone;
+                    if (s_usingOnTick != null)
+                    {
+                        s_usingTimer.OnTick -= s_usingOnTick;
+                    }
+                    
+                    if (s_usingOnDone != null)
+                    {
+                        s_usingTimer.OnCompleted -= s_usingOnDone;
+                    }
+                    
                     s_usingTimer.Stop();
                 }
             }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"UnwireAndStopUsingTimer warn: {ex.Message}"); }
-            finally { s_usingTimer = null; s_usingOnTick = null; s_usingOnDone = null; }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"UnwireAndStopUsingTimer warn: {ex.Message}");
+            }
+            finally
+            {
+                s_usingTimer = null;
+                s_usingOnTick = null;
+                s_usingOnDone = null;
+            }
         }
 
         //====================[ Driver Tick ]====================
         internal static void InternalUpdate()
         {
-            if (s_extractionTimer != null && s_extractionTimer.IsRunning) s_extractionTimer.Update();
-            if (s_eventTimer      != null && s_eventTimer.IsRunning)      s_eventTimer.Update();
-            if (s_usingTimer      != null && s_usingTimer.IsRunning)      s_usingTimer.Update();
+            if (s_extractionTimer != null && s_extractionTimer.IsRunning)
+            {
+                s_extractionTimer.Update();
+            }
+            
+            if (s_eventTimer != null && s_eventTimer.IsRunning)
+            {
+                s_eventTimer.Update();
+            }
+            
+            if (s_usingTimer != null && s_usingTimer.IsRunning)
+            {
+                s_usingTimer.Update();
+            }
 
             // 15s ping-pong gradient loop (unscaled)
             float tPing = Mathf.PingPong(Time.unscaledTime / 7.5f, 1f);
 
-            if (s_transitLoopActive    && IsUnityAlive(s_transitImage)    && s_transitLoopSpec.IsGradient)
-                s_transitImage.color    = LerpPreserveA(s_transitLoopSpec.From,    s_transitLoopSpec.To,    tPing);
+            if (s_transitLoopActive && IsUnityAlive(s_transitImage) && s_transitLoopSpec.IsGradient)
+            {
+                s_transitImage.color = LerpPreserveA(s_transitLoopSpec.From, s_transitLoopSpec.To, tPing);
+            }
 
             if (s_extractionLoopActive && IsUnityAlive(s_extractionImage) && s_extractionLoopSpec.IsGradient)
+            {
                 s_extractionImage.color = LerpPreserveA(s_extractionLoopSpec.From, s_extractionLoopSpec.To, tPing);
+            }
 
-            if (s_eventLoopActive      && IsUnityAlive(s_eventImage)      && s_eventLoopSpec.IsGradient)
-                s_eventImage.color      = LerpPreserveA(s_eventLoopSpec.From,      s_eventLoopSpec.To,      tPing);
+            if (s_eventLoopActive && IsUnityAlive(s_eventImage) && s_eventLoopSpec.IsGradient)
+            {
+                s_eventImage.color = LerpPreserveA(s_eventLoopSpec.From, s_eventLoopSpec.To, tPing);
+            }
 
-            if (s_usingLoopActive      && IsUnityAlive(s_usingImage)      && s_usingLoopSpec.IsGradient)
-                s_usingImage.color      = LerpPreserveA(s_usingLoopSpec.From,      s_usingLoopSpec.To,      tPing);
+            if (s_usingLoopActive && IsUnityAlive(s_usingImage) && s_usingLoopSpec.IsGradient)
+            {
+                s_usingImage.color = LerpPreserveA(s_usingLoopSpec.From, s_usingLoopSpec.To, tPing);
+            }
         }
 
         private static void EnsureDriver()
         {
             try
             {
-                if (UnityEngine.Object.FindObjectOfType<VfxUiDriver>() != null) return;
+                if (UnityEngine.Object.FindObjectOfType<VfxUiDriver>() != null)
+                {
+                    return;
+                }
+                
                 var go = new GameObject("VFX_UI_Driver");
                 UnityEngine.Object.DontDestroyOnLoad(go);
                 go.AddComponent<VfxUiDriver>();
             }
-            catch (Exception ex) { Plugin.LogSource.LogError($"EnsureDriver error: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"EnsureDriver error: {ex.Message}");
+            }
         }
     }
 

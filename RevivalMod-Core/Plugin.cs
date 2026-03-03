@@ -1,30 +1,30 @@
 using BepInEx;
 using BepInEx.Bootstrap;
 using BepInEx.Logging;
-using RevivalMod.Features;
-using RevivalMod.Fika;
-using RevivalMod.Helpers;
-using RevivalMod.Patches;
+using KeepMeAlive.Features;
+using KeepMeAlive.Fika;
+using KeepMeAlive.Helpers;
+using KeepMeAlive.Patches;
 using System;
 using System.Reflection;
 using UnityEngine;
 
-namespace RevivalMod
+namespace KeepMeAlive
 {
-    [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
-    [BepInPlugin("com.kobethuy.BringMeToLifeMod", "BringMeToLifeMod", "1.0.0")]
+    [BepInDependency("com.fika.core")]
+    [BepInPlugin("com.KeepMeAlive", "KeepMeAlive", "1.0.0")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource LogSource;
         public static MonoBehaviour StaticCoroutineRunner;
 
-        public static bool FikaInstalled { get; private set; }
         public static bool IAmDedicatedClient { get; private set; }
+        public static bool SAINInstalled { get; private set; }
 
         private void Awake()
         {
-            FikaInstalled = Chainloader.PluginInfos.ContainsKey("com.fika.core");
             IAmDedicatedClient = Chainloader.PluginInfos.ContainsKey("com.fika.headless");
+            SAINInstalled = Chainloader.PluginInfos.ContainsKey("me.sol.sain");
 
             LogSource = Logger;
             StaticCoroutineRunner = this;
@@ -47,18 +47,24 @@ namespace RevivalMod
             new DeathPatch().Enable();
             new AvailableActionsPatch().Enable();
             new SpecialSlotDefibPatch().Enable();
+
+            new FikaHealthSyncLocalPlayerGuardPatch().Enable();
+            new HandleProceedPatch().Enable();
+
+            new TeamHealGEventArgs13SuppressPatch().Enable();
+            new TeamHealRemoveItemSuppressPatch().Enable();
         }
 
         private static void EnableGhostModePatches()
         {
-            try
+            new GhostModeGroupPatch().Enable();
+            new GhostModeMemoryPatch().Enable();
+            LogSource.LogInfo("GhostMode patches enabled (BotsGroup.AddEnemy + BotMemoryClass.AddEnemy).");
+
+            if (SAINInstalled)
             {
-                new GhostModeAddEnemyPatch().Enable();
-                LogSource.LogInfo("GhostModeAddEnemyPatch enabled (blocks BotsGroup.AddEnemy for ghosted players).");
-            }
-            catch (Exception ex)
-            {
-                LogSource.LogError($"Error enabling GhostModeAddEnemyPatch: {ex.Message}");
+                new GhostModeSAINPatch().Enable();
+                LogSource.LogInfo("GhostMode SAIN patch enabled (EnemyListController.tryAddEnemy).");
             }
         }
 

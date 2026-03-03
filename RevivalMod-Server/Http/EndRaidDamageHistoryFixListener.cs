@@ -6,7 +6,7 @@ using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Servers.Http;
 
-namespace RevivalMod.Server.Http;
+namespace KeepMeAlive.Server.Http;
 
 /// <summary>
 /// Intercepts POST /client/match/local/end to fix a vanilla EFT/SPT mismatch where the client

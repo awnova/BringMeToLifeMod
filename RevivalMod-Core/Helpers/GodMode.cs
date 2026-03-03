@@ -2,29 +2,42 @@
 using System;
 using EFT;
 
-namespace RevivalMod.Helpers
+namespace KeepMeAlive.Helpers
 {
     //====================[ GodMode ]====================
     internal static class GodMode
     {
-        //====================[ Query ]====================
+        //====================[ Queries ]====================
         public static bool IsEnabled() => RevivalModSettings.GOD_MODE.Value;
 
-        //====================[ Enable (config-gated) ]====================
+        //====================[ State Controls ]====================
+        // Config-gated enable
         public static void Enable(Player player)
         {
-            if (!IsEnabled() || player is null) return;
+            if (!IsEnabled() || player is null)
+            {
+                return;
+            }
+            
             ForceEnable(player);
         }
 
-        //====================[ ForceEnable (always on) ]====================
+        // Always on enable
         public static void ForceEnable(Player player)
         {
-            if (player is null) return;
+            if (player is null)
+            {
+                return;
+            }
+
             try
             {
                 var hc = player.ActiveHealthController;
-                if (hc == null) return;
+                if (hc == null)
+                {
+                    return;
+                }
+
                 hc.SetDamageCoeff(0f);
             }
             catch (Exception ex)
@@ -33,14 +46,21 @@ namespace RevivalMod.Helpers
             }
         }
 
-        //====================[ Disable ]====================
         public static void Disable(Player player)
         {
-            if (player is null) return;
+            if (player is null)
+            {
+                return;
+            }
+
             try
             {
                 var hc = player.ActiveHealthController;
-                if (hc == null) return;
+                if (hc == null)
+                {
+                    return;
+                }
+
                 hc.SetDamageCoeff(1f);
             }
             catch (Exception ex)

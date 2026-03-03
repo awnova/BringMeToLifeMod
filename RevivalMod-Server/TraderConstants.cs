@@ -1,4 +1,4 @@
-namespace RevivalMod.Server;
+namespace KeepMeAlive.Server;
 
 public static class TraderConstants
 {

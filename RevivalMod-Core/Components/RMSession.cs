@@ -1,4 +1,4 @@
-﻿//====================[ Imports ]====================
+//====================[ Imports ]====================
 using System;
 using System.Collections.Generic;
 using Comfort.Common;
@@ -6,7 +6,7 @@ using EFT;
 using SPT.Reflection.Utils; // GetOrAddComponent
 using UnityEngine;
 
-namespace RevivalMod.Components
+namespace KeepMeAlive.Components
 {
     //====================[ RMSession ]====================
     [DisallowMultipleComponent]
@@ -14,6 +14,7 @@ namespace RevivalMod.Components
     {
         //====================[ Singleton ]====================
         private static RMSession _instance;
+        
         public static RMSession Instance
         {
             get
@@ -45,11 +46,14 @@ namespace RevivalMod.Components
         }
 
         //====================[ World & Player ]====================
-        public Player           Player          { get; private set; }
-        public GameWorld        GameWorld       { get; private set; }
-        public GamePlayerOwner  GamePlayerOwner { get; private set; }
+        public Player          Player          { get; private set; }
+        public GameWorld       GameWorld       { get; private set; }
+        public GamePlayerOwner GamePlayerOwner { get; private set; }
 
         //====================[ State Stores ]====================
+        
+        
+        
         // Single source of truth for per-player revival state.
         public Dictionary<string, RMPlayer> PlayerStates = new();
 
@@ -67,7 +71,9 @@ namespace RevivalMod.Components
                 Player    = GameWorld.MainPlayer;
 
                 if (Player != null)
+                {
                     GamePlayerOwner = Player.gameObject.GetComponent<GamePlayerOwner>();
+                }
             }
             catch (Exception ex)
             {
@@ -99,10 +105,11 @@ namespace RevivalMod.Components
 
         public static HashSet<string> GetCriticalPlayers() => Instance.CriticalPlayers;
 
-        /// <summary>Check using PlayerStates (authoritative) instead of the back-compat set.</summary>
+        // Check using PlayerStates (authoritative) instead of the back-compat set.
         public static bool IsPlayerCritical(string playerId)
         {
             if (string.IsNullOrEmpty(playerId)) return false;
+            
             return HasPlayerState(playerId) && GetPlayerState(playerId).IsCritical;
         }
 

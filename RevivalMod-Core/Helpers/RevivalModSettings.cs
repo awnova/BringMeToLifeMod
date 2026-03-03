@@ -1,7 +1,7 @@
-﻿using BepInEx.Configuration;
+using BepInEx.Configuration;
 using UnityEngine;
 
-namespace RevivalMod.Helpers
+namespace KeepMeAlive.Helpers
 {
     internal class RevivalModSettings
     {
@@ -183,8 +183,8 @@ namespace RevivalMod.Helpers
             REVIVAL_RANGE = config.Bind(
                 "2. Revival Mechanics",
                 "Revival Range",
-                0.3f,
-                "The interaction range for reviving downed players (requires restart raid)"
+                1.5f,
+                "The interaction range for reviving downed players in meters (requires restart raid)"
             );
 
             DOWNED_MOVEMENT_SPEED = config.Bind(

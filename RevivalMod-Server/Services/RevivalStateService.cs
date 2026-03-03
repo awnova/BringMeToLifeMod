@@ -1,9 +1,9 @@
 using System.Text.Json;
-using RevivalMod.Server.Models.Revival;
+using KeepMeAlive.Server.Models.Revival;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.Models.Utils;
 
-namespace RevivalMod.Server.Services;
+namespace KeepMeAlive.Server.Services;
 
 [Injectable(InjectionType.Singleton)]
 public class RevivalStateService(ISptLogger<RevivalStateService> logger, RevivalConfigService configService)
@@ -102,12 +102,27 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
                 return Denied("Player on cooldown", entry);
             }
 
+            // Allow a self-revive to restart if the previous attempt left the server in
+            // Reviving state but the animation never completed (e.g. client-side failure).
+            // A self-revive is identified by playerId == reviverId.
+            bool isSelfRevive = source.Equals("self", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(playerId, reviverId, StringComparison.Ordinal);
+
             if (entry.State is RevivalState.Reviving or RevivalState.Revived)
             {
-                return Denied($"Invalid state for revive start: {entry.State}", entry);
+                if (entry.State == RevivalState.Reviving && isSelfRevive)
+                {
+                    // Idempotent re-entry: allow the client to restart a self-revive that
+                    // got stuck. Fall through to set state = Reviving again.
+                    logger.Info($"[RevivalMod] Re-entering Reviving state for self-revive: {playerId}");
+                }
+                else
+                {
+                    return Denied($"Invalid state for revive start: {entry.State}", entry);
+                }
             }
 
-            if (entry.State != RevivalState.BleedingOut)
+            if (entry.State != RevivalState.BleedingOut && entry.State != RevivalState.Reviving)
             {
                 return Denied($"Player is not downed: {entry.State}", entry);
             }

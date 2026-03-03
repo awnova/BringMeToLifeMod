@@ -1,11 +1,17 @@
+//====================[ Imports ]====================
 using System;
+using System.Threading.Tasks;
+using EFT;
 
-namespace RevivalMod.Helpers
+namespace KeepMeAlive.Helpers
 {
+    //====================[ RevivalAuthority ]====================
     internal static class RevivalAuthority
     {
+        //====================[ Constants & Fields ]====================
         private const string BaseRoute = "/kaikinoodles/revivalmod/state";
 
+        //====================[ Network Models ]====================
         private sealed class AuthorityRequest
         {
             public string PlayerId { get; set; } = string.Empty;
@@ -20,8 +26,11 @@ namespace RevivalMod.Helpers
             public string Reason { get; set; } = string.Empty;
         }
 
+        //====================[ Public API ]====================
+        // Fire-and-forget: no response is consumed, so we offload to a background thread
+        // to avoid blocking the Unity main thread (which causes a visible stutter for all clients).
         public static void NotifyBeginCritical(string playerId) =>
-            Send($"{BaseRoute}/begin-critical", new AuthorityRequest { PlayerId = playerId });
+            Task.Run(() => Send($"{BaseRoute}/begin-critical", new AuthorityRequest { PlayerId = playerId }));
 
         public static bool TryAuthorizeReviveStart(string playerId, string reviverId, string source, out string reason)
         {
@@ -45,11 +54,13 @@ namespace RevivalMod.Helpers
         public static void NotifyReset(string playerId) =>
             Send($"{BaseRoute}/reset", new AuthorityRequest { PlayerId = playerId });
 
+        //====================[ Private Send Helpers ]====================
         private static bool Send(string route, object data) => Send(route, data, out _);
 
         private static bool Send(string route, object data, out AuthorityResponse response)
         {
             response = null;
+            
             try
             {
                 response = Utils.ServerRoute<AuthorityResponse>(route, data);

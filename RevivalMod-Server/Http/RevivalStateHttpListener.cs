@@ -1,14 +1,14 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using RevivalMod.Server.Models.Revival;
-using RevivalMod.Server.Services;
+using KeepMeAlive.Server.Models.Revival;
+using KeepMeAlive.Server.Services;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Servers.Http;
 using SPTarkov.Server.Core.Utils;
 
-namespace RevivalMod.Server.Http;
+namespace KeepMeAlive.Server.Http;
 
 /// <summary>
 /// Handles RevivalMod state routes via raw HTTP, bypassing StaticRouter's IRequestData cast requirement.
