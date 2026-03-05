@@ -45,21 +45,27 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
 
     public void Save()
     {
-        try
+        // Fire-and-forget async write so the HTTP handler thread is never blocked by disk I/O.
+        // We take a snapshot under the lock first so the background task never races with
+        // in-flight state mutations.
+        Dictionary<string, RevivalStateEntry> snapshot;
+        lock (_sync)
         {
-            Dictionary<string, RevivalStateEntry> snapshot;
-            lock (_sync)
-            {
-                snapshot = _entries.ToDictionary(k => k.Key, v => v.Value);
-            }
+            snapshot = _entries.ToDictionary(k => k.Key, v => v.Value);
+        }
 
-            var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(StateFilePath, json);
-        }
-        catch (Exception ex)
+        _ = Task.Run(async () =>
         {
-            logger.Warning($"[RevivalMod.Server] Failed to save state file: {ex.Message}");
-        }
+            try
+            {
+                var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(StateFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                logger.Warning($"[RevivalMod.Server] Failed to save state file: {ex.Message}");
+            }
+        });
     }
 
     public RevivalStateEntry GetOrCreate(string playerId)

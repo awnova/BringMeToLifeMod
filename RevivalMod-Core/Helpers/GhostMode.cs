@@ -27,8 +27,6 @@ namespace KeepMeAlive.Helpers
         // Returns true if the given player profile is currently ghosted (invisible to AI).
         public static bool IsGhosted(string profileId) => _ghostedPlayers.Contains(profileId);
 
-        public static bool IsPlayerInGhostMode(string profileId) => _ghostedPlayers.Contains(profileId);
-
         // Returns true if we are the host (have BotsController / BotOwner instances). Always true in single-player.
         private static bool IsHost => FikaBridge.IAmHost();
 
@@ -356,13 +354,7 @@ namespace KeepMeAlive.Helpers
             _ghostedPlayers.Remove(playerId);
         }
 
-        // Clears all ghost state (e.g. on raid end).
-        public static void Reset()
-        {
-            _ghostedPlayers.Clear();
-        }
-
-        //====================[ Unity Helpers ]====================
+        //====================[ Unity Helpers ]====================  
         private static List<BotOwner> FindAllBotOwners()
         {
             var list = new List<BotOwner>();

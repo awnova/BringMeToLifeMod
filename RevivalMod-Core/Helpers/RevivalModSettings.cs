@@ -13,25 +13,43 @@ namespace KeepMeAlive.Helpers
 
         // Revival Mechanics
         public static ConfigEntry<string> REVIVAL_ITEM_ID;
-    public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
-    public static ConfigEntry<float> SELF_REVIVE_ANIMATION_DURATION;
-    public static ConfigEntry<float> TEAMMATE_REVIVE_ANIMATION_DURATION;
-    public static ConfigEntry<bool> CONSUME_DEFIB_ON_TEAMMATE_REVIVE;
-        public static ConfigEntry<float> REVIVAL_DURATION;
-        public static ConfigEntry<float> REVIVAL_COOLDOWN;
+        public static ConfigEntry<bool> SELF_REVIVAL_ENABLED;
+        public static ConfigEntry<float> SELF_REVIVE_ANIMATION_DURATION;
+        public static ConfigEntry<float> TEAMMATE_REVIVE_ANIMATION_DURATION;
+        public static ConfigEntry<bool> CONSUME_DEFIB_ON_TEAMMATE_REVIVE;
         public static ConfigEntry<float> CRITICAL_STATE_TIME;
-        public static ConfigEntry<bool> RESTORE_DESTROYED_BODY_PARTS;
-        public static ConfigEntry<float> RESTORE_HEAD_PERCENTAGE;
-        public static ConfigEntry<float> RESTORE_CHEST_PERCENTAGE;
-        public static ConfigEntry<float> RESTORE_STOMACH_PERCENTAGE;
-        public static ConfigEntry<float> RESTORE_ARMS_PERCENTAGE;
-        public static ConfigEntry<float> RESTORE_LEGS_PERCENTAGE;
+        // Self-Revive Post-Revival
+        public static ConfigEntry<bool>  SELF_REVIVE_RESTORE_BODY_PARTS;
+        public static ConfigEntry<float> SELF_REVIVE_HEAD_PCT;
+        public static ConfigEntry<float> SELF_REVIVE_CHEST_PCT;
+        public static ConfigEntry<float> SELF_REVIVE_STOMACH_PCT;
+        public static ConfigEntry<float> SELF_REVIVE_ARMS_PCT;
+        public static ConfigEntry<float> SELF_REVIVE_LEGS_PCT;
+        public static ConfigEntry<bool>  SELF_REVIVE_REMOVE_BLEEDS;
+        public static ConfigEntry<bool>  SELF_REVIVE_REMOVE_FRACTURES;
+        public static ConfigEntry<float> SELF_REVIVE_INVULN_DURATION;
+        public static ConfigEntry<float> SELF_REVIVE_COOLDOWN;
+        public static ConfigEntry<bool>  SELF_REVIVE_CONTUSION_ON_REVIVE;
+        public static ConfigEntry<float> SELF_REVIVE_CONTUSION_DURATION;
+        public static ConfigEntry<bool>  SELF_REVIVE_PAIN_ON_REVIVE;
+        // Team-Revive Post-Revival
+        public static ConfigEntry<bool>  TEAM_REVIVE_RESTORE_BODY_PARTS;
+        public static ConfigEntry<float> TEAM_REVIVE_HEAD_PCT;
+        public static ConfigEntry<float> TEAM_REVIVE_CHEST_PCT;
+        public static ConfigEntry<float> TEAM_REVIVE_STOMACH_PCT;
+        public static ConfigEntry<float> TEAM_REVIVE_ARMS_PCT;
+        public static ConfigEntry<float> TEAM_REVIVE_LEGS_PCT;
+        public static ConfigEntry<bool>  TEAM_REVIVE_REMOVE_BLEEDS;
+        public static ConfigEntry<bool>  TEAM_REVIVE_REMOVE_FRACTURES;
+        public static ConfigEntry<float> TEAM_REVIVE_INVULN_DURATION;
+        public static ConfigEntry<float> TEAM_REVIVE_COOLDOWN;
+        public static ConfigEntry<bool>  TEAM_REVIVE_CONTUSION_ON_REVIVE;
+        public static ConfigEntry<float> TEAM_REVIVE_CONTUSION_DURATION;
+        public static ConfigEntry<bool>  TEAM_REVIVE_PAIN_ON_REVIVE;
         public static ConfigEntry<bool> CONTUSION_EFFECT;
         public static ConfigEntry<bool> STUN_EFFECT;
-        public static ConfigEntry<float> REVIVAL_RANGE;
+        public static ConfigEntry<float> MEDICAL_RANGE;
         public static ConfigEntry<float> DOWNED_MOVEMENT_SPEED;
-        public static ConfigEntry<bool> INVULNERABLE_MOVEMENT_RESTRICTIONS;
-
         // Hardcore Mode
         public static ConfigEntry<bool> DEATH_BLOCK_IN_CRITICAL;
         public static ConfigEntry<bool> GOD_MODE;
@@ -39,6 +57,9 @@ namespace KeepMeAlive.Helpers
         public static ConfigEntry<bool> HARDCORE_MODE;
         public static ConfigEntry<bool> HARDCORE_HEADSHOT_DEFAULT_DEAD;
         public static ConfigEntry<float> HARDCORE_CHANCE_OF_CRITICAL_STATE;
+
+        // Team Healing
+        public static ConfigEntry<float> TEAM_HEAL_HOLD_TIME;
 
         // Development
         public static ConfigEntry<bool> TESTING;
@@ -110,80 +131,24 @@ namespace KeepMeAlive.Helpers
                 "How long you can be in critical state before dying (in seconds)"
             );
 
-            REVIVAL_DURATION = config.Bind(
-                "2. Revival Mechanics",
-                "Invulnerability Duration",
-                4f,
-                "How long you remain invulnerable after being revived (in seconds)"
-            );
-
-            REVIVAL_COOLDOWN = config.Bind(
-                "2. Revival Mechanics",
-                "Revival Cooldown",
-                180f,
-                "How long you must wait between revivals (in seconds)"
-            );
-
-            RESTORE_DESTROYED_BODY_PARTS = config.Bind(
-                "2. Revival Mechanics",
-                "Restore Destroyed Body Parts",
-                true,
-                "When enabled, destroyed body parts will be restored after revival"
-            );
-
-            RESTORE_HEAD_PERCENTAGE = config.Bind(
-                "2. Revival Mechanics",
-                "Head Restore Percentage",
-                50f,
-                "The percentage of Head's maximum health to restore (0-100)"
-            );
-
-            RESTORE_CHEST_PERCENTAGE = config.Bind(
-                "2. Revival Mechanics",
-                "Thorax Restore Percentage",
-                50f,
-                "The percentage of Thorax's maximum health to restore (0-100)"
-            );
-
-            RESTORE_STOMACH_PERCENTAGE = config.Bind(
-                "2. Revival Mechanics",
-                "Stomach Restore Percentage",
-                50f,
-                "The percentage of Stomach's maximum health to restore (0-100)"
-            );
-
-            RESTORE_ARMS_PERCENTAGE = config.Bind(
-                "2. Revival Mechanics",
-                "Arms Restore Percentage",
-                50f,
-                "The percentage of Arms' maximum health to restore (0-100)"
-            );
-
-            RESTORE_LEGS_PERCENTAGE = config.Bind(
-                "2. Revival Mechanics",
-                "Legs Restore Percentage",
-                50f,
-                "The percentage of Legs' maximum health to restore (0-100)"
-            );
-
             CONTUSION_EFFECT = config.Bind(
                 "2. Revival Mechanics",
                 "Contusion effect",
                 true,
-                ""
+                "When enabled, applies a contusion effect when entering critical state"
             );
 
             STUN_EFFECT = config.Bind(
                 "2. Revival Mechanics",
                 "Stun effect",
                 true,
-                ""
+                "When enabled, applies a stun effect when entering critical state"
             );
 
-            REVIVAL_RANGE = config.Bind(
+            MEDICAL_RANGE = config.Bind(
                 "2. Revival Mechanics",
                 "Revival Range",
-                1.5f,
+                .5f,
                 "The interaction range for reviving downed players in meters (requires restart raid)"
             );
 
@@ -194,11 +159,190 @@ namespace KeepMeAlive.Helpers
                 "Movement speed percentage when downed (0-100, default is 50% of normal speed)"
             );
 
-            INVULNERABLE_MOVEMENT_RESTRICTIONS = config.Bind(
-                "2. Revival Mechanics",
-                "Invulnerable Movement Restrictions",
+            #endregion
+
+            #region Post-Revival Effects Settings
+
+            SELF_REVIVE_RESTORE_BODY_PARTS = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Restore Destroyed Body Parts",
+                true,
+                "When enabled, destroyed body parts are restored after a self-revive"
+            );
+
+            SELF_REVIVE_HEAD_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Head Restore Percentage",
+                25f,
+                "Percentage of Head's maximum health to restore on self-revive (0-100)"
+            );
+
+            SELF_REVIVE_CHEST_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Thorax Restore Percentage",
+                25f,
+                "Percentage of Thorax's maximum health to restore on self-revive (0-100)"
+            );
+
+            SELF_REVIVE_STOMACH_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Stomach Restore Percentage",
+                25f,
+                "Percentage of Stomach's maximum health to restore on self-revive (0-100)"
+            );
+
+            SELF_REVIVE_ARMS_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Arms Restore Percentage",
+                25f,
+                "Percentage of Arms' maximum health to restore on self-revive (0-100)"
+            );
+
+            SELF_REVIVE_LEGS_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Legs Restore Percentage",
+                25f,
+                "Percentage of Legs' maximum health to restore on self-revive (0-100)"
+            );
+
+            SELF_REVIVE_REMOVE_BLEEDS = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Remove Bleeds on Revive",
                 false,
-                "When enabled, movement is restricted during invulnerability period (forced crouch, slow movement). When disabled, you can move normally after revival."
+                "When enabled, all active bleeds are cleared when you self-revive"
+            );
+
+            SELF_REVIVE_REMOVE_FRACTURES = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Remove Fractures on Revive",
+                false,
+                "When enabled, fractures on arms and legs are cleared when you self-revive"
+            );
+
+            SELF_REVIVE_INVULN_DURATION = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Invulnerability Duration",
+                3f,
+                "Seconds of god-mode invulnerability after self-revive"
+            );
+
+            SELF_REVIVE_COOLDOWN = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Revival Cooldown",
+                240f,
+                "Seconds before you can be revived again after a self-revive"
+            );
+
+            SELF_REVIVE_CONTUSION_ON_REVIVE = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Apply Contusion on Revive",
+                true,
+                "When enabled, applies a contusion (screen blur/deafen) when standing up after self-revive"
+            );
+
+            SELF_REVIVE_CONTUSION_DURATION = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Contusion Duration",
+                10f,
+                "Duration in seconds of the post-revive contusion effect after self-revive"
+            );
+
+            SELF_REVIVE_PAIN_ON_REVIVE = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Apply Pain on Revive",
+                true,
+                "When enabled, applies a pain effect (hand shake/sway) when standing up after self-revive"
+            );
+
+            TEAM_REVIVE_RESTORE_BODY_PARTS = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Restore Destroyed Body Parts",
+                true,
+                "When enabled, destroyed body parts are restored after a teammate revive"
+            );
+
+            TEAM_REVIVE_HEAD_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Head Restore Percentage",
+                50f,
+                "Percentage of Head's maximum health to restore on teammate revive (0-100)"
+            );
+
+            TEAM_REVIVE_CHEST_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Thorax Restore Percentage",
+                50f,
+                "Percentage of Thorax's maximum health to restore on teammate revive (0-100)"
+            );
+
+            TEAM_REVIVE_STOMACH_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Stomach Restore Percentage",
+                50f,
+                "Percentage of Stomach's maximum health to restore on teammate revive (0-100)"
+            );
+
+            TEAM_REVIVE_ARMS_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Arms Restore Percentage",
+                50f,
+                "Percentage of Arms' maximum health to restore on teammate revive (0-100)"
+            );
+
+            TEAM_REVIVE_LEGS_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Legs Restore Percentage",
+                50f,
+                "Percentage of Legs' maximum health to restore on teammate revive (0-100)"
+            );
+
+            TEAM_REVIVE_REMOVE_BLEEDS = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Remove Bleeds on Revive",
+                true,
+                "When enabled, all active bleeds are cleared when revived by a teammate"
+            );
+
+            TEAM_REVIVE_REMOVE_FRACTURES = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Remove Fractures on Revive",
+                true,
+                "When enabled, fractures on arms and legs are cleared when revived by a teammate"
+            );
+
+            TEAM_REVIVE_INVULN_DURATION = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Invulnerability Duration",
+                5f,
+                "Seconds of god-mode invulnerability after teammate revive"
+            );
+
+            TEAM_REVIVE_COOLDOWN = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Revival Cooldown",
+                180f,
+                "Seconds before you can be revived again after a teammate revive"
+            );
+
+            TEAM_REVIVE_CONTUSION_ON_REVIVE = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Apply Contusion on Revive",
+                true,
+                "When enabled, applies a contusion (screen blur/deafen) when standing up after teammate revive"
+            );
+
+            TEAM_REVIVE_CONTUSION_DURATION = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Contusion Duration",
+                5f,
+                "Duration in seconds of the post-revive contusion effect after teammate revive"
+            );
+
+            TEAM_REVIVE_PAIN_ON_REVIVE = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Apply Pain on Revive",
+                false,
+                "When enabled, applies a pain effect (hand shake/sway) when standing up after teammate revive"
             );
 
             #endregion
@@ -255,10 +399,21 @@ namespace KeepMeAlive.Helpers
 
             #endregion
 
+            #region Team Healing Settings
+
+            TEAM_HEAL_HOLD_TIME = config.Bind(
+                "4. Team Healing",
+                "Hold Time",
+                3f,
+                "Duration in seconds the healer must hold to apply a med to a teammate"
+            );
+
+            #endregion
+
             #region Development Settings
 
             TESTING = config.Bind(
-                "4. Development",
+                "5. Development",
                 "Test Mode",
                 false,
                 new ConfigDescription("Enables revival without requiring defibrillator item (for testing only)", null, new ConfigurationManagerAttributes { IsAdvanced = true })

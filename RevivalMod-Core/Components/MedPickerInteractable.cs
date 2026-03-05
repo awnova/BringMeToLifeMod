@@ -10,8 +10,8 @@ using KeepMeAlive.Helpers;
 namespace KeepMeAlive.Components
 {
     //====================[ MedPickerInteractable ]====================
-    // Spawned by BodyInteractable when the healer clicks "Heal".
-    // Shows one action per med item the healer can apply to the patient, plus "Cancel".
+    // Spawned by BodyInteractable after the healer selects a category.
+    // Shows one action per med item in that category the healer can apply to the patient, plus "Cancel".
     // Destroys itself on any selection and restores BodyInteractable's collider.
     public class MedPickerInteractable : InteractableObject
     {
@@ -20,12 +20,16 @@ namespace KeepMeAlive.Components
         public Player Healer              { get; private set; }
         public Player Patient             { get; private set; }
 
+        //====================[ Fields ]====================
+        private MedCategory? _category;
+
         //====================[ Init ]====================
-        public void Init(Player healer, Player patient, BodyInteractable ownerBody)
+        public void Init(Player healer, Player patient, BodyInteractable ownerBody, MedCategory? category = null)
         {
             Healer    = healer;
             Patient   = patient;
             OwnerBody = ownerBody;
+            _category = category;
         }
 
         //====================[ GetActions ]====================
@@ -40,8 +44,15 @@ namespace KeepMeAlive.Components
                     return actions;
                 }
 
+                actions.Actions.Add(new ActionsTypesClass
+                {
+                    Name     = "Cancel",
+                    Disabled = false,
+                    Action   = Close
+                });
+
                 int addedMeds = 0;
-                foreach (var item in TeamMedical.GetUsableMeds(Healer, Patient))
+                foreach (var item in TeamMedical.GetUsableMedsByCategory(Healer, Patient, _category))
                 {
                     MedsItemClass captured = item;
                     actions.Actions.Add(new ActionsTypesClass
@@ -60,13 +71,6 @@ namespace KeepMeAlive.Components
                     Close();
                     return actions;
                 }
-
-                actions.Actions.Add(new ActionsTypesClass
-                {
-                    Name     = "Cancel",
-                    Disabled = false,
-                    Action   = Close
-                });
             }
             catch (Exception ex)
             {

@@ -15,7 +15,6 @@ namespace KeepMeAlive.Components
     {
         //====================[ Properties & Fields ]====================
         public Player Revivee { get; set; }
-        public Player reviver;
 
         private const float REVIVE_HOLD_TIME = 2f;
 
@@ -47,6 +46,8 @@ namespace KeepMeAlive.Components
         // TickBodyInteractableColliderState reads this to avoid re-enabling the collider mid-pick.
         public bool HasActivePicker { get; set; }
 
+        private MedPickerInteractable _activeMedPicker;
+
         public ActionsReturnClass GetActions(GamePlayerOwner owner)
         {
             var actions = new ActionsReturnClass();
@@ -71,16 +72,16 @@ namespace KeepMeAlive.Components
             }
             else
             {
-                // Patient is alive but injured — show "Heal" opener if healer has anything useful.
-                bool hasMeds = false;
-                foreach (var _ in TeamMedical.GetUsableMeds(owner.Player, Revivee)) { hasMeds = true; break; }
-
-                if (hasMeds)
+                // Patient is alive but injured — add one action per non-empty med category.
+                foreach (MedCategory cat in System.Enum.GetValues(typeof(MedCategory)))
                 {
+                    if (!TeamMedical.HealerHasMedForCategory(owner.Player, cat)) continue;
+
+                    MedCategory captured = cat;
                     actions.Actions.Add(new ActionsTypesClass
                     {
-                        Action   = () => OpenMedPicker(owner),
-                        Name     = "Heal",
+                        Action   = () => OpenFilteredMedPicker(owner, captured),
+                        Name     = CategoryLabel(captured),
                         Disabled = false
                     });
                 }
@@ -89,7 +90,18 @@ namespace KeepMeAlive.Components
             return actions;
         }
 
-        private void OpenMedPicker(GamePlayerOwner owner)
+        private static string CategoryLabel(MedCategory cat) => cat switch
+        {
+            MedCategory.Bleeds  => "Medic Bleeds",
+            MedCategory.Breaks  => "Medic Breaks",
+            MedCategory.Health  => "Medic Health",
+            MedCategory.Comfort => "Medic Comfort",
+            _                   => cat.ToString()
+        };
+
+        // Opens a filtered med picker for the given category.
+        // Called directly from GetActions action lambdas.
+        public void OpenFilteredMedPicker(GamePlayerOwner owner, MedCategory category)
         {
             try
             {
@@ -98,8 +110,6 @@ namespace KeepMeAlive.Components
                 // Disable this collider so the next F-press hits the picker, not this object.
                 var col = GetComponent<BoxCollider>();
                 if (col != null) col.enabled = false;
-
-                // Spawn picker as a sibling on the same bone at the same position/scale.
                 var anchor = transform.parent != null ? transform.parent : transform;
                 var pickerGo = InteractableBuilder<MedPickerInteractable>.Build(
                     "Med Picker", Vector3.zero, transform.localScale, anchor, null, RevivalModSettings.TESTING.Value);
@@ -107,19 +117,20 @@ namespace KeepMeAlive.Components
                 var picker = pickerGo?.GetComponent<MedPickerInteractable>();
                 if (picker == null)
                 {
-                    Plugin.LogSource.LogError("[BodyInteractable] OpenMedPicker: picker component missing after Build");
+                    Plugin.LogSource.LogError("[BodyInteractable] OpenFilteredMedPicker: picker component missing after Build");
                     RestoreFromPicker();
                     return;
                 }
 
-                picker.Init(owner.Player, Revivee, this);
+                picker.Init(owner.Player, Revivee, this, category);
+                _activeMedPicker = picker;
                 pickerGo.layer = LayerMask.NameToLayer("Interactive");
                 var pickerCol = pickerGo.GetComponent<BoxCollider>();
                 if (pickerCol != null) pickerCol.enabled = true;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[BodyInteractable] OpenMedPicker error: {ex.Message}");
+                Plugin.LogSource.LogError($"[BodyInteractable] OpenFilteredMedPicker error: {ex.Message}");
                 RestoreFromPicker();
             }
         }
@@ -129,6 +140,19 @@ namespace KeepMeAlive.Components
         // if the patient is still injured/critical.
         public void RestoreFromPicker()
         {
+            _activeMedPicker = null;
+            HasActivePicker = false;
+        }
+
+        // Called when the patient enters the downed state while the picker may still be open.
+        // Prevents HasActivePicker from being permanently stuck true after the patient is revived.
+        public void ForceClosePicker()
+        {
+            if (_activeMedPicker != null)
+            {
+                try { Destroy(_activeMedPicker.gameObject); } catch { }
+                _activeMedPicker = null;
+            }
             HasActivePicker = false;
         }
 
@@ -147,15 +171,50 @@ namespace KeepMeAlive.Components
 
                 if (result)
                 {
-                    // Authorize revive start to transition server state and prevent duplicates
-                    if (!RevivalAuthority.TryAuthorizeReviveStart(targetId, reviverId, "team", out var denyReason))
+                    // #12: Validate that the revivee is still revivable. The 2-second hold is enough time
+                    // for them to die, self-revive, or be claimed by a different reviver.
+                    var reviveeState = RMSession.GetPlayerState(targetId);
+                    if (reviveeState.State != RMState.BleedingOut)
                     {
                         FikaBridge.SendTeamCancelPacket(targetId, reviverId);
-                        VFX_UI.Text(Color.yellow, string.IsNullOrEmpty(denyReason) ? "Revive denied" : denyReason);
+                        VFX_UI.Text(Color.yellow, "Revive no longer possible");
                         return;
                     }
 
-                    // Consume the reviver's defib if configured
+                    // #3: Run auth off the Unity main thread so a slow HTTP call never freezes the frame.
+                    Plugin.StaticCoroutineRunner.StartCoroutine(TeamReviveAuthCoroutine());
+                }
+                else
+                {
+                    FikaBridge.SendTeamCancelPacket(targetId, reviverId);
+                    VFX_UI.Text(Color.yellow, "Revive cancelled!");
+                }
+            }
+
+            private System.Collections.IEnumerator TeamReviveAuthCoroutine()
+            {
+                bool allowed = true;
+                string denyReason = string.Empty;
+
+                // Run blocking HTTP call on background thread.
+                var task = System.Threading.Tasks.Task.Run(() =>
+                {
+                    allowed    = RevivalAuthority.TryAuthorizeReviveStart(targetId, reviverId, "team", out var reason);
+                    denyReason = reason ?? string.Empty;
+                });
+
+                while (!task.IsCompleted) yield return null;
+
+                // Re-validate: revivee state may have changed while auth was pending.
+                var reviveeState = RMSession.GetPlayerState(targetId);
+                if (reviveeState.State != RMState.BleedingOut)
+                {
+                    FikaBridge.SendTeamCancelPacket(targetId, reviverId);
+                    yield break;
+                }
+
+                if (allowed)
+                {
                     if (!RevivalModSettings.TESTING.Value && RevivalModSettings.CONSUME_DEFIB_ON_TEAMMATE_REVIVE.Value)
                     {
                         var defib = Utils.GetDefib(owner.Player);
@@ -164,19 +223,15 @@ namespace KeepMeAlive.Components
 
                     FikaBridge.SendTeamReviveStartPacket(targetId, reviverId);
 
-                    // Ensure local fake items exist so the sender can resolve IDs when the ProceedPacket arrives
                     var downedPlayer = Utils.GetPlayerById(targetId);
-                    if (downedPlayer != null)
-                    {
-                        MedicalAnimations.EnsureFakeItemsForRemotePlayer(downedPlayer);
-                    }
+                    if (downedPlayer != null) MedicalAnimations.EnsureFakeItemsForRemotePlayer(downedPlayer);
 
                     Plugin.LogSource.LogInfo($"Revive hold completed for {targetId}");
                 }
                 else
                 {
                     FikaBridge.SendTeamCancelPacket(targetId, reviverId);
-                    VFX_UI.Text(Color.yellow, "Revive cancelled!");
+                    VFX_UI.Text(Color.yellow, string.IsNullOrEmpty(denyReason) ? "Revive denied" : denyReason);
                 }
             }
         }

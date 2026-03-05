@@ -55,10 +55,10 @@ namespace KeepMeAlive.Components
         
         
         // Single source of truth for per-player revival state.
-        public Dictionary<string, RMPlayer> PlayerStates = new();
+        private Dictionary<string, RMPlayer> PlayerStates = new();
 
         // Back-compat quick lookup for "critical" players.
-        public HashSet<string> CriticalPlayers = new();
+        private HashSet<string> CriticalPlayers = new();
 
         //====================[ Unity Hooks ]====================
         private void Awake()
@@ -103,8 +103,6 @@ namespace KeepMeAlive.Components
             Plugin.LogSource.LogDebug($"CriticalPlayers: removed {playerId}");
         }
 
-        public static HashSet<string> GetCriticalPlayers() => Instance.CriticalPlayers;
-
         // Check using PlayerStates (authoritative) instead of the back-compat set.
         public static bool IsPlayerCritical(string playerId)
         {
@@ -137,12 +135,13 @@ namespace KeepMeAlive.Components
             var live = GetPlayerState(playerId);
             if (live == null) return;
 
-            // Copy only the fields needed by the unified Surv flow.
-            live.RevivalRequested      = source.RevivalRequested;
+            // Copy the fields needed by the unified Surv flow.
+            // State is included so snapshot-based callers (not just live-ref callers) commit correctly.
+            live.State                 = source.State;
             live.ReviveRequestedSource = source.ReviveRequestedSource;
             live.CurrentReviverId      = source.CurrentReviverId;
         }
 
-        // Note: For general player lookups, use Utils.GetPlayerById() / Utils.GetAllPlayersAndBots()
+        // Note: For general player lookups, use Utils.GetPlayerById() / Utils.GetPlayerDisplayName()
     }
 }

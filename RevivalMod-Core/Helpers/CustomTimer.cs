@@ -23,7 +23,6 @@ namespace KeepMeAlive.Helpers
         // OnTick: (timeSpan, formatted, progress01). Countdown progress is 0?1 over duration. Stopwatch progress is -1.
         public event Action<TimeSpan, string, float> OnTick;
         public event Action OnCompleted;
-        public event Action<string> OnLabelChanged;
 
         //====================[ API ]====================
         public void StartCountdown(float seconds, string label = "Countdown")
@@ -44,32 +43,12 @@ namespace KeepMeAlive.Helpers
             EmitTick(); // initial tick for immediate UI sync
         }
 
-        public void StartStopwatch(string label = "Stopwatch")
-        {
-            isCountdown = false;
-            IsRunning = true;
-            Label = label;
-            totalDurationSeconds = 0f;
-
-            startTime = DateTime.UtcNow;
-
-            EmitTick(); // initial tick for immediate UI sync
-        }
-
         public void Stop()
         {
             if (!IsRunning) return;
             
             IsRunning = false;
             OnCompleted?.Invoke();
-        }
-
-        public void SetLabel(string label)
-        {
-            if (string.Equals(Label, label, StringComparison.Ordinal)) return;
-            
-            Label = label;
-            OnLabelChanged?.Invoke(Label);
         }
 
         // Call this once per frame by the driver (e.g., your game loop).

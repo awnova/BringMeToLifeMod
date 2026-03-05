@@ -8,6 +8,8 @@ using UnityEngine;
 namespace KeepMeAlive.Components
 {
     //====================[ Enums ]====================
+    public enum ReviveSource { Self = 0, Team = 1 }
+
     public enum RMState
     {
         None,
@@ -33,7 +35,6 @@ namespace KeepMeAlive.Components
         public bool IsBeingRevived { get; set; }
 
         //====================[ Session Info ]====================
-        public bool RevivalRequested { get; set; }
         // 0 = Self, 1 = Team
         public int ReviveRequestedSource { get; set; } 
         public string CurrentReviverId { get; set; } = string.Empty;
@@ -44,6 +45,9 @@ namespace KeepMeAlive.Components
         public float CooldownTimer { get; set; }
         // Countdown until next periodic state resync broadcast. -1 triggers immediate send.
         public float ResyncCooldown { get; set; }
+        // Watchdog: counts down from a set value when IsBeingRevived is raised from a TeamHelp packet.
+        // If it reaches 0 while State == BleedingOut the reviver is considered timed-out / disconnected.
+        public float BeingRevivedWatchdogTimer { get; set; }
 
         //====================[ Stored Values ]====================
         public float OriginalAwareness { get; set; } = -1f;
@@ -59,6 +63,11 @@ namespace KeepMeAlive.Components
         //====================[ UI Timers ]====================
         public CustomTimer CriticalStateMainTimer { get; set; }
         public CustomTimer RevivePromptTimer { get; set; }
+
+        //====================[ Coroutine Handles ]====================
+        // Stored so ExitDowned / EnterDowned can cancel the revival animation coroutine
+        // before it fires for a stale session when the player re-enters downed quickly.
+        public Coroutine ReviveAnimationCoroutine { get; set; }
 
         //====================[ Input Tracking ]====================
         public Dictionary<KeyCode, float> SelfRevivalKeyHoldDuration { get; set; } = new();

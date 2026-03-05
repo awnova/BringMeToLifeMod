@@ -79,7 +79,8 @@ namespace KeepMeAlive.Helpers
                 return false;
             }
 
-            float roll = UnityEngine.Random.Range(0f, 100f);
+            // Config value is 0–1 (description: 0.75 = 75% survival chance).
+            float roll = UnityEngine.Random.Range(0f, 1f);
 
             if (roll < RevivalModSettings.HARDCORE_CHANCE_OF_CRITICAL_STATE.Value)
             {

@@ -46,13 +46,13 @@ namespace KeepMeAlive.Helpers
         }
 
         public static void NotifyReviveComplete(string playerId, string reviverId) =>
-            Send($"{BaseRoute}/complete-revive", new AuthorityRequest { PlayerId = playerId, ReviverId = reviverId });
+            Task.Run(() => Send($"{BaseRoute}/complete-revive", new AuthorityRequest { PlayerId = playerId, ReviverId = reviverId }));
 
         public static void NotifyEndInvulnerability(string playerId, float cooldownSeconds) =>
-            Send($"{BaseRoute}/end-invulnerability", new AuthorityRequest { PlayerId = playerId, DurationSeconds = cooldownSeconds });
+            Task.Run(() => Send($"{BaseRoute}/end-invulnerability", new AuthorityRequest { PlayerId = playerId, DurationSeconds = cooldownSeconds }));
 
         public static void NotifyReset(string playerId) =>
-            Send($"{BaseRoute}/reset", new AuthorityRequest { PlayerId = playerId });
+            Task.Run(() => Send($"{BaseRoute}/reset", new AuthorityRequest { PlayerId = playerId }));
 
         //====================[ Private Send Helpers ]====================
         private static bool Send(string route, object data) => Send(route, data, out _);

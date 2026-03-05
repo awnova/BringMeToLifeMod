@@ -65,30 +65,33 @@ namespace KeepMeAlive.Fika.Packets
     public struct PlayerStateResyncPacket : INetSerializable
     {
         public string playerId;
-        public int    state;           // RMState cast to int
+        public int    state;                 // RMState cast to int
         public float  criticalTimer;
         public float  invulTimer;
         public float  cooldownTimer;
         public string reviverId;
+        public int    reviveRequestedSource; // ReviveSource cast to int (0=Self, 1=Team)
 
         public void Deserialize(NetDataReader reader)
         {
-            playerId      = reader.GetString();
-            state         = reader.GetInt();
-            criticalTimer = reader.GetFloat();
-            invulTimer    = reader.GetFloat();
-            cooldownTimer = reader.GetFloat();
-            reviverId     = reader.GetString();
+            playerId              = reader.GetString();
+            state                 = reader.GetInt();
+            criticalTimer         = reader.GetFloat();
+            invulTimer            = reader.GetFloat();
+            cooldownTimer         = reader.GetFloat();
+            reviverId             = reader.GetString();
+            reviveRequestedSource = reader.GetInt();
         }
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(playerId      ?? "");
+            writer.Put(playerId ?? "");
             writer.Put(state);
             writer.Put(criticalTimer);
             writer.Put(invulTimer);
             writer.Put(cooldownTimer);
-            writer.Put(reviverId     ?? "");
+            writer.Put(reviverId ?? "");
+            writer.Put(reviveRequestedSource);
         }
     }
 

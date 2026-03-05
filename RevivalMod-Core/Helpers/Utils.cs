@@ -83,16 +83,6 @@ namespace KeepMeAlive.Helpers
             return Singleton<GameWorld>.Instance.GetEverExistedPlayerByID(id);
         }
 
-        public static List<Player> GetAllPlayersAndBots()
-        {
-            if (!Singleton<GameWorld>.Instantiated)
-            {
-                return new List<Player>(0);
-            }
-            
-            return Singleton<GameWorld>.Instance.AllAlivePlayersList;
-        }
-
         public static string GetPlayerDisplayName(string playerId)
         {
             if (string.IsNullOrEmpty(playerId))

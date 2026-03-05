@@ -21,7 +21,7 @@ using UnityEngine;
 namespace KeepMeAlive.Patches
 {
     //====================[ AvailableActionsPatch ]====================
-    public class AvailableActionsPatch : ModulePatch
+    internal class AvailableActionsPatch : ModulePatch
     {
         //====================[ Patching ]====================
         protected override MethodBase GetTargetMethod()
@@ -259,7 +259,7 @@ namespace KeepMeAlive.Patches
                 Plugin.LogSource.LogInfo($"Adding BodyInteractable to {player.PlayerId}");
 
                 var obj = InteractableBuilder<BodyInteractable>.Build(
-                    "Body Interactable", Vector3.zero, Vector3.one * RevivalModSettings.REVIVAL_RANGE.Value,
+                    "Body Interactable", Vector3.zero, Vector3.one * RevivalModSettings.MEDICAL_RANGE.Value,
                     anchor, player, RevivalModSettings.TESTING.Value
                 );
 
@@ -325,7 +325,7 @@ namespace KeepMeAlive.Patches
     }
 
     //====================[ SpecialSlotDefibPatch ]====================
-    public class SpecialSlotDefibPatch : ModulePatch
+    internal class SpecialSlotDefibPatch : ModulePatch
     {
         //====================[ Patching ]====================
         protected override MethodBase GetTargetMethod() => AccessTools.Method(typeof(Slot), nameof(Slot.CheckCompatibility));
@@ -416,27 +416,6 @@ namespace KeepMeAlive.Features
         public static bool IsPlayerInvulnerable(string playerId) => DownedStateController.IsPlayerInvulnerable(playerId);
         public static bool IsRevivalOnCooldown(string playerId) => DownedStateController.IsRevivalOnCooldown(playerId);
         public static void SetPlayerCriticalState(Player player, bool isCritical, EDamageType damageType) => DownedStateController.SetPlayerCriticalState(player, isCritical, damageType);
-        public static bool TryPerformRevivalByTeammate(string playerId) => DownedStateController.StartTeammateRevive(playerId);
-        public static bool PerformTeammateRevival(string targetPlayerId, Player player) => DownedStateController.StartTeammateRevive(targetPlayerId, player?.ProfileId ?? "");
-
-        public static void ForcePlayerDeath(object targetArg)
-        {
-            try
-            {
-                Player player = targetArg switch
-                {
-                    Player p => p,
-                    string id => Utils.GetPlayerById(id),
-                    _ => null
-                };
-                
-                if (player != null) DownedStateController.ForceBleedout(player);
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogError($"ForcePlayerDeath wrapper error: {ex.Message}");
-            }
-        }
     }
 
     //====================[ TeamHealGEventArgs13SuppressPatch ]====================

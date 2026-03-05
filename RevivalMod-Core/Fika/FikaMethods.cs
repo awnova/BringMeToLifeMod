@@ -116,12 +116,13 @@ namespace KeepMeAlive.Fika
         {
             PlayerStateResyncPacket packet = new()
             {
-                playerId      = playerId,
-                state         = (int)st.State,
-                criticalTimer = st.CriticalTimer,
-                invulTimer    = st.InvulnerabilityTimer,
-                cooldownTimer = st.CooldownTimer,
-                reviverId     = st.CurrentReviverId ?? ""
+                playerId              = playerId,
+                state                 = (int)st.State,
+                criticalTimer         = st.CriticalTimer,
+                invulTimer            = st.InvulnerabilityTimer,
+                cooldownTimer         = st.CooldownTimer,
+                reviverId             = st.CurrentReviverId ?? "",
+                reviveRequestedSource = st.ReviveRequestedSource
             };
             SendPacket(ref packet);
         }
@@ -176,6 +177,8 @@ namespace KeepMeAlive.Fika
             var playerState = RMSession.GetPlayerState(packet.reviveeId);
             playerState.CurrentReviverId = packet.reviverId;
             playerState.IsBeingRevived = true;
+            // Start watchdog: if the reviver disconnects before ReviveStart arrives, TickDowned will clear IsBeingRevived (#1).
+            playerState.BeingRevivedWatchdogTimer = 10f;
 
             try
             {
@@ -209,6 +212,13 @@ namespace KeepMeAlive.Fika
             Plugin.LogSource.LogDebug($"[Packet] TeamCancel: {packet.reviverId} cancelled helping {packet.reviveeId}");
 
             var playerState = RMSession.GetPlayerState(packet.reviveeId);
+            // Guard: if revival already started (Reviving), a late cancel cannot revert it (#2).
+            // The animation coroutine is already live and will complete normally.
+            if (playerState.State == RMState.Reviving)
+            {
+                Plugin.LogSource.LogWarning($"[Packet] TeamCancel: {packet.reviverId} cancel ignored — {packet.reviveeId} already in Reviving state");
+                return;
+            }
             playerState.State = RMState.BleedingOut;
             playerState.IsBeingRevived = false;
             playerState.CurrentReviverId = string.Empty;
@@ -247,7 +257,6 @@ namespace KeepMeAlive.Fika
             var playerState = RMSession.GetPlayerState(packet.playerId);
             playerState.State = RMState.Reviving;
             playerState.ReviveRequestedSource = 0; // Self
-            playerState.RevivalRequested = true;
 
             RMSession.UpdatePlayerState(packet.playerId, playerState);
 
@@ -275,7 +284,6 @@ namespace KeepMeAlive.Fika
             var playerState = RMSession.GetPlayerState(packet.reviveeId);
             playerState.State = RMState.Reviving;
             playerState.ReviveRequestedSource = 1; // Team
-            playerState.RevivalRequested = true;
             playerState.CurrentReviverId = packet.reviverId;
 
             RMSession.UpdatePlayerState(packet.reviveeId, playerState);
@@ -309,9 +317,10 @@ namespace KeepMeAlive.Fika
                 return;
             }
 
+            bool isSelfRevive = string.IsNullOrEmpty(packet.reviverId) || packet.reviverId == packet.playerId;
             var playerState = RMSession.GetPlayerState(packet.playerId);
             playerState.State = RMState.Revived;
-            playerState.InvulnerabilityTimer = RevivalModSettings.REVIVAL_DURATION.Value;
+            playerState.InvulnerabilityTimer = PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
             playerState.KillOverride = false;
             
             // Remove from critical players list
@@ -329,48 +338,43 @@ namespace KeepMeAlive.Fika
             {
                 try
                 {
-                    PlayerRestorations.RestoreDestroyedBodyParts(player);
+                    PostReviveEffects.Apply(player, isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
                 }
                 catch (Exception ex)
                 {
-                    Plugin.LogSource.LogWarning($"[Packet] RestoreDestroyedBodyParts error: {ex.Message}");
+                    Plugin.LogSource.LogWarning($"[Packet] PostReviveEffects error: {ex.Message}");
                 }
             }
 
-            // Store original movement speed if not already stored
-            try
+            // Movement restoration only applies on the revived player's own machine.
+            // Observers never need this: StartInvulnerabilityPeriod runs on the local machine
+            // as the authoritative path. The revived player's machine does not receive its own
+            // RevivedPacket (Fika does not echo it back to the sender), so this block is a
+            // defensive guard for edge-case relay configurations only.
+            if (player.IsYourPlayer)
             {
-                if (playerState.OriginalMovementSpeed < 0)
+                try
                 {
-                    playerState.OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
-                    Plugin.LogSource.LogDebug($"[Packet] Stored original movement speed for {packet.playerId}: {playerState.OriginalMovementSpeed}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogWarning($"[Packet] Store movement speed error: {ex.Message}");
-            }
+                    // Store speed here if TickDowned never ran on this machine (edge case).
+                    if (playerState.OriginalMovementSpeed < 0)
+                        playerState.OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
 
-            // Restore movement
-            try
-            {
-                if (playerState.OriginalMovementSpeed > 0)
+                    if (playerState.OriginalMovementSpeed > 0)
+                        player.Physical.WalkSpeedLimit = playerState.OriginalMovementSpeed;
+
+                    if (player.MovementContext != null)
+                    {
+                        player.MovementContext.IsInPronePose = false;
+                        player.MovementContext.EnableSprint(true);
+                        player.MovementContext.SetPoseLevel(1f, true);
+                    }
+
+                    Plugin.LogSource.LogDebug($"[Packet] Restored movement for revived player {packet.playerId} (speed: {playerState.OriginalMovementSpeed})");
+                }
+                catch (Exception ex)
                 {
-                    player.Physical.WalkSpeedLimit = playerState.OriginalMovementSpeed;
+                    Plugin.LogSource.LogWarning($"[Packet] Movement restoration error: {ex.Message}");
                 }
-
-                if (player.MovementContext != null)
-                {
-                    player.MovementContext.IsInPronePose = false;
-                    player.MovementContext.EnableSprint(true);
-                    player.MovementContext.SetPoseLevel(1f); // Stand up
-                }
-
-                Plugin.LogSource.LogDebug($"[Packet] Restored movement for revived player {packet.playerId} (speed: {playerState.OriginalMovementSpeed})");
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogWarning($"[Packet] Movement restoration error: {ex.Message}");
             }
 
             // Update UI for local player
@@ -382,7 +386,7 @@ namespace KeepMeAlive.Fika
                     playerState.CriticalStateMainTimer?.Stop();
                     playerState.CriticalStateMainTimer = null;
 
-                    float dur = RevivalModSettings.REVIVAL_DURATION.Value;
+                    float dur = PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
                     VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", dur);
                 }
                 catch (Exception ex)
@@ -394,7 +398,6 @@ namespace KeepMeAlive.Fika
             try
             {
                 string display = Utils.GetPlayerDisplayName(packet.playerId);
-                bool isSelfRevive = string.IsNullOrEmpty(packet.reviverId) || packet.reviverId == packet.playerId;
                 VFX_UI.Text(Color.green, isSelfRevive ? $"{display} self-revived" : $"{display} was revived");
             }
             catch (Exception ex)
@@ -522,10 +525,11 @@ namespace KeepMeAlive.Fika
             var prev     = st.State;
 
             // Always update timers - time-sensitive even if state unchanged
-            st.CriticalTimer        = packet.criticalTimer;
-            st.InvulnerabilityTimer = packet.invulTimer;
-            st.CooldownTimer        = packet.cooldownTimer;
-            st.CurrentReviverId     = packet.reviverId;
+            st.CriticalTimer         = packet.criticalTimer;
+            st.InvulnerabilityTimer  = packet.invulTimer;
+            st.CooldownTimer         = packet.cooldownTimer;
+            st.CurrentReviverId      = packet.reviverId;
+            st.ReviveRequestedSource = packet.reviveRequestedSource; // carry source so ObserveRevivingState picks the right animation (#10)
 
             if (st.State == incoming) return;
 
@@ -556,26 +560,31 @@ namespace KeepMeAlive.Fika
                         {
                             GodMode.ForceEnable(player);
                             GhostMode.ExitGhostMode(player);
-                            // Only restore health on own client to prevent Fika Sync errors
+                            // Only restore health and movement on the local player's machine.
+                            // ObservedPlayer MovementContext is driven by Fika's movement sync —
+                            // touching it here races with incoming packets and causes pose glitches.
+                            // The movement hooks (method_17, PhysicalConditionUpdated) were only
+                            // unsubscribed in ApplyRevivableState which runs for IsYourPlayer only,
+                            // so re-subscribing them on observers would double-hook or NRE.
                             if (player.IsYourPlayer)
                             {
-                                try { PlayerRestorations.RestoreDestroyedBodyParts(player); } catch { }
-                            }
-                            try
-                            {
-                                if (player.MovementContext != null)
+                                try { PostReviveEffects.Apply(player, (ReviveSource)packet.reviveRequestedSource, applyDebuffs: false); } catch { }
+                                try
                                 {
-                                    player.MovementContext.IsInPronePose = false;
-                                    player.MovementContext.SetPoseLevel(1f);
-                                    player.MovementContext.EnableSprint(true);
+                                    if (player.MovementContext != null)
+                                    {
+                                        player.MovementContext.IsInPronePose = false;
+                                        player.MovementContext.SetPoseLevel(1f, true);
+                                        player.MovementContext.EnableSprint(true);
+                                    }
+                                    // Re-attach movement hooks unsubscribed when player went down.
+                                    player.MovementContext.OnStateChanged -= player.method_17;
+                                    player.MovementContext.OnStateChanged += player.method_17;
+                                    player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
+                                    player.MovementContext.PhysicalConditionChanged += player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
                                 }
-                                // Re-attach movement hooks unsubscribed when player went down
-                                player.MovementContext.OnStateChanged -= player.method_17;
-                                player.MovementContext.OnStateChanged += player.method_17;
-                                player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
-                                player.MovementContext.PhysicalConditionChanged += player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
+                                catch { }
                             }
-                            catch { }
                         }
                         break;
 

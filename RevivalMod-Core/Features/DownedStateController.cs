@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Comfort.Common;
 using EFT;
 using EFT.Communications;
@@ -18,8 +19,7 @@ namespace KeepMeAlive.Features
     //====================[ DownedStateController ]====================
     internal static class DownedStateController
     {
-        //====================[ Enums & Fields ]====================
-        private enum ReviveSource { Self = 0, Team = 1 }
+        //====================[ Fields ]====================
 
         // OPTIMIZATION: Cache BodyInteractable refs to avoid GetComponentsInChildren every tick.
         // Storing BodyInteractable (not just BoxCollider) lets us read HasActivePicker.
@@ -63,9 +63,20 @@ namespace KeepMeAlive.Features
             try
             {
                 bool isCritical = RMSession.IsPlayerCritical(player.ProfileId);
+
+                // Bug fix: also force-enable during the Revived (invuln) window.
+                // After CompleteRevival sets State = Revived, the isCritical check becomes
+                // false before PostReviveEffects has finished restoring HP. On the next tick,
+                // if isInjured reads false (Fika HealthSync delay or no destroyed parts),
+                // the collider gets disabled and will never re-enable. Treating Revived the
+                // same as critical ensures the Heal interactable is always accessible
+                // immediately after revival.
+                var pst = RMSession.GetPlayerState(player.ProfileId);
+                bool isRevived = pst?.State == RMState.Revived;
+
                 bool isInjured = false;
 
-                if (!isCritical)
+                if (!isCritical && !isRevived)
                 {
                     for (int i = 0; i < TrackedBodyParts.Length; i++)
                     {
@@ -76,7 +87,7 @@ namespace KeepMeAlive.Features
                     }
                 }
 
-                bool shouldEnable = isCritical || isInjured;
+                bool shouldEnable = isCritical || isRevived || isInjured;
 
                 if (!_bodyInteractableCache.TryGetValue(player.ProfileId, out var bi) || bi == null)
                 {
@@ -124,8 +135,19 @@ namespace KeepMeAlive.Features
                 st.PlayerDamageType = damageType;
                 st.State = RMState.BleedingOut;
                 st.CriticalTimer = RevivalModSettings.CRITICAL_STATE_TIME.Value;
-                st.RevivalRequested = false;
                 st.ReviveRequestedSource = 0;
+                // Reset animation and session flags so stale state from a previous
+                // downed session can never corrupt the new one.
+                st.IsPlayingRevivalAnimation = false;
+                st.IsBeingRevived = false;
+                st.SelfRevivalKeyHoldDuration.Clear();
+                st.CurrentReviverId = string.Empty;
+
+                // Bug fix #1: If a MedPickerInteractable was open when this player went down,
+                // force-close it so HasActivePicker never permanently blocks the Heal option
+                // after revival.
+                if (_bodyInteractableCache.TryGetValue(id, out var cachedBi) && cachedBi != null)
+                    cachedBi.ForceClosePicker();
 
                 RMSession.AddToCriticalPlayers(id);
                 RestoreVitalsToMinimum(player);
@@ -158,15 +180,29 @@ namespace KeepMeAlive.Features
             if (player == null) return;
 
             var st = GetState(player);
+
+            // Cancel any in-flight revival animation coroutine so it cannot fire for
+            // a stale session if the player re-enters downed state immediately after.
+            if (st.ReviveAnimationCoroutine != null)
+            {
+                Plugin.StaticCoroutineRunner.StopCoroutine(st.ReviveAnimationCoroutine);
+                st.ReviveAnimationCoroutine = null;
+            }
+
             st.State = RMState.None;
+            st.IsPlayingRevivalAnimation = false;
+            st.IsBeingRevived = false;
+            st.SelfRevivalKeyHoldDuration.Clear();
+            st.CurrentReviverId = string.Empty;
+            st.ReviveRequestedSource = 0;
             HideAllPanelsAndStop(st);
 
-            if (st.InvulnerabilityTimer <= 0)
-            {
-                RemoveRevivableState(player);
-                PlayerRestorations.RestorePlayerMovement(player);
-                st.OriginalMovementSpeed = -1f;
-            }
+            // Always restore movement hooks and limits. If invulnerability was active, force-end it
+            // without broadcasting — TickInvulnerability won't fire because State is now None.
+            st.InvulnerabilityTimer = 0f;
+            RemoveRevivableState(player);
+            PlayerRestorations.RestorePlayerMovement(player);
+            st.OriginalMovementSpeed = -1f;
 
             try { MedicalAnimations.CleanupAllFakeItems(player); } catch (Exception ex) { Plugin.LogSource.LogError($"CleanupFakeItems error: {ex.Message}"); }
 
@@ -200,7 +236,27 @@ namespace KeepMeAlive.Features
             HandleSelfRevival_RequestSession(player, st);
             ObserveRevivingState(player, st);
 
-            if (st.State == RMState.BleedingOut && (st.CriticalTimer <= 0f || Input.GetKeyDown(RevivalModSettings.GIVE_UP_KEY.Value)))
+            // #1 Watchdog: clear stale IsBeingRevived if the reviver never followed through (disconnect/crash).
+            // Only applies to team-initiated revives (CurrentReviverId is set by OnTeamHelpPacketReceived).
+            // Self-revive sets IsBeingRevived without setting CurrentReviverId and never initialises
+            // BeingRevivedWatchdogTimer, so the default 0f value would fire the timeout immediately.
+            if (st.IsBeingRevived && st.State == RMState.BleedingOut && !string.IsNullOrEmpty(st.CurrentReviverId))
+            {
+                st.BeingRevivedWatchdogTimer -= Time.deltaTime;
+                if (st.BeingRevivedWatchdogTimer <= 0f)
+                {
+                    Plugin.LogSource.LogWarning($"[Downed] Reviver watchdog expired for {player.ProfileId}; clearing IsBeingRevived");
+                    st.IsBeingRevived = false;
+                    st.CurrentReviverId = string.Empty;
+                    VFX_UI.HideObjectivePanel();
+                    st.RevivePromptTimer?.Stop(); st.RevivePromptTimer = null;
+                    if (RevivalModSettings.SELF_REVIVAL_ENABLED.Value && Utils.HasDefib(player))
+                        VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, $"Revive! [{RevivalModSettings.SELF_REVIVAL_KEY.Value}]");
+                    VFX_UI.Text(Color.yellow, "Reviver disconnected or timed out.");
+                }
+            }
+
+            if (st.State == RMState.BleedingOut && !st.IsBeingRevived && (st.CriticalTimer <= 0f || Input.GetKeyDown(RevivalModSettings.GIVE_UP_KEY.Value)))
             {
                 ClearTimers(st);
                 _bodyInteractableCache.Remove(player.ProfileId);
@@ -269,7 +325,9 @@ namespace KeepMeAlive.Features
         private static void TryLazyShowTransitTimer(Player player, RMPlayer st)
         {
             if (!player.IsYourPlayer) return;
-            st.CriticalStateMainTimer = VFX_UI.TransitPanel(VFX_UI.Gradient(Color.red, Color.black), VFX_UI.Position.MiddleCenter, "BLEEDING OUT", Math.Max(0.1f, st.CriticalTimer));
+            // Guard: don't recreate a timer that would instantly expire — the death check fires anyway.
+            if (st.CriticalTimer <= 0.5f) return;
+            st.CriticalStateMainTimer = VFX_UI.TransitPanel(VFX_UI.Gradient(Color.red, Color.black), VFX_UI.Position.MiddleCenter, "BLEEDING OUT", st.CriticalTimer);
         }
 
         //====================[ Critical Effects ]====================
@@ -377,28 +435,20 @@ namespace KeepMeAlive.Features
             else if (Input.GetKey(key) && st.SelfRevivalKeyHoldDuration.TryGetValue(key, out float holdTime))
             {
                 holdTime += Time.deltaTime;
-                
-                if (holdTime >= 2f)
-                {
-                    st.SelfRevivalKeyHoldDuration.Remove(key);
-                    st.ReviveRequestedSource = (int)ReviveSource.Self;
 
-                    if (RevivalAuthority.TryAuthorizeReviveStart(player.ProfileId, player.ProfileId, "self", out var denyReason))
-                    {
-                        if (!RevivalModSettings.TESTING.Value) Utils.ConsumeDefibItem(player, Utils.GetDefib(player));
-                        st.State = RMState.Reviving;
-                        RMSession.UpdatePlayerState(player.ProfileId, st);
-                        FikaBridge.SendSelfReviveStartPacket(player.ProfileId);
-                    }
-                    else
-                    {
-                        VFX_UI.Text(Color.yellow, string.IsNullOrEmpty(denyReason) ? "Revive denied by server" : denyReason);
-                    }
+                if (holdTime >= 2f && holdTime < float.MaxValue)
+                {
+                    // Mark as auth-pending (float.MaxValue sentinel) so this block doesn't fire again
+                    // on subsequent ticks while the off-thread auth coroutine is running.
+                    st.SelfRevivalKeyHoldDuration[key] = float.MaxValue;
+                    st.ReviveRequestedSource = (int)ReviveSource.Self;
+                    BeginSelfReviveAuth(player, st); // commits State in coroutine; non-blocking
                 }
-                else
+                else if (holdTime < 2f)
                 {
                     st.SelfRevivalKeyHoldDuration[key] = holdTime;
                 }
+                // holdTime == float.MaxValue: auth is in-flight, key still held — nothing to do
             }
             else if (Input.GetKeyUp(key) && st.SelfRevivalKeyHoldDuration.Remove(key))
             {
@@ -413,6 +463,54 @@ namespace KeepMeAlive.Features
 
                 VFX_UI.Text(Color.yellow, "Self-revive canceled");
             }
+        }
+
+        //====================[ Self-Revival Auth (off-thread) ]====================
+        // Kicks off TryAuthorizeReviveStart on a background Task so the HTTP call never
+        // blocks the Unity main thread. State is committed back on the main thread via coroutine.
+        private static void BeginSelfReviveAuth(Player player, RMPlayer st)
+        {
+            Plugin.StaticCoroutineRunner.StartCoroutine(SelfReviveAuthCoroutine(player, st));
+        }
+
+        private static IEnumerator SelfReviveAuthCoroutine(Player player, RMPlayer st)
+        {
+            string pid = player.ProfileId;
+            bool allowed = true;
+            string denyReason = string.Empty;
+
+            // Run blocking HTTP call off the main thread.
+            var task = Task.Run(() =>
+            {
+                allowed    = RevivalAuthority.TryAuthorizeReviveStart(pid, pid, "self", out var reason);
+                denyReason = reason ?? string.Empty;
+            });
+
+            while (!task.IsCompleted) yield return null;
+
+            // If the player gave up, pressed give-up, or died while auth was pending, discard.
+            if (st.State != RMState.BleedingOut || !st.IsBeingRevived)
+                yield break;
+
+            if (allowed)
+            {
+                if (!RevivalModSettings.TESTING.Value) Utils.ConsumeDefibItem(player, Utils.GetDefib(player));
+                st.State = RMState.Reviving;
+                FikaBridge.SendSelfReviveStartPacket(pid);
+            }
+            else
+            {
+                st.IsBeingRevived = false;
+                VFX_UI.HideObjectivePanel();
+                st.RevivePromptTimer?.Stop(); st.RevivePromptTimer = null;
+                KeyCode key = RevivalModSettings.SELF_REVIVAL_KEY.Value;
+                if (Utils.HasDefib(player))
+                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, $"Revive! [{key}]");
+                VFX_UI.Text(Color.yellow, string.IsNullOrEmpty(denyReason) ? "Revive denied by server" : denyReason);
+            }
+
+            // Remove the float.MaxValue sentinel so the key-hold dict is clean.
+            st.SelfRevivalKeyHoldDuration.Remove(RevivalModSettings.SELF_REVIVAL_KEY.Value);
         }
 
         private static void ObserveRevivingState(Player player, RMPlayer st)
@@ -430,12 +528,13 @@ namespace KeepMeAlive.Features
             VFX_UI.HideObjectivePanel();
             st.RevivePromptTimer?.Stop(); st.RevivePromptTimer = null;
 
-            if (source == ReviveSource.Team && player.IsYourPlayer)
-                st.RevivePromptTimer = VFX_UI.ObjectivePanel(VFX_UI.Gradient(Color.blue, Color.green), VFX_UI.Position.BottomCenter, "Being Revived {0:F1}", duration);
+            // Bug fix #3: The TransitPanel (center) already shows the revive countdown.
+            // A second ObjectivePanel (bottom) saying "Being Revived X.Xs" is redundant and
+            // was shown on top of the earlier "X is reviving you" message — removed.
 
             _ = MedicalAnimations.UseWithDuration(player, source == ReviveSource.Self ? MedicalAnimations.SurgicalItemType.SurvKit : MedicalAnimations.SurgicalItemType.CMS, duration);
 
-            Plugin.StaticCoroutineRunner.StartCoroutine(DelayedActionAfterSeconds(duration, () => OnRevivalAnimationComplete(player)));
+            st.ReviveAnimationCoroutine = Plugin.StaticCoroutineRunner.StartCoroutine(DelayedActionAfterSeconds(duration, () => OnRevivalAnimationComplete(player)));
         }
 
         //====================[ Revival Completion ]====================
@@ -445,48 +544,14 @@ namespace KeepMeAlive.Features
             var st = GetState(player);
             if (st.State != RMState.Reviving) return;
 
+            st.ReviveAnimationCoroutine = null; // natural completion; clear the handle
+
             var msg = (ReviveSource)st.ReviveRequestedSource == ReviveSource.Self 
                 ? "Defibrillator used successfully! You are temporarily invulnerable but limited in movement." 
                 : "Revived by teammate! You are temporarily invulnerable.";
 
             string reviverId = (ReviveSource)st.ReviveRequestedSource == ReviveSource.Self ? string.Empty : (st.CurrentReviverId ?? string.Empty);
             CompleteRevival(player, reviverId, msg);
-        }
-
-        public static bool StartTeammateRevive(string reviveeId, string reviverId = "")
-        {
-            try
-            {
-                if (!RMSession.IsPlayerCritical(reviveeId)) return false;
-
-                var st = RMSession.GetPlayerState(reviveeId);
-
-                // Guard against race condition: if player is mid-self-revive input, reject team revive
-                if (st.SelfRevivalKeyHoldDuration.Count > 0 || (st.State == RMState.Reviving && st.ReviveRequestedSource == (int)ReviveSource.Self))
-                {
-                    Plugin.LogSource.LogWarning($"[Downed] teammate revive rejected for {reviveeId}: self-revive in progress");
-                    return false;
-                }
-                
-                if (!RevivalAuthority.TryAuthorizeReviveStart(reviveeId, reviverId, "team", out var denyReason))
-                {
-                    Plugin.LogSource.LogWarning($"[Downed] teammate revive denied for {reviveeId}: {denyReason}");
-                    return false;
-                }
-
-                st.State = RMState.Reviving;
-                st.ReviveRequestedSource = (int)ReviveSource.Team;
-                st.CurrentReviverId = reviverId;
-                RMSession.UpdatePlayerState(reviveeId, st);
-                return true;
-            }
-            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] StartTeammateRevive error: {ex}"); return false; }
-        }
-
-        public static void CompleteTeammateRevival(Player player)
-        {
-            if (player == null) return;
-            CompleteRevival(player, GetState(player).CurrentReviverId ?? string.Empty, "Revived by teammate! You are temporarily invulnerable.");
         }
 
         private static void CompleteRevival(Player player, string reviverId, string message)
@@ -497,9 +562,11 @@ namespace KeepMeAlive.Features
 
             GodMode.ForceEnable(player);
 
-            RevivalAuthority.NotifyReviveComplete(player.ProfileId, reviverId);
+            // Broadcast to peers FIRST so remote clients transition out of Reviving
+            // before the fire-and-forget HTTP notify goes out.
             FikaBridge.SendRevivedPacket(player.ProfileId, reviverId);
-            GetState(player).ResyncCooldown = -1f; 
+            st.ResyncCooldown = -1f;
+            RevivalAuthority.NotifyReviveComplete(player.ProfileId, reviverId);
             FinishRevive(player, player.ProfileId, message);
         }
 
@@ -509,13 +576,16 @@ namespace KeepMeAlive.Features
             var st = RMSession.GetPlayerState(playerId);
 
             try { GhostMode.ExitGhostMode(player); } catch { }
-            try { PlayerRestorations.RestoreDestroyedBodyParts(player); } catch (Exception ex) { Plugin.LogSource.LogError($"RestoreBodyHealth error: {ex.Message}"); }
+            try { PostReviveEffects.Apply(player, (ReviveSource)st.ReviveRequestedSource); } catch (Exception ex) { Plugin.LogSource.LogError($"PostReviveEffects error: {ex.Message}"); }
 
-            StartInvulnerabilityPeriod(player, st);
-
+            // Clear animation/revive flags BEFORE restoring movement so no re-entrant tick
+            // or event callback inside StartInvulnerabilityPeriod reads stale values (#8).
             st.IsPlayingRevivalAnimation = false;
             st.IsBeingRevived = false;
+            st.CurrentReviverId = string.Empty; // clear early so a stale reviver ID can't block self-revive if state re-corrupts (#13)
             st.KillOverride = false;
+            StartInvulnerabilityPeriod(player, st);
+
             st.LastRevivalTimesByPlayer = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             ClearTimers(st);
 
@@ -531,14 +601,18 @@ namespace KeepMeAlive.Features
         {
             try
             {
-                st.InvulnerabilityTimer = RevivalModSettings.REVIVAL_DURATION.Value;
+                st.InvulnerabilityTimer = PostReviveEffects.GetInvulnDuration((ReviveSource)st.ReviveRequestedSource);
                 if (st.OriginalMovementSpeed > 0) player.Physical.WalkSpeedLimit = st.OriginalMovementSpeed;
 
                 if (player.MovementContext != null)
                 {
                     var mc = player.MovementContext;
                     mc.IsInPronePose = false;
-                    mc.SetPoseLevel(1f);
+                    // Bug fix #2: Use the force/immediate flag (true) to match the forced
+                    // SetPoseLevel(0f, true) applied every tick during the downed state.
+                    // Without it, EFT's movement state machine processes the queued forced-prone
+                    // after the unforced stand-up, causing the visible dip back to prone.
+                    mc.SetPoseLevel(1f, true);
                     mc.EnableSprint(true);
 
                     try
@@ -555,7 +629,7 @@ namespace KeepMeAlive.Features
                 {
                     VFX_UI.HideTransitPanel();
                     st.CriticalStateMainTimer?.Stop(); st.CriticalStateMainTimer = null;
-                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", RevivalModSettings.REVIVAL_DURATION.Value);
+                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", PostReviveEffects.GetInvulnDuration((ReviveSource)st.ReviveRequestedSource));
                 }
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] StartInvulnerabilityPeriod error: {ex.Message}"); }
@@ -576,15 +650,15 @@ namespace KeepMeAlive.Features
             }
 
             st.State = RMState.CoolDown;
-            st.CooldownTimer = RevivalModSettings.REVIVAL_COOLDOWN.Value;
+            float cd = PostReviveEffects.GetCooldownDuration((ReviveSource)st.ReviveRequestedSource);
+            st.CooldownTimer = cd;
             st.LastRevivalTimesByPlayer = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             if (player.IsYourPlayer)
             {
-                float cd = RevivalModSettings.REVIVAL_COOLDOWN.Value;
                 RevivalAuthority.NotifyEndInvulnerability(player.ProfileId, cd);
                 FikaBridge.SendPlayerStateResetPacket(player.ProfileId, isDead: false, cd);
-                GetState(player).ResyncCooldown = -1f; 
+                st.ResyncCooldown = -1f;
                 VFX_UI.HideObjectivePanel();
                 VFX_UI.Text(Color.cyan, $"Invulnerability ended. Revival cooldown: {cd:F0}s");
             }
@@ -601,7 +675,8 @@ namespace KeepMeAlive.Features
         {
             try
             {
-                bool frozen = st.State == RMState.Reviving || st.SelfRevivalKeyHoldDuration.Count > 0;
+                // Also freeze while IsBeingRevived is active: covers team-help window and self-revive auth-pending gap.
+                bool frozen = st.State == RMState.Reviving || st.SelfRevivalKeyHoldDuration.Count > 0 || st.IsBeingRevived;
                 float baseSpd = st.OriginalMovementSpeed > 0 ? st.OriginalMovementSpeed : player.Physical.WalkSpeedLimit;
                 player.Physical.WalkSpeedLimit = frozen ? 0f : Mathf.Max(0.1f, baseSpd * (RevivalModSettings.DOWNED_MOVEMENT_SPEED.Value / 100f));
             }
