@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Linq;
 using System.Reflection;
 using Comfort.Common;
 using EFT;
@@ -16,15 +17,9 @@ namespace KeepMeAlive.Helpers
         private const string SURVKIT_TEMPLATE_ID = "5d02797c86f774203f38e30a", CMS_TEMPLATE_ID = "5d02778e86f774203e7dedbe";
         private const string SURVKIT_ID_PREFIX = "dea1", CMS_ID_PREFIX = "dea2";
         private const float BASE_SURVKIT_DURATION = 20f, BASE_CMS_DURATION = 17f;
-        private const float SET_SPEED_DELAY = 0.2f, END_BUFFER = 0.3f;
+        private const float SET_SPEED_DELAY = 0.5f, EARLY_FINISH_BUFFER = 0.5f;
 
-        private static readonly SurgicalItemType[] _allTypes = { SurgicalItemType.SurvKit, SurgicalItemType.CMS };
         private static MethodInfo _setUseTimeMultiplierMethod;
-
-        // Reflection cache for nulling MedItem on active MedEffects in NetworkHealthControllerAbstractClass
-        private static FieldInfo  _nhcEffectListField; // GClass3009<T>.List_1
-        private static Type       _medEffectType;      // NetworkHealthControllerAbstractClass+MedEffect
-        private static PropertyInfo _nhcMedItemProp;   // MedEffect.MedItem
 
         //====================[ Public API ]====================
 
@@ -38,98 +33,123 @@ namespace KeepMeAlive.Helpers
             return item;
         }
 
+        // Ensures fake CMS/SURV items exist for observed players so ProceedPacket item lookups
+        // can resolve on peers that do not own the revive target.
+        public static void EnsureFakeItemsForRemotePlayer(Player player)
+        {
+            try
+            {
+                if (player == null || player.IsYourPlayer) return;
+                if (RMSession.GetPlayerState(player.ProfileId) is not { } state) return;
+
+                if (GetCached(state, SurgicalItemType.CMS) == null)
+                {
+                    var cms = CreateAndAttach(player, SurgicalItemType.CMS);
+                    if (cms != null) SetCached(state, SurgicalItemType.CMS, cms);
+                }
+
+                if (GetCached(state, SurgicalItemType.SurvKit) == null)
+                {
+                    var surv = CreateAndAttach(player, SurgicalItemType.SurvKit);
+                    if (surv != null) SetCached(state, SurgicalItemType.SurvKit, surv);
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] EnsureFakeItemsForRemotePlayer warn: {ex.Message}");
+            }
+        }
+
         public static bool UseAtSpeed(Player player, SurgicalItemType itemType, float speed = 1f, Action onComplete = null)
         {
-            if (!ValidatePlayer(player) || RMSession.GetPlayerState(player.ProfileId) is not { } state) return false;
-            if (GetCached(state, itemType) is not { } item)
+            if (!TryGetOrCreateCachedItem(player, itemType, out var item))
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] No cached {itemType} for {player.ProfileId}. Call CreateInQuestInventory() first.");
                 return false;
             }
 
             float baseDuration = itemType == SurgicalItemType.SurvKit ? BASE_SURVKIT_DURATION : BASE_CMS_DURATION;
-            return PlayOnce(player, item, baseDuration, speed <= 0f ? 1f : speed, itemType.ToString(), onComplete);
+            return TryApplyInternal(player, item, baseDuration, speed <= 0f ? 1f : speed, itemType.ToString(), onComplete);
         }
 
-        public static bool UseWithDuration(Player player, SurgicalItemType itemType, float desiredDuration, Action onComplete = null)
+        public static bool TryApplyWithDuration(Player player, SurgicalItemType itemType, float desiredDuration, Action onComplete = null)
         {
-            if (!ValidatePlayer(player) || RMSession.GetPlayerState(player.ProfileId) is not { } state) return false;
-            if (GetCached(state, itemType) is not { } item)
+            ReviveDebug.Log("MedAnim_TryApplyWithDuration_Enter", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, $"itemType={itemType} desiredDuration={desiredDuration:F2}");
+            if (!TryGetOrCreateCachedItem(player, itemType, out var item))
             {
-                Plugin.LogSource.LogError($"[MedicalAnimations] No cached {itemType} for {player.ProfileId}. Call CreateInQuestInventory() first.");
                 return false;
             }
 
             float baseDur = itemType == SurgicalItemType.SurvKit ? BASE_SURVKIT_DURATION : BASE_CMS_DURATION;
-            float effectiveDur = desiredDuration - SET_SPEED_DELAY - END_BUFFER;
+            
+            // Subtract SET_SPEED_DELAY (time before speedup applies) and EARLY_FINISH_BUFFER (time to finish early)
+            float effectiveDur = desiredDuration - SET_SPEED_DELAY - EARLY_FINISH_BUFFER;
 
             if (effectiveDur <= 0f)
             {
-                Plugin.LogSource.LogWarning($"[MedicalAnimations] Desired {desiredDuration:F2}s too short. Using default speed.");
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] Desired {desiredDuration:F2}s too short for {itemType}. Using default speed.");
                 effectiveDur = baseDur;
             }
 
-            return PlayOnce(player, item, baseDur, baseDur / Mathf.Max(effectiveDur, 0.001f), itemType.ToString(), onComplete);
+            return TryApplyInternal(player, item, baseDur, baseDur / Mathf.Max(effectiveDur, 0.001f), itemType.ToString(), onComplete);
         }
 
-        public static void RemoveFromQuestInventory(Player player, SurgicalItemType itemType)
+        public static bool UseWithDuration(Player player, SurgicalItemType itemType, float desiredDuration, Action onComplete = null)
         {
-            if (!ValidatePlayer(player) || RMSession.GetPlayerState(player.ProfileId) is not { } state) return;
+            return TryApplyWithDuration(player, itemType, desiredDuration, onComplete);
+        }
 
-            if (GetCached(state, itemType) is { } item)
+public static void CleanupFakeItems(Player player, SurgicalItemType? consumedItem = null)
+        {
+            if (player == null || RMSession.GetPlayerState(player.ProfileId) is not { } state) return;
+
+            // Target the item that was naturally consumed by the revival and let Tarkov's ActiveHealthController 
+            // naturally remove it from the grid (otherwise MedEffect.Residue crashes on orphaned items).
+            // If consumedItem == null (e.g., revive cancelled or bled out), we explicitly cancel and delete BOTH.
+            if (player.IsYourPlayer && consumedItem == null)
             {
-                // Force cancel MedEffect synchronously while Parent is valid to avoid Residue() orphan crash
-                try { player.ActiveHealthController?.RemoveMedEffect(); } catch (Exception ex) { Plugin.LogSource.LogWarning($"RemoveMedEffect warn: {ex.Message}"); }
-                SafeDetach(item);
+                try { player.HealthController?.CancelApplyingItem(); }
+                catch (Exception ex) { Plugin.LogSource.LogError($"[MedicalAnimations] CancelApplyingItem ex: {ex}"); }
             }
 
-            SetCached(state, itemType, null);
-            SetAnimationSpeed(player, 1f);
-        }
-
-        public static void CleanupAllFakeItems(Player player)
-        {
-            RemoveFromQuestInventory(player, SurgicalItemType.SurvKit);
-            RemoveFromQuestInventory(player, SurgicalItemType.CMS);
-        }
-
-        public static void EnsureFakeItemsForRemotePlayer(Player player)
-        {
-            if (player == null || player.IsYourPlayer) return;
-            if (RMSession.GetPlayerState(player.ProfileId) is not { } state)
+            try
             {
-                Plugin.LogSource.LogWarning($"[MedicalAnimations] EnsureFakeItemsForRemotePlayer: No RMPlayer state for {player.ProfileId}");
-                return;
-            }
-
-            foreach (var type in _allTypes)
-            {
-                if (GetCached(state, type) != null) continue;
-                if (CreateAndAttach(player, type) is { } item)
+                if (consumedItem != SurgicalItemType.SurvKit)
                 {
-                    SetCached(state, type, item);
-                    Plugin.LogSource.LogDebug($"[MedicalAnimations] Created remote fake {type} ({item.Id}) for {player.ProfileId}");
+                    if (GetCached(state, SurgicalItemType.SurvKit) is { } survKit && survKit.Parent != null)
+                    {
+                        var parent = survKit.Parent;
+                        parent.RemoveWithoutRestrictions(survKit);
+                        survKit.CurrentAddress = null;
+                        SetCached(state, SurgicalItemType.SurvKit, null);
+                    }
                 }
-                else Plugin.LogSource.LogError($"[MedicalAnimations] FAILED to create remote fake {type} for {player.ProfileId}");
             }
-        }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[MedicalAnimations] survKit remove ex: {ex}"); }
 
-        public static void CleanupFakeItemsForRemotePlayer(Player player)
-        {
-            if (player == null || player.IsYourPlayer || RMSession.GetPlayerState(player.ProfileId) is not { } state) return;
-
-            // Null out MedItem on any active MedEffect in the ObservedHealthController BEFORE
-            // detaching the item.  This prevents the NRE in MedEffect.Removed()/UpdateResource()
-            // when in-flight HealthSync packets arrive after item.Parent has been cleared.
-            // (ActiveHealthController is null for ObservedPlayers; we must go through HealthController.)
-            foreach (var type in _allTypes)
+            try
             {
-                if (GetCached(state, type) is { } item)
+                if (consumedItem != SurgicalItemType.CMS)
                 {
-                    NullOutNetworkMedItem(player, item);
-                    SafeDetach(item);
+                    if (GetCached(state, SurgicalItemType.CMS) is { } cmsKit && cmsKit.Parent != null)
+                    {
+                        var parent = cmsKit.Parent;
+                        parent.RemoveWithoutRestrictions(cmsKit);
+                        cmsKit.CurrentAddress = null;
+                        SetCached(state, SurgicalItemType.CMS, null);
+                    }
                 }
-                SetCached(state, type, null);
+            }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[MedicalAnimations] cmsKit remove ex: {ex}"); }
+
+            if (consumedItem == null)
+            {
+                SetCached(state, SurgicalItemType.SurvKit, null);
+                SetCached(state, SurgicalItemType.CMS, null);
+            }
+
+            if (player.IsYourPlayer && consumedItem == null)
+            {
+                SetAnimationSpeed(player, 1f);
             }
         }
 
@@ -144,25 +164,75 @@ namespace KeepMeAlive.Helpers
                 string templateId = itemType == SurgicalItemType.SurvKit ? SURVKIT_TEMPLATE_ID : CMS_TEMPLATE_ID;
                 if (factory.CreateItem(GenerateFakeItemId(player.ProfileId, itemType), templateId, null) is not Item item) return null;
 
-                if (item is MedsItemClass meds && meds.GetItemComponent<MedKitComponent>() is { } kit)
+                // Keep fake surgical items bandage-like: one use, then EFT ApplyItem owns removal.
+                if (item is MedsItemClass meds && meds.GetItemComponent<MedKitComponent>() is { } medKit)
                 {
-                    // BOTH SurvKit and CMS have hpResourceRate == 0 in their game templates.
-                    // DoMedEffect calls TryGetBodyPartToApply → CanBeHealed which requires
-                    // HpResourceRate > 0 to consider HP-damaged body parts as valid targets.
-                    // Without this, DoMedEffect returns null and immediately sets FailedToApply=true,
-                    // cancelling the animation right after the draw/equip phase ("first stage").
-                    //
-                    // MaxHpResource is overridden to 99999 so that HpResource=9999f is not clamped
-                    // by the template's MaxHpResource=9. At HpResourceRate=1f/s the item holds
-                    // 9999 resource — well beyond any animation duration — preventing auto-removal
-                    // from depleting the resource mid-animation.
-                    kit.IMedkitResource = new FakeMedkitResource(kit.IMedkitResource);
-                    kit.HpResource = 9999f;
+                    medKit.HpResource = 1f;
+                    
+                    if (medKit.IMedkitResource != null)
+                    {
+                        medKit.IMedkitResource = new FakeCmsResource(medKit.IMedkitResource);
+                    }
                 }
 
-                return TryAddToQuest(player, item) ? item : null;
+                if (!TryAddToQuest(player, item)) return null;
+
+                // Pre-load the item's resources so ApplyItem can play the expected med animation
+                // even when this template is not present elsewhere in the raid.
+                if (Singleton<PoolManagerClass>.Instantiated)
+                    _ = Singleton<PoolManagerClass>.Instance.LoadBundlesAndCreatePools(
+                        PoolManagerClass.PoolsCategory.Raid, PoolManagerClass.AssemblyType.Online,
+                        item.Template.AllResources.ToArray(), JobPriorityClass.Immediate);
+
+                return item;
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[MedicalAnimations] CreateAndAttach failed: {ex.Message}"); return null; }
+        }
+
+        private static bool TryGetOrCreateCachedItem(Player player, SurgicalItemType itemType, out Item item)
+        {
+            item = null;
+            ReviveDebug.Log("MedAnim_TryGetOrCreate_Enter", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, $"itemType={itemType}");
+            if (!ValidatePlayer(player))
+            {
+                ReviveDebug.Log("MedAnim_ValidatePlayer_Fail", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, null);
+                return false;
+            }
+            if (RMSession.GetPlayerState(player.ProfileId) is not { } state)
+            {
+                ReviveDebug.Log("MedAnim_RMSession_Fail", player.ProfileId, player.IsYourPlayer, null);
+                return false;
+            }
+
+            item = GetCached(state, itemType);
+            if (item != null)
+            {
+                if (!IsItemReferenceUsable(item) || IsItemDepleted(item))
+                {
+                    SetCached(state, itemType, null);
+                    item = null;
+                    ReviveDebug.Log("MedAnim_CachedInvalid", player.ProfileId, player.IsYourPlayer, $"itemType={itemType}");
+                }
+            }
+
+            if (item != null)
+            {
+                ReviveDebug.Log("MedAnim_CachedHit", player.ProfileId, player.IsYourPlayer, $"itemType={itemType}");
+                return true;
+            }
+
+            ReviveDebug.Log("MedAnim_CreateAndAttach_Call", player.ProfileId, player.IsYourPlayer, $"itemType={itemType}");
+            item = CreateAndAttach(player, itemType);
+            if (item != null)
+            {
+                ReviveDebug.Log("MedAnim_CreateAndAttach_Ok", player.ProfileId, player.IsYourPlayer, $"itemType={itemType} id={item.Id}");
+                SetCached(state, itemType, item);
+                return true;
+            }
+
+            ReviveDebug.Log("MedAnim_CreateAndAttach_Fail", player.ProfileId, player.IsYourPlayer, $"itemType={itemType}");
+            Plugin.LogSource.LogWarning($"[MedicalAnimations] Failed to create fake {itemType} for {player.ProfileId}");
+            return false;
         }
 
         private static bool TryAddToQuest(Player player, Item item)
@@ -188,29 +258,34 @@ namespace KeepMeAlive.Helpers
 
         //====================[ Private: Use/Playback ]====================
 
-        private static bool PlayOnce(Player player, Item item, float baseDuration, float speed, string label, Action onComplete)
+        private static bool TryApplyInternal(Player player, Item item, float baseDuration, float speed, string label, Action onComplete)
         {
+            ReviveDebug.Log("MedAnim_TryApplyInternal_Enter", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, $"label={label} speed={speed:F2}");
             try
             {
-                if (item is not MedsItemClass meds)
+                ReviveDebug.Log("MedAnim_ApplyItem_Before", player.ProfileId, player.IsYourPlayer, $"label={label}");
+                if (!Utils.TryApplyItemLikeTeamHeal(player, item, $"MedicalAnimations:{label}"))
                 {
-                    Plugin.LogSource.LogWarning($"[MedicalAnimations] {label} item not MedsItemClass.");
                     return false;
                 }
+                ReviveDebug.Log("MedAnim_ApplyItem_After", player.ProfileId, player.IsYourPlayer, $"label={label}");
 
-                // Proceed triggers MedsController creation and Fika ProceedPackets for remote client sync
-                player.Proceed(meds, new GStruct382<EBodyPart>(EBodyPart.Common), null, 0, false);
+                if (Mathf.Abs(speed - 1f) > 0.01f)
+                {
+                    ReviveDebug.Log("MedAnim_SetSpeedLater_Start", player.ProfileId, player.IsYourPlayer, $"speed={speed:F2}");
+                    Plugin.StaticCoroutineRunner.StartCoroutine(SetSpeedLater(player, speed));
+                }
 
-                if (Mathf.Abs(speed - 1f) > 0.01f) Plugin.StaticCoroutineRunner.StartCoroutine(SetSpeedLater(player, speed));
-
-                float totalDelay = (baseDuration / Mathf.Max(speed, 0.001f)) + END_BUFFER;
-                Plugin.StaticCoroutineRunner.StartCoroutine(EndAfter(player, totalDelay, onComplete));
+                float resetDelay = (baseDuration / Mathf.Max(speed, 0.001f)) + SET_SPEED_DELAY + EARLY_FINISH_BUFFER;
+                ReviveDebug.Log("MedAnim_ResetSpeedAfter_Start", player.ProfileId, player.IsYourPlayer, $"delay={resetDelay:F2}");
+                Plugin.StaticCoroutineRunner.StartCoroutine(ResetSpeedAfter(player, resetDelay, onComplete));
                 return true;
             }
             catch (Exception ex)
             {
+                ReviveDebug.Log("MedAnim_ApplyItem_Exception", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, $"label={label} ex={ex.Message}");
                 SetAnimationSpeed(player, 1f);
-                Plugin.LogSource.LogError($"[MedicalAnimations] PlayOnce failed: {ex.Message}");
+                Plugin.LogSource.LogWarning($"[MedicalAnimations] {label} ApplyItem failed: {ex.Message}");
                 return false;
             }
         }
@@ -219,106 +294,17 @@ namespace KeepMeAlive.Helpers
         {
             yield return new WaitForSeconds(SET_SPEED_DELAY);
             SetAnimationSpeed(player, speed);
+            ReviveDebug.Log("MedAnim_SetSpeedLater_Done", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, $"speed={speed:F2}");
         }
 
-        private static IEnumerator EndAfter(Player player, float delay, Action done)
+        private static IEnumerator ResetSpeedAfter(Player player, float delay, Action done)
         {
+            ReviveDebug.Log("MedAnim_ResetSpeedAfter_Done", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, "before delay");
             yield return new WaitForSeconds(delay);
-            try { player?.SetEmptyHands(null); } catch (Exception ex) { Plugin.LogSource.LogWarning($"EndAfter cleanup warn: {ex.Message}"); }
-            finally
-            {
-                SetAnimationSpeed(player, 1f);
-                done?.Invoke();
-            }
+            ReviveDebug.Log("MedAnim_ResetSpeedAfter_Complete", player?.ProfileId ?? "<null>", player?.IsYourPlayer ?? false, null);
+            SetAnimationSpeed(player, 1f);
+            done?.Invoke();
         }
-
-        //====================[ Private: Cleanup/Detach ]====================
-
-        private static void SafeDetach(Item item)
-        {
-            try
-            {
-                if (item?.Parent?.Container is StashGridClass grid) grid.RemoveWithoutRestrictions(item);
-                else if (item?.Parent?.Container is Slot slot && ReferenceEquals(slot.ContainedItem, item)) slot.RemoveItemWithoutRestrictions();
-            }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"[MedicalAnimations] SafeDetach warn: {ex.Message}"); }
-        }
-
-        /// <summary>
-        /// Before detaching a fake item from QuestRaidItems, find any active MedEffect inside the
-        /// remote player's ObservedHealthController (NetworkHealthControllerAbstractClass) that still
-        /// holds a reference to this item and REMOVE it from the effects list entirely.
-        /// Nulling MedItem is insufficient — UpdateResource() accesses MedItem without a null-guard
-        /// and would NRE anyway.  Removing the entry prevents UpdateResource() from ever being
-        /// called on the stale effect when in-flight Fika HealthSync packets arrive after
-        /// SafeDetach() clears item.Parent.
-        /// Only meaningful for remote players; local players use ActiveHealthController.RemoveMedEffect().
-        /// </summary>
-        private static void NullOutNetworkMedItem(Player player, Item item)
-        {
-            if (player == null || item == null || player.IsYourPlayer) return;
-            try
-            {
-                // Lazy-init reflection handles (once per session).
-                if (_nhcEffectListField == null)
-                {
-                    // List_1 is declared on GClass3009<T> (base of NetworkHealthControllerAbstractClass).
-                    var baseType = typeof(NetworkHealthControllerAbstractClass).BaseType;
-                    _nhcEffectListField = baseType?.GetField("List_1",
-                        BindingFlags.Public | BindingFlags.Instance);
-
-                    _medEffectType = typeof(NetworkHealthControllerAbstractClass)
-                        .GetNestedType("MedEffect", BindingFlags.NonPublic | BindingFlags.Public);
-
-                    _nhcMedItemProp = _medEffectType?.GetProperty("MedItem",
-                        BindingFlags.Public | BindingFlags.Instance);
-
-                    if (_nhcEffectListField == null || _medEffectType == null || _nhcMedItemProp == null)
-                    {
-                        Plugin.LogSource.LogWarning("[MedicalAnimations] NullOutNetworkMedItem: reflection init incomplete — skipping.");
-                        return;
-                    }
-                }
-
-                // ObservedHealthController IS a NetworkHealthControllerAbstractClass.
-                if (player.HealthController is not NetworkHealthControllerAbstractClass nhc) return;
-
-                var rawList = _nhcEffectListField.GetValue(nhc) as System.Collections.IList;
-                if (rawList == null) return;
-
-                // Iterate in reverse so RemoveAt doesn't shift indices we haven't visited.
-                for (int i = rawList.Count - 1; i >= 0; i--)
-                {
-                    var effect = rawList[i];
-                    if (effect == null || !_medEffectType.IsInstanceOfType(effect)) continue;
-                    if (_nhcMedItemProp.GetValue(effect) is Item medItem && ReferenceEquals(medItem, item))
-                    {
-                        // Remove the entire entry — do NOT just null MedItem; UpdateResource() does
-                        // not guard against a null MedItem and would still throw an NRE.
-                        rawList.RemoveAt(i);
-                        Plugin.LogSource.LogDebug($"[MedicalAnimations] Removed MedEffect [{i}] for item {item.Id} on {player.ProfileId}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogWarning($"[MedicalAnimations] NullOutNetworkMedItem warn: {ex.Message}");
-            }
-        }
-
-        //====================[ Public: Identity Helpers ]====================
-
-        /// <summary>
-        /// Returns true if <paramref name="item"/> is a fake revival item created by this class
-        /// (CMS or SurvKit with the well-known dea1/dea2 ID prefix).  Used by Harmony patches that
-        /// suppress ObservedInventoryController events for team-heal foreign items — those patches
-        /// must allow revival fake items through so the NetworkHealthControllerAbstractClass.MedEffect
-        /// lifecycle works normally.
-        /// </summary>
-        public static bool IsFakeRevivalItem(Item item) =>
-            item != null &&
-            (item.Id.StartsWith(SURVKIT_ID_PREFIX, StringComparison.Ordinal) ||
-             item.Id.StartsWith(CMS_ID_PREFIX, StringComparison.Ordinal));
 
         //====================[ Private: Utils ]====================
 
@@ -337,6 +323,31 @@ namespace KeepMeAlive.Helpers
             else s.FakeSurvKitItem = item;
         }
 
+        private static bool IsItemReferenceUsable(Item item)
+        {
+            if (item == null) return false;
+
+            try { return item.Parent != null; }
+            catch { return false; }
+        }
+
+        private static bool IsItemDepleted(Item item)
+        {
+            if (item is not MedsItemClass meds) return false;
+
+            try
+            {
+                var medKit = meds.GetItemComponent<MedKitComponent>();
+                if (medKit != null) return medKit.HpResource <= float.Epsilon;
+            }
+            catch
+            {
+                // Ignore component read failures and treat as not depleted.
+            }
+
+            return false;
+        }
+
         private static bool SetAnimationSpeed(Player player, float mult)
         {
             try
@@ -350,25 +361,23 @@ namespace KeepMeAlive.Helpers
             catch (Exception ex) { Plugin.LogSource.LogWarning($"[MedicalAnimations] SetAnimationSpeed warn: {ex.Message}"); return false; }
         }
 
-        //====================[ Nested Types ]====================
+        public enum SurgicalItemType { SurvKit, CMS }
+    }
 
-        // Both SurvKit and CMS ship with hpResourceRate == 0 in their game templates.
-        // This wrapper forces a positive rate so DoMedEffect / CanBeHealed accepts HP-damaged
-        // body parts as valid targets. Without it the animation is silently cancelled right
-        // after the draw/equip phase (FailedToApply = true, no error logged by EFT).
-        //
-        // MaxHpResource is also inflated so that the HpResource=9999f we set on the item
-        // is not clamped back to the template's MaxHpResource=9. At HpResourceRate=1f the
-        // resource holds 9999 seconds worth — far longer than any animation duration.
-        private sealed class FakeMedkitResource : IMedkitResource
+    public class FakeCmsResource : IMedkitResource
+    {
+        private readonly IMedkitResource _wrapped;
+
+        public FakeCmsResource(IMedkitResource wrapped)
         {
-            private readonly IMedkitResource _original;
-            public FakeMedkitResource(IMedkitResource original) => _original = original;
-            public int MaxHpResource => 99999; // Allow HpResource=9999f without being clamped
-            public float HpResourceRate => 1f;  // Force positive so CanBeHealed passes
-            public EBodyPart[] BodyPartPriority => _original.BodyPartPriority;
+            _wrapped = wrapped;
         }
 
-        public enum SurgicalItemType { SurvKit, CMS }
+        public int MaxHpResource => _wrapped.MaxHpResource;
+
+        // The core fix: Pretend we can heal missing HP instead of only destroyed limbs
+        public float HpResourceRate => 1f;
+
+        public EBodyPart[] BodyPartPriority => _wrapped.BodyPartPriority;
     }
 }

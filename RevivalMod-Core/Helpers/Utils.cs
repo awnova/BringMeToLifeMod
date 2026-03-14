@@ -150,72 +150,40 @@ namespace KeepMeAlive.Helpers
             }
         }
 
-        public static void ConsumeDefibItem(Player player, Item defibItem)
+        // Shared ApplyItem helper used by both team-heal and downed revive flows.
+        // Keep owner-only execution here so authority remains on the local owner client.
+        public static bool TryApplyItemLikeTeamHeal(Player player, Item item, string contextLabel)
         {
-            ConsumeItem(player, defibItem, "Defibrillator");
-        }
+            string label = string.IsNullOrEmpty(contextLabel) ? "ApplyItem" : contextLabel;
 
-        public static void ConsumeMedicalItem(Player player, Item medicalItem)
-        {
-            ConsumeItem(player, medicalItem, "Medical item");
-        }
+            if (player == null || !player.IsYourPlayer)
+            {
+                return false;
+            }
 
-        /// <summary>
-        /// Removes an item from the player's inventory using direct grid/slot
-        /// removal — the same approach MedicalAnimations.SafeDetach uses.
-        ///
-        /// We intentionally avoid InteractionsHandlerClass.Remove + TryRunNetworkTransaction
-        /// because TryRunNetworkTransaction is async, and calling it fire-and-forget
-        /// acquires the InventoryController's transaction lock synchronously. When
-        /// consumption happens on the same frame as MedicalAnimations.PlayOnce →
-        /// ApplyItem (which also needs the transaction lock), the unawaited lock
-        /// blocks the medical animation from starting.
-        ///
-        /// Direct grid removal has no transaction involvement, so ApplyItem can
-        /// proceed on the same frame without contention. The end-of-raid save
-        /// will reflect the updated inventory.
-        /// </summary>
-        private static void ConsumeItem(Player player, Item item, string label)
-        {
+            if (item is not MedsItemClass meds)
+            {
+                Plugin.LogSource.LogWarning($"[{label}] ApplyItem skipped: item is not MedsItemClass");
+                return false;
+            }
+
+            if (player.HealthController == null)
+            {
+                Plugin.LogSource.LogWarning($"[{label}] ApplyItem skipped: HealthController missing for {player.ProfileId}");
+                return false;
+            }
+
             try
             {
-                if (player == null || item == null) return;
-
-                Plugin.LogSource.LogInfo($"Consuming {label}: {item.LocalizedName()} (Template: {item.TemplateId})");
-
-                var parent = item.Parent;
-                if (parent == null)
-                {
-                    Plugin.LogSource.LogWarning($"{label} item has no parent — already detached?");
-                    return;
-                }
-
-                var container = parent.Container;
-                if (container is StashGridClass grid)
-                {
-                    grid.RemoveWithoutRestrictions(item);
-                    Plugin.LogSource.LogInfo($"{label} consumed (removed from grid)");
-                }
-                else if (container is Slot slot && ReferenceEquals(slot.ContainedItem, item))
-                {
-                    slot.RemoveItemWithoutRestrictions();
-                    Plugin.LogSource.LogInfo($"{label} consumed (removed from slot)");
-                }
-                else
-                {
-                    // Fallback: use InteractionsHandlerClass but skip TryRunNetworkTransaction
-                    // to avoid transaction-lock contention with ApplyItem on the same frame.
-                    var remove = InteractionsHandlerClass.Remove(item, player.InventoryController, false);
-                    if (remove.Succeeded)
-                        Plugin.LogSource.LogInfo($"{label} consumed (Remove fallback)");
-                    else
-                        Plugin.LogSource.LogError($"{label} Remove fallback failed: {remove.Error}");
-                }
+                player.HealthController.ApplyItem(meds, EBodyPart.Common);
+                return true;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"ConsumeItem error: {ex.Message}\n{ex.StackTrace}");
+                Plugin.LogSource.LogError($"[{label}] ApplyItem failed: {ex.Message}");
+                return false;
             }
         }
+
     }
 }

@@ -41,7 +41,9 @@ Key configurable settings include:
 - **Downed Movement Speed**: Movement speed percentage when downed (default: 50%)
 - **Restore Destroyed Body Parts**: Automatically restore destroyed limbs after revival
 - **Animation Durations**: Self-revive and teammate revive animation times
-- **Testing Mode**: Enables debug keybinds and bypasses item requirements
+- **No Defib Required**: Bypasses defibrillator requirement (testing only)
+- **Debug Keybinds**: Enables F3/F4/F7/F8 debug hotkeys (testing only)
+- **Free Team Healing**: Allows team healing without items (testing only)
 
 ## Multiplayer Support
 When using the Fika Co-op mod, RevivalMod will synchronize player states:

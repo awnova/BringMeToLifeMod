@@ -28,6 +28,7 @@ namespace KeepMeAlive.Helpers
         public static ConfigEntry<bool>  SELF_REVIVE_REMOVE_BLEEDS;
         public static ConfigEntry<bool>  SELF_REVIVE_REMOVE_FRACTURES;
         public static ConfigEntry<float> SELF_REVIVE_INVULN_DURATION;
+        public static ConfigEntry<float> SELF_REVIVE_INVULN_SPEED_PCT;
         public static ConfigEntry<float> SELF_REVIVE_COOLDOWN;
         public static ConfigEntry<bool>  SELF_REVIVE_CONTUSION_ON_REVIVE;
         public static ConfigEntry<float> SELF_REVIVE_CONTUSION_DURATION;
@@ -42,6 +43,7 @@ namespace KeepMeAlive.Helpers
         public static ConfigEntry<bool>  TEAM_REVIVE_REMOVE_BLEEDS;
         public static ConfigEntry<bool>  TEAM_REVIVE_REMOVE_FRACTURES;
         public static ConfigEntry<float> TEAM_REVIVE_INVULN_DURATION;
+        public static ConfigEntry<float> TEAM_REVIVE_INVULN_SPEED_PCT;
         public static ConfigEntry<float> TEAM_REVIVE_COOLDOWN;
         public static ConfigEntry<bool>  TEAM_REVIVE_CONTUSION_ON_REVIVE;
         public static ConfigEntry<float> TEAM_REVIVE_CONTUSION_DURATION;
@@ -60,9 +62,12 @@ namespace KeepMeAlive.Helpers
 
         // Team Healing
         public static ConfigEntry<float> TEAM_HEAL_HOLD_TIME;
+        public static ConfigEntry<float> TEAM_HEAL_MIN_HP_RESOURCE;
 
         // Development
-        public static ConfigEntry<bool> TESTING;
+        public static ConfigEntry<bool> NO_DEFIB_REQUIRED;
+        public static ConfigEntry<bool> DEBUG_KEYBINDS;
+        public static ConfigEntry<bool> FREE_TEAM_HEALING;
 
         #endregion
 
@@ -173,35 +178,35 @@ namespace KeepMeAlive.Helpers
             SELF_REVIVE_HEAD_PCT = config.Bind(
                 "3. Post-Revival Effects",
                 "Self: Head Restore Percentage",
-                25f,
+                0f,
                 "Percentage of Head's maximum health to restore on self-revive (0-100)"
             );
 
             SELF_REVIVE_CHEST_PCT = config.Bind(
                 "3. Post-Revival Effects",
                 "Self: Thorax Restore Percentage",
-                25f,
+                35f,
                 "Percentage of Thorax's maximum health to restore on self-revive (0-100)"
             );
 
             SELF_REVIVE_STOMACH_PCT = config.Bind(
                 "3. Post-Revival Effects",
                 "Self: Stomach Restore Percentage",
-                25f,
+                35f,
                 "Percentage of Stomach's maximum health to restore on self-revive (0-100)"
             );
 
             SELF_REVIVE_ARMS_PCT = config.Bind(
                 "3. Post-Revival Effects",
                 "Self: Arms Restore Percentage",
-                25f,
+                35f,
                 "Percentage of Arms' maximum health to restore on self-revive (0-100)"
             );
 
             SELF_REVIVE_LEGS_PCT = config.Bind(
                 "3. Post-Revival Effects",
                 "Self: Legs Restore Percentage",
-                25f,
+                35f,
                 "Percentage of Legs' maximum health to restore on self-revive (0-100)"
             );
 
@@ -224,6 +229,13 @@ namespace KeepMeAlive.Helpers
                 "Self: Invulnerability Duration",
                 3f,
                 "Seconds of god-mode invulnerability after self-revive"
+            );
+
+            SELF_REVIVE_INVULN_SPEED_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Self: Invulnerability Speed Percent",
+                100f,
+                "Movement speed percentage during self-revive invulnerability (100 = normal, any numeric value allowed)"
             );
 
             SELF_REVIVE_COOLDOWN = config.Bind(
@@ -317,6 +329,13 @@ namespace KeepMeAlive.Helpers
                 "Seconds of god-mode invulnerability after teammate revive"
             );
 
+            TEAM_REVIVE_INVULN_SPEED_PCT = config.Bind(
+                "3. Post-Revival Effects",
+                "Team: Invulnerability Speed Percent",
+                100f,
+                "Movement speed percentage during teammate-revive invulnerability (100 = normal, any numeric value allowed)"
+            );
+
             TEAM_REVIVE_COOLDOWN = config.Bind(
                 "3. Post-Revival Effects",
                 "Team: Revival Cooldown",
@@ -408,15 +427,36 @@ namespace KeepMeAlive.Helpers
                 "Duration in seconds the healer must hold to apply a med to a teammate"
             );
 
+            TEAM_HEAL_MIN_HP_RESOURCE = config.Bind(
+                "4. Team Healing",
+                "Min HP Resource to Display",
+                50f,
+                "Health-category medkits with less than this much HP resource remaining will not be shown in the teammate heal picker (0 = show all non-empty kits)"
+            );
+
             #endregion
 
             #region Development Settings
 
-            TESTING = config.Bind(
+            NO_DEFIB_REQUIRED = config.Bind(
                 "5. Development",
-                "Test Mode",
+                "No Defib Required",
                 false,
-                new ConfigDescription("Enables revival without requiring defibrillator item (for testing only)", null, new ConfigurationManagerAttributes { IsAdvanced = true })
+                new ConfigDescription("Bypasses defibrillator requirement for all revivals (for testing only)", null, new ConfigurationManagerAttributes { IsAdvanced = true })
+            );
+
+            DEBUG_KEYBINDS = config.Bind(
+                "5. Development",
+                "Debug Keybinds",
+                false,
+                new ConfigDescription("Enables debug keybinds: F3=SurvKit, F4=CMS, F7=Enter Ghost Mode, F8=Exit Ghost Mode", null, new ConfigurationManagerAttributes { IsAdvanced = true })
+            );
+
+            FREE_TEAM_HEALING = config.Bind(
+                "5. Development",
+                "Free Team Healing",
+                false,
+                new ConfigDescription("Allows team healing without requiring medical items in inventory (for testing only)", null, new ConfigurationManagerAttributes { IsAdvanced = true })
             );
 
             #endregion

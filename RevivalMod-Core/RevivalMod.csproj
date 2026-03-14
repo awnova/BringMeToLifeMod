@@ -15,6 +15,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\defib_cooldown.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="0Harmony" HintPath="$(BepInExCoreDir)0Harmony.dll" Private="false" />
     <Reference Include="BepInEx" HintPath="$(BepInExCoreDir)BepInEx.dll" Private="false" />
     <Reference Include="AnimationSystem.Types" HintPath="$(CoreRefDir)AnimationSystem.Types.dll" Private="false" />
@@ -42,6 +46,7 @@
     <Reference Include="UnityEngine" HintPath="$(CoreRefDir)UnityEngine.dll" Private="false" />
     <Reference Include="UnityEngine.AssetBundleModule" HintPath="$(DecompLibDir)UnityEngine.AssetBundleModule.dll" Private="false" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(DecompLibDir)UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(DecompLibDir)UnityEngine.ImageConversionModule.dll" Private="false" />
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(DecompLibDir)UnityEngine.IMGUIModule.dll" Private="false" />
     <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(DecompLibDir)UnityEngine.InputLegacyModule.dll" Private="false" />
     <Reference Include="UnityEngine.PhysicsModule" HintPath="$(DecompLibDir)UnityEngine.PhysicsModule.dll" Private="false" />

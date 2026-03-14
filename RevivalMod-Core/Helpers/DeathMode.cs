@@ -34,7 +34,7 @@ namespace KeepMeAlive.Helpers
                 return false;
             }
 
-            if (RevivalFeatures.IsPlayerInCriticalState(playerId))
+            if (DownedStateController.IsPlayerInCriticalState(playerId))
             {
                 if (RevivalModSettings.DEATH_BLOCK_IN_CRITICAL.Value)
                 {
@@ -51,13 +51,13 @@ namespace KeepMeAlive.Helpers
                 return false;
             }
 
-            if (RevivalFeatures.IsPlayerInvulnerable(playerId))
+            if (DownedStateController.IsPlayerInvulnerable(playerId))
             {
                 Plugin.LogSource.LogDebug($"[DeathMode] {playerId} revived/invulnerable; blocking death.");
                 return true;
             }
 
-            if (RevivalFeatures.IsRevivalOnCooldown(playerId))
+            if (DownedStateController.IsRevivalOnCooldown(playerId))
             {
                 return false;
             }
@@ -111,8 +111,10 @@ namespace KeepMeAlive.Helpers
 
                 st.KillOverride = true;
                 st.IsBeingRevived = false;
+                st.IsSelfReviving = false;
                 st.IsPlayingRevivalAnimation = false;
                 st.State = RMState.None;
+                st.FinalizedReviveCycleId = -1;
 
                 st.CriticalStateMainTimer?.Stop(); 
                 st.CriticalStateMainTimer = null;
@@ -130,11 +132,11 @@ namespace KeepMeAlive.Helpers
                 GhostMode.ClearGhostFlag(id);
                 GodMode.Disable(player);
 
-                try 
-                { 
-                    MedicalAnimations.CleanupAllFakeItems(player); 
+                try
+                {
+                    MedicalAnimations.CleanupFakeItems(player);
                 }
-                catch (Exception ex) 
+                catch (Exception ex)
                 { 
                     Plugin.LogSource.LogError($"[DeathMode] CleanupFakeItems error: {ex.Message}"); 
                 }

@@ -1,5 +1,6 @@
 //====================[ Imports ]====================
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Comfort.Common;
@@ -8,9 +9,7 @@ using EFT.Communications;
 using EFT.HealthSystem;
 using EFT.InventoryLogic;
 using EFT.UI;
-using Fika.Core.Main.ObservedClasses;
 using Fika.Core.Main.Players;
-using Fika.Core.Networking.Packets.Player.Common.SubPackets;
 using HarmonyLib;
 using KeepMeAlive.Components;
 using KeepMeAlive.Features;
@@ -77,19 +76,22 @@ namespace KeepMeAlive.Patches
                 string playerId = player.ProfileId;
                 if (DeathMode.ShouldAllowDeathFromHardcoreHeadshot(__instance, damageType)) return true;
 
+                // Cache the block evaluation so we don't calculate it twice
+                bool shouldBlockDeath = DeathMode.ShouldBlockDeath(player, damageType);
+
                 if (RMSession.HasPlayerState(playerId))
                 {
                     var state = RMSession.GetPlayerState(playerId).State;
                     if (state is RMState.BleedingOut or RMState.Reviving or RMState.Revived)
                     {
                         if (!player.IsYourPlayer && state == RMState.BleedingOut) return false;
-                        if (DeathMode.ShouldBlockDeath(player, damageType)) return false;
+                        if (shouldBlockDeath) return false;
                     }
                 }
 
-                if (DeathMode.ShouldBlockDeath(player, damageType))
+                if (shouldBlockDeath)
                 {
-                    RevivalFeatures.SetPlayerCriticalState(player, true, damageType);
+                    DownedStateController.SetPlayerCriticalState(player, true, damageType);
                     return false;
                 }
 
@@ -129,8 +131,18 @@ namespace KeepMeAlive.Patches
                 {
                     Plugin.LogSource.LogDebug($"Found interactable: {interact.name}");
                     interact.layer = LayerMask.NameToLayer("Interactive");
-                    interact.GetComponent<BoxCollider>().enabled = true;
+                    foreach (var col in interact.GetComponents<Collider>())
+                    {
+                        if (col != null) col.enabled = true;
+                    }
                 }
+
+                // Inject defib icon eagerly so FikaHealthBar nameplates can show it.
+                // FikaHealthBar.AddEffect() looks up effect.Type in _effectIcons at the
+                // moment EffectAddedEvent fires — if the icon isn't injected yet it's
+                // silently skipped with no retry. OnGameStarted fires before any revival
+                // can occur, so injecting here guarantees it's ready in time.
+                DefibCooldownIconPatch.EnsureIconInjected();
             }
             catch (Exception ex)
             {
@@ -204,33 +216,6 @@ namespace KeepMeAlive.Patches
         }
     }
 
-    //====================[ HandleProceedPatch ]====================
-    internal class HandleProceedPatch : ModulePatch
-    {
-        //====================[ Patching ]====================
-        protected override MethodBase GetTargetMethod() =>
-            AccessTools.Method(typeof(ObservedPlayer), nameof(ObservedPlayer.HandleProceedPacket));
-
-        [PatchPrefix]
-        private static void Prefix(Player __instance)
-        {
-            try
-            {
-                if (__instance == null || __instance.IsYourPlayer) return;
-                
-                var state = RMSession.HasPlayerState(__instance.ProfileId) ? RMSession.GetPlayerState(__instance.ProfileId) : null;
-                if (state != null && state.IsCritical)
-                {
-                    MedicalAnimations.EnsureFakeItemsForRemotePlayer(__instance);
-                }
-            }
-            catch (Exception ex)
-            {
-                Plugin.LogSource.LogWarning($"[HandleProceedPatch] Prefix error: {ex.Message}");
-            }
-        }
-    }
-
     //====================[ OnPlayerCreatedPatch ]====================
     internal class OnPlayerCreatedPatch : ModulePatch
     {
@@ -260,7 +245,7 @@ namespace KeepMeAlive.Patches
 
                 var obj = InteractableBuilder<BodyInteractable>.Build(
                     "Body Interactable", Vector3.zero, Vector3.one * RevivalModSettings.MEDICAL_RANGE.Value,
-                    anchor, player, RevivalModSettings.TESTING.Value
+                    anchor, player, RevivalModSettings.FREE_TEAM_HEALING.Value
                 );
 
                 var bodyInteractable = obj?.GetComponent<BodyInteractable>();
@@ -295,32 +280,6 @@ namespace KeepMeAlive.Patches
                 if (t != null) return t;
             }
             return null;
-        }
-    }
-
-    //====================[ FikaHealthSyncLocalPlayerGuardPatch ]====================
-    /// <summary>
-    /// Silently discards HealthSyncPackets that arrive at the local player's FikaClient for the
-    /// local player itself. In a Fika headless-relay setup the server echoes every client's own
-    /// HealthSync packets back to that client. Because the local FikaPlayer is not an
-    /// ObservedPlayer, Fika logs a spam error for each echoed packet. The local player's health
-    /// effects are already applied by ClientHealthController — receiving them a second time via
-    /// HandleSyncPacket is incorrect and must be suppressed.
-    /// </summary>
-    internal class FikaHealthSyncLocalPlayerGuardPatch : ModulePatch
-    {
-        protected override MethodBase GetTargetMethod() =>
-            AccessTools.Method(typeof(HealthSyncPacket), nameof(HealthSyncPacket.Execute));
-
-        [PatchPrefix]
-        // 'player' is the first parameter of HealthSyncPacket.Execute(FikaPlayer player);
-        // we match by position so we can use the base EFT.Player type without a hard reference.
-        private static bool Prefix(Player player)
-        {
-            // Allow processing for observed players (normal case) and null (safety).
-            // Discard packets directed at the local player — they were echoed back by the
-            // headless relay and would cause a Fika "was not observed" error spam.
-            return player == null || !player.IsYourPlayer;
         }
     }
 
@@ -359,14 +318,24 @@ namespace KeepMeAlive.Features
         {
             try
             {
-                DownedStateController.TickBodyInteractableColliderState(__instance);
-                DownedStateController.TickInvulnerability(__instance);
-                DownedStateController.TickCooldown(__instance);
+                BodyInteractableManager.Tick(__instance);
+                PostRevivalController.TickInvulnerability(__instance);
+                PostRevivalController.TickCooldown(__instance);
                 DownedStateController.TickResync(__instance);
 
                 if (!__instance.IsYourPlayer) return;
 
-                if (RevivalModSettings.TESTING.Value) CheckTestKeybinds(__instance);
+                if (RMSession.HasPlayerState(__instance.ProfileId))
+                {
+                    var st = RMSession.GetPlayerState(__instance.ProfileId);
+                    if (st.IsCritical)
+                    {
+                        ReviveDebug.Log("ReviveTick_Enter", __instance.ProfileId, __instance.IsYourPlayer, $"state={st.State}");
+                        ReviveDebug.Log("ReviveTick_CallTickDowned", __instance.ProfileId, __instance.IsYourPlayer, null);
+                    }
+                }
+
+                if (RevivalModSettings.DEBUG_KEYBINDS.Value) CheckTestKeybinds(__instance);
 
                 DownedStateController.TickDowned(__instance);
             }
@@ -410,74 +379,116 @@ namespace KeepMeAlive.Features
                 Plugin.LogSource.LogError($"[TestKeybinds] Error: {ex.Message}");
             }
         }
-
-        //====================[ Wrapper Methods ]====================
-        public static bool IsPlayerInCriticalState(string playerId) => DownedStateController.IsPlayerInCriticalState(playerId);
-        public static bool IsPlayerInvulnerable(string playerId) => DownedStateController.IsPlayerInvulnerable(playerId);
-        public static bool IsRevivalOnCooldown(string playerId) => DownedStateController.IsRevivalOnCooldown(playerId);
-        public static void SetPlayerCriticalState(Player player, bool isCritical, EDamageType damageType) => DownedStateController.SetPlayerCriticalState(player, isCritical, damageType);
     }
 
-    //====================[ TeamHealGEventArgs13SuppressPatch ]====================
-    // MedEffect.Added/UpdateResource fire a GEventArgs13 event on the item owner's
-    // InventoryController.  When the item belongs to a remote healer it lives in
-    // an ObservedInventoryController on the patient's machine, which has its own
-    // GInterface187 (OnDrain) handlers tied to the observed FirearmController.
-    // Receiving that event triggers RemoveAmmoFromChamber on an observed player
-    // whose animation state is not ready → NullRef → every subsequent SwapOperation
-    // for that player fails with "hands controller can't perform this operation".
+    //====================[ DefibCooldownIconPatch ]====================
+    // Injects the DefibCooldown icon sprite into EFT's EffectIcons registry on the
+    // first EffectsPanel.Show() call in-raid.
     //
-    // IMPORTANT: revival fake CMS/SurvKit items are also stored in ObservedInventoryController
-    // (via EnsureFakeItemsForRemotePlayer).  NetworkHealthControllerAbstractClass.MedEffect
-    // calls the SAME path for those items.  We MUST allow them through so the network
-    // effect lifecycle (UpdateResource → MedItem null-out) works correctly.
-    internal class TeamHealGEventArgs13SuppressPatch : ModulePatch
+    // WHY NOT OnAfterDeserialize: StaticIcons is deserialized during Unity's asset-loading
+    // phase, before BepInEx plugins load — the method has already fired by the time our
+    // patch is registered. EffectsPanel.Show() fires lazily in-raid and is always after
+    // plugin startup, so we inject there once and cache _injected = true for all later calls.
+    internal class DefibCooldownIconPatch : ModulePatch
     {
-        protected override MethodBase GetTargetMethod() =>
-            AccessTools.Method(typeof(TraderControllerClass), "RaiseEvent",
-                new[] { typeof(GEventArgs13) });
+        private static bool _injected;
+        private static Sprite _cachedSprite;
 
-        [PatchPrefix]
-        private static bool Prefix(TraderControllerClass __instance, GEventArgs13 args)
+        protected override MethodBase GetTargetMethod()
         {
-            // Allow non-ObservedInventoryController owners (local player, bots, etc.)
-            if (__instance is not ObservedInventoryController) return true;
-            // Allow revival fake items (CMS dea2…, SurvKit dea1…) through — their
-            // NetworkHealthControllerAbstractClass.MedEffect depends on this event.
-            if (MedicalAnimations.IsFakeRevivalItem(args?.Item)) return true;
-            // Suppress for all other foreign items in ObservedInventoryController
-            // (i.e. team-heal items from the healer that would crash the observed firearm controller).
-            return false;
+            var method = AccessTools.Method(typeof(EffectsPanel), "Show");
+            if (method == null)
+                Plugin.LogSource.LogError("[DefibCooldownIconPatch] Could not find EffectsPanel.Show.");
+            else
+                Plugin.LogSource.LogDebug("[DefibCooldownIconPatch] Patch enabled on EffectsPanel.Show.");
+            return method;
         }
-    }
-
-    //====================[ TeamHealRemoveItemSuppressPatch ]====================
-    // GClass3017.RemoveItem is called by NetworkHealthControllerAbstractClass.MedEffect.UpdateResource
-    // when a single-use med item is exhausted via HealthSyncPacket.  When the item belongs to
-    // a remote healer (parent owned by ObservedInventoryController), this would silently remove
-    // it only from the patient's local replica — the healer's real inventory is unchanged.
-    // Suppressing the call here lets the healer's own Fika-synced ConsumeItem transaction handle
-    // the authoritative removal so every client sees a consistent state.
-    //
-    // IMPORTANT: revival fake CMS/SurvKit items also live in ObservedInventoryController and
-    // go through the same code path.  We MUST allow them through so the fake item is properly
-    // removed from QuestRaidItems when the server signals exhaustion, keeping NullOutNetworkMedItem
-    // able to find and clean up the effect while MedItem is still non-null.
-    internal class TeamHealRemoveItemSuppressPatch : ModulePatch
-    {
-        protected override MethodBase GetTargetMethod() =>
-            AccessTools.Method(typeof(GClass3017), "RemoveItem");
 
         [PatchPrefix]
-        private static bool Prefix(Item item)
+        private static void PatchPrefix()
         {
-            // Allow non-ObservedInventoryController owners.
-            if (item?.Parent?.GetOwner() is not ObservedInventoryController) return true;
-            // Allow revival fake items — their removal from QuestRaidItems must happen
-            // normally so NullOutNetworkMedItem can find the effect before MedItem is null'ed.
-            if (MedicalAnimations.IsFakeRevivalItem(item)) return true;
-            // Suppress removal for foreign team-heal items in ObservedInventoryController.
-            return false;
+            if (_injected) return;
+            EnsureIconInjected();
+        }
+
+        internal static void EnsureIconInjected()
+        {
+            try
+            {
+                var iconDict = EFTHardSettings.Instance?.StaticIcons?.EffectIcons?.EffectIcons;
+                if (iconDict == null)
+                {
+                    Plugin.LogSource.LogWarning("[DefibCooldownIconPatch] EffectIcons dict not yet available.");
+                    return; // Don't set _injected; retry on next EffectsPanel.Show()
+                }
+
+                if (_cachedSprite == null)
+                    _cachedSprite = LoadDefibSprite();
+
+                if (_cachedSprite == null)
+                {
+                    Plugin.LogSource.LogWarning("[DefibCooldownIconPatch] Custom sprite unavailable; using fallback.");
+                    foreach (var s in iconDict.Values)
+                        if (s != null) { _cachedSprite = s; break; }
+                }
+
+                if (_cachedSprite == null)
+                {
+                    Plugin.LogSource.LogError("[DefibCooldownIconPatch] No sprite available — icon will not show.");
+                    _injected = true;
+                    return;
+                }
+
+                iconDict[typeof(IDefibCooldown)] = _cachedSprite;
+                Plugin.LogSource.LogInfo(
+                    $"[DefibCooldownIconPatch] DefibCooldown icon injected (dict size now {iconDict.Count}).");
+                _injected = true;
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[DefibCooldownIconPatch] EnsureIconInjected error: {ex}");
+            }
+        }
+
+        private static Sprite LoadDefibSprite()
+        {
+            try
+            {
+                var asm = Assembly.GetExecutingAssembly();
+                const string resource = "RevivalMod.Resources.defib_cooldown.png";
+
+                using var stream = asm.GetManifestResourceStream(resource);
+                if (stream == null)
+                {
+                    Plugin.LogSource.LogWarning(
+                        $"[DefibCooldownIconPatch] Embedded resource '{resource}' not found.");
+                    return null;
+                }
+
+                byte[] bytes;
+                using (var br = new System.IO.BinaryReader(stream))
+                    bytes = br.ReadBytes((int)stream.Length);
+
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (!tex.LoadImage(bytes))
+                {
+                    Plugin.LogSource.LogWarning("[DefibCooldownIconPatch] Texture2D.LoadImage returned false.");
+                    return null;
+                }
+
+                Plugin.LogSource.LogDebug(
+                    $"[DefibCooldownIconPatch] Loaded defib PNG: {tex.width}x{tex.height}");
+                return Sprite.Create(
+                    tex,
+                    new Rect(0f, 0f, tex.width, tex.height),
+                    new Vector2(0.5f, 0.5f),
+                    100f);
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[DefibCooldownIconPatch] LoadDefibSprite error: {ex}");
+                return null;
+            }
         }
     }
 }

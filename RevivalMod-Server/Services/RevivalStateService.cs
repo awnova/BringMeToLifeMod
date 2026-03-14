@@ -128,9 +128,20 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
                 }
             }
 
-            if (entry.State != RevivalState.BleedingOut && entry.State != RevivalState.Reviving)
+            // Allow None state as well as BleedingOut: begin-critical is fire-and-forget and
+            // may not have arrived yet when the reviver's 2-second hold completes, especially
+            // with two players downed simultaneously. The reviver is standing over the body so
+            // we trust the client-side downed state.
+            if (entry.State != RevivalState.BleedingOut &&
+                entry.State != RevivalState.Reviving   &&
+                entry.State != RevivalState.None)
             {
                 return Denied($"Player is not downed: {entry.State}", entry);
+            }
+
+            if (entry.State == RevivalState.None)
+            {
+                logger.Warning($"[RevivalMod] request-revive-start for {playerId} arrived before begin-critical (state=None). Allowing and promoting to Reviving.");
             }
 
             entry.State = RevivalState.Reviving;

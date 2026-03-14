@@ -33,6 +33,7 @@ namespace KeepMeAlive.Components
         public bool KillOverride { get; set; }
         public bool IsPlayingRevivalAnimation { get; set; }
         public bool IsBeingRevived { get; set; }
+        public bool IsSelfReviving { get; set; }
 
         //====================[ Session Info ]====================
         // 0 = Self, 1 = Team
@@ -56,7 +57,8 @@ namespace KeepMeAlive.Components
         public long LastRevivalTimesByPlayer { get; set; }
         public EDamageType PlayerDamageType { get; set; } = EDamageType.Undefined;
 
-        //====================[ Cached Items ]====================
+        //====================[ Local Fake Revival Items ]====================
+        // Used only on the owning player's client for ApplyItem-triggered revive animations.
         public Item FakeCmsItem { get; set; }
         public Item FakeSurvKitItem { get; set; }
 
@@ -71,5 +73,17 @@ namespace KeepMeAlive.Components
 
         //====================[ Input Tracking ]====================
         public Dictionary<KeyCode, float> SelfRevivalKeyHoldDuration { get; set; } = new();
+        // Deterministic self-revive flow state (hold -> auth -> reviving).
+        public float SelfReviveHoldTime { get; set; }
+        public bool SelfReviveCommitted { get; set; }
+        public bool SelfReviveAuthPending { get; set; }
+        public int SelfReviveAttemptId { get; set; }
+
+        //====================[ Revive Flow Markers ]====================
+        // Incremented whenever a new downed cycle begins.
+        public int ReviveCycleId { get; set; }
+        // Set to ReviveCycleId once restore/finalize side effects are committed.
+        public int FinalizedReviveCycleId { get; set; } = -1;
+        public bool IsReviveFinalizeCommittedForCurrentCycle => FinalizedReviveCycleId == ReviveCycleId;
     }
 }

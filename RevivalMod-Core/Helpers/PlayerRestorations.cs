@@ -1,5 +1,6 @@
 //====================[ Imports ]====================
 using System;
+using Comfort.Common;
 using EFT;
 using KeepMeAlive.Components;
 
@@ -51,6 +52,24 @@ namespace KeepMeAlive.Helpers
             catch (Exception ex)
             {
                 Plugin.LogSource.LogError($"[PlayerRestorations] RestorePlayerMovement: {ex.Message}");
+            }
+        }
+
+        public static void RestorePlayerWeapon(Player player)
+        {
+            if (player is null || !player.IsYourPlayer) return;
+            
+            try
+            {
+                // Force hands to equip something if they are empty
+                if (player.HandsController is EFT.Player.EmptyHandsController)
+                {
+                    player.SetFirstAvailableItem((Result<IHandsController> _) => { });
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[PlayerRestorations] RestorePlayerWeapon error: {ex}");
             }
         }
 

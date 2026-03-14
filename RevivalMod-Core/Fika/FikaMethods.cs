@@ -2,7 +2,6 @@
 using System;
 using Comfort.Common;
 using EFT;
-using Fika.Core.Main.Utils;
 using Fika.Core.Modding;
 using Fika.Core.Modding.Events;
 using Fika.Core.Networking;
@@ -29,7 +28,7 @@ namespace KeepMeAlive.Fika
 
             try
             {
-                bool broadcast = FikaBackendUtils.IsServer;
+                bool broadcast = true;
                 Singleton<IFikaNetworkManager>.Instance.SendData(ref packet, DeliveryMethod.ReliableOrdered, broadcast);
             }
             catch (Exception ex)
@@ -38,22 +37,9 @@ namespace KeepMeAlive.Fika
             }
         }
 
-        // Returns true if relayed and caller should skip local handling.
-        private static bool TryRelayIfHeadless<T>(T packet, Action<T> relayAction)
+        private static void LogStateTransition(string source, string playerId, RMState from, RMState to, string details = "")
         {
-            if (FikaBackendUtils.IsHeadless && FikaBackendUtils.IsServer)
-            {
-                try
-                {
-                    relayAction(packet);
-                }
-                catch (Exception ex)
-                {
-                    Plugin.LogSource.LogError(ex);
-                }
-                return true;
-            }
-            return false;
+            Plugin.LogSource.LogInfo($"[StateTrace:{source}] {playerId}: {from} -> {to} {details}");
         }
 
         //====================[ Packet Senders ]====================
@@ -130,11 +116,33 @@ namespace KeepMeAlive.Fika
         //====================[ Packet Receivers ]====================
         private static void OnBleedingOutPacketReceived(BleedingOutPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendBleedingOutPacket(p.playerId, p.timeRemaining))) return;
+            // Authority guard: local player already owns this state and should not be
+            // overwritten by echoed/delayed network packets.
+            var local = Utils.GetYourPlayer();
+            if (local != null && local.ProfileId == packet.playerId)
+            {
+                Plugin.LogSource.LogInfo($"[StateTrace:BleedingOutPacket] {packet.playerId}: ignored local-owner packet (timeRemaining={packet.timeRemaining:F2})");
+                return;
+            }
+
+            var existing = RMSession.GetPlayerState(packet.playerId);
+            // Ignore stale rollback packets once revival has already started/finished.
+            if (existing.State is RMState.Reviving or RMState.Revived)
+            {
+                Plugin.LogSource.LogInfo($"[StateTrace:BleedingOutPacket] {packet.playerId}: ignored stale rollback into BleedingOut (current={existing.State}, timeRemaining={packet.timeRemaining:F2})");
+                return;
+            }
 
             var playerState = RMSession.GetPlayerState(packet.playerId);
+            var prevState = playerState.State;
             playerState.State = RMState.BleedingOut;
+            playerState.FinalizedReviveCycleId = -1;
             playerState.CriticalTimer = packet.timeRemaining;
+            playerState.IsPlayingRevivalAnimation = false;
+            playerState.IsBeingRevived = false;
+            playerState.IsSelfReviving = false;
+            playerState.CurrentReviverId = string.Empty;
+            playerState.ReviveRequestedSource = 0;
             
             // Reset kill override to ensure death blocking works for remote players
             playerState.KillOverride = false;
@@ -142,17 +150,23 @@ namespace KeepMeAlive.Fika
             // Ensure player is tracked in critical players list for death blocking
             RMSession.AddToCriticalPlayers(packet.playerId);
 
+            LogStateTransition("BleedingOutPacket", packet.playerId, prevState, playerState.State,
+                $"| timer={packet.timeRemaining:F2} reviver='{playerState.CurrentReviverId}' source={playerState.ReviveRequestedSource}");
+
+            Player player = Utils.GetPlayerById(packet.playerId);
+            if (player != null)
+            {
+                // Ensure items are populated for Meds operations immediately.
+                MedicalAnimations.EnsureFakeItemsForRemotePlayer(player);
+            }
+
             Plugin.LogSource.LogDebug($"[Packet] BleedingOut: {packet.playerId} has {packet.timeRemaining}s left (remote player)");
 
             // Ghost mode uses profileId; must not gate behind ActiveHealthController check since remote host clients use ObservedHealthController.
             if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(packet.playerId);
 
-            Player player = Utils.GetPlayerById(packet.playerId);
             if (player != null)
             {
-                // Defer item creation to the next frame so we don't block the packet-handler
-                // frame with two factory.CreateItem() + grid-search calls on every client.
-                Plugin.StaticCoroutineRunner.StartCoroutine(EnsureFakeItemsNextFrame(player));
                 if (RevivalModSettings.GOD_MODE.Value) GodMode.Enable(player);
             }
             else
@@ -161,22 +175,14 @@ namespace KeepMeAlive.Fika
             }
         }
 
-        private static System.Collections.IEnumerator EnsureFakeItemsNextFrame(Player player)
-        {
-            yield return null;
-            try { MedicalAnimations.EnsureFakeItemsForRemotePlayer(player); }
-            catch (Exception ex) { Plugin.LogSource.LogWarning($"[Packet] EnsureFakeItemsNextFrame error: {ex.Message}"); }
-        }
-
         private static void OnTeamHelpPacketReceived(TeamHelpPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendTeamHelpPacket(p.reviveeId, p.reviverId))) return;
-
             Plugin.LogSource.LogDebug($"[Packet] TeamHelp: {packet.reviverId} started helping {packet.reviveeId}");
 
             var playerState = RMSession.GetPlayerState(packet.reviveeId);
             playerState.CurrentReviverId = packet.reviverId;
             playerState.IsBeingRevived = true;
+            playerState.IsSelfReviving = false;
             // Start watchdog: if the reviver disconnects before ReviveStart arrives, TickDowned will clear IsBeingRevived (#1).
             playerState.BeingRevivedWatchdogTimer = 10f;
 
@@ -192,6 +198,10 @@ namespace KeepMeAlive.Fika
                 {
                     // Cancel self-revive inputs to prevent IsBeingRevived corruption
                     playerState.SelfRevivalKeyHoldDuration.Clear();
+                    playerState.SelfReviveHoldTime = 0f;
+                    playerState.SelfReviveCommitted = false;
+                    playerState.SelfReviveAuthPending = false;
+                    playerState.IsSelfReviving = false;
 
                     VFX_UI.HideObjectivePanel();
                     playerState.RevivePromptTimer?.Stop();
@@ -207,21 +217,22 @@ namespace KeepMeAlive.Fika
 
         private static void OnTeamCancelPacketReceived(TeamCancelPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendTeamCancelPacket(p.reviveeId, p.reviverId))) return;
-
             Plugin.LogSource.LogDebug($"[Packet] TeamCancel: {packet.reviverId} cancelled helping {packet.reviveeId}");
 
             var playerState = RMSession.GetPlayerState(packet.reviveeId);
-            // Guard: if revival already started (Reviving), a late cancel cannot revert it (#2).
-            // The animation coroutine is already live and will complete normally.
-            if (playerState.State == RMState.Reviving)
+            var prevState = playerState.State;
+            // Guard: if revival already started/finished, a late cancel cannot revert it.
+            if (playerState.State is RMState.Reviving or RMState.Revived)
             {
-                Plugin.LogSource.LogWarning($"[Packet] TeamCancel: {packet.reviverId} cancel ignored — {packet.reviveeId} already in Reviving state");
+                Plugin.LogSource.LogWarning($"[Packet] TeamCancel: {packet.reviverId} cancel ignored — {packet.reviveeId} already in {playerState.State} state");
                 return;
             }
             playerState.State = RMState.BleedingOut;
             playerState.IsBeingRevived = false;
+            playerState.IsSelfReviving = false;
             playerState.CurrentReviverId = string.Empty;
+            LogStateTransition("TeamCancelPacket", packet.reviveeId, prevState, playerState.State,
+                $"| cancelledBy='{packet.reviverId}'");
 
             // If we are the revivee, restore the self-revive prompt
             Player reviveePlayer = Utils.GetPlayerById(packet.reviveeId);
@@ -250,19 +261,37 @@ namespace KeepMeAlive.Fika
 
         private static void OnSelfReviveStartPacketReceived(SelfReviveStartPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendSelfReviveStartPacket(p.playerId))) return;
+            bool isLocal = Utils.GetYourPlayer()?.ProfileId == packet.playerId;
+            ReviveDebug.Log("Packet_SelfReviveStart_Enter", packet.playerId, isLocal, null);
 
             Plugin.LogSource.LogDebug($"[Packet] SelfReviveStart: {packet.playerId} started self-revival");
 
             var playerState = RMSession.GetPlayerState(packet.playerId);
+            if (playerState.State == RMState.Revived)
+            {
+                ReviveDebug.Log("Packet_SelfReviveStart_StaleRevived", packet.playerId, isLocal, null);
+                Plugin.LogSource.LogInfo($"[StateTrace:SelfReviveStartPacket] {packet.playerId}: ignored stale start while already Revived");
+                return;
+            }
+
+            if (playerState.State == RMState.Reviving && playerState.IsPlayingRevivalAnimation)
+            {
+                // Do not drop start packets on this latch alone.
+                // Re-arming is safer than suppressing because stale animation flags can outlive a previous cycle.
+                ReviveDebug.Log("Packet_SelfReviveStart_Duplicate", packet.playerId, isLocal, "rearm");
+            }
+
+            var prevState = playerState.State;
             playerState.State = RMState.Reviving;
             playerState.ReviveRequestedSource = 0; // Self
+            // Always re-arm local revive apply/animation start on new revive transition.
+            playerState.IsPlayingRevivalAnimation = false;
+            playerState.IsSelfReviving = false;
+            LogStateTransition("SelfReviveStartPacket", packet.playerId, prevState, playerState.State,
+                "| source=Self");
 
             RMSession.UpdatePlayerState(packet.playerId, playerState);
-
-            // Ensure fake items exist to prevent HealthSync null refs when ApplyItem fires immediately
-            var selfRevivePlayer = Utils.GetPlayerById(packet.playerId);
-            if (selfRevivePlayer != null) MedicalAnimations.EnsureFakeItemsForRemotePlayer(selfRevivePlayer);
+            ReviveDebug.Log("Packet_SelfReviveStart_StateUpdate", packet.playerId, isLocal, $"prevState={prevState}");
 
             try
             {
@@ -277,20 +306,27 @@ namespace KeepMeAlive.Fika
 
         private static void OnTeamReviveStartPacketReceived(TeamReviveStartPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendTeamReviveStartPacket(p.reviveeId, p.reviverId))) return;
-
             Plugin.LogSource.LogDebug($"[Packet] TeamReviveStart: {packet.reviverId} started reviving {packet.reviveeId}");
 
             var playerState = RMSession.GetPlayerState(packet.reviveeId);
+            if (playerState.State == RMState.Revived)
+            {
+                Plugin.LogSource.LogInfo($"[StateTrace:TeamReviveStartPacket] {packet.reviveeId}: ignored stale start while already Revived");
+                return;
+            }
+
+            var prevState = playerState.State;
             playerState.State = RMState.Reviving;
             playerState.ReviveRequestedSource = 1; // Team
             playerState.CurrentReviverId = packet.reviverId;
+            // Always re-arm local revive apply/animation start on new revive transition.
+            playerState.IsPlayingRevivalAnimation = false;
+            playerState.IsSelfReviving = false;
+
+            LogStateTransition("TeamReviveStartPacket", packet.reviveeId, prevState, playerState.State,
+                $"| source=Team reviver='{packet.reviverId}'");
 
             RMSession.UpdatePlayerState(packet.reviveeId, playerState);
-
-            // Ensure fake items exist to prevent HealthSync null refs when ApplyItem fires immediately
-            var teamReviveePlayer = Utils.GetPlayerById(packet.reviveeId);
-            if (teamReviveePlayer != null) MedicalAnimations.EnsureFakeItemsForRemotePlayer(teamReviveePlayer);
 
             try
             {
@@ -306,8 +342,6 @@ namespace KeepMeAlive.Fika
 
         private static void OnRevivedPacketReceived(RevivedPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendRevivedPacket(p.playerId, p.reviverId))) return;
-
             Plugin.LogSource.LogDebug($"[Packet] Revived: {packet.playerId} was revived by {packet.reviverId}");
 
             Player player = Utils.GetPlayerById(packet.playerId);
@@ -319,15 +353,16 @@ namespace KeepMeAlive.Fika
 
             bool isSelfRevive = string.IsNullOrEmpty(packet.reviverId) || packet.reviverId == packet.playerId;
             var playerState = RMSession.GetPlayerState(packet.playerId);
+            bool applyFinalize = player.IsYourPlayer && DownedStateController.TryCommitReviveFinalizeForCycle("RevivedPacket", packet.playerId, playerState);
+            var prevState = playerState.State;
             playerState.State = RMState.Revived;
             playerState.InvulnerabilityTimer = PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
             playerState.KillOverride = false;
+            LogStateTransition("RevivedPacket", packet.playerId, prevState, playerState.State,
+                $"| reviver='{packet.reviverId}' invul={playerState.InvulnerabilityTimer:F2}");
             
             // Remove from critical players list
             RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
-
-            // Clean up fake items used for revival animations
-            MedicalAnimations.CleanupFakeItemsForRemotePlayer(player);
 
             // Enable protections
             GodMode.ForceEnable(player);
@@ -338,7 +373,10 @@ namespace KeepMeAlive.Fika
             {
                 try
                 {
-                    PostReviveEffects.Apply(player, isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
+                    if (applyFinalize)
+                    {
+                        PostReviveEffects.Apply(player, isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -346,48 +384,23 @@ namespace KeepMeAlive.Fika
                 }
             }
 
-            // Movement restoration only applies on the revived player's own machine.
-            // Observers never need this: StartInvulnerabilityPeriod runs on the local machine
-            // as the authoritative path. The revived player's machine does not receive its own
-            // RevivedPacket (Fika does not echo it back to the sender), so this block is a
-            // defensive guard for edge-case relay configurations only.
-            if (player.IsYourPlayer)
-            {
-                try
-                {
-                    // Store speed here if TickDowned never ran on this machine (edge case).
-                    if (playerState.OriginalMovementSpeed < 0)
-                        playerState.OriginalMovementSpeed = player.Physical.WalkSpeedLimit;
-
-                    if (playerState.OriginalMovementSpeed > 0)
-                        player.Physical.WalkSpeedLimit = playerState.OriginalMovementSpeed;
-
-                    if (player.MovementContext != null)
-                    {
-                        player.MovementContext.IsInPronePose = false;
-                        player.MovementContext.EnableSprint(true);
-                        player.MovementContext.SetPoseLevel(1f, true);
-                    }
-
-                    Plugin.LogSource.LogDebug($"[Packet] Restored movement for revived player {packet.playerId} (speed: {playerState.OriginalMovementSpeed})");
-                }
-                catch (Exception ex)
-                {
-                    Plugin.LogSource.LogWarning($"[Packet] Movement restoration error: {ex.Message}");
-                }
-            }
+            // Movement restoration belongs to StartInvulnerabilityPeriod/EndInvulnerability,
+            // which are the authoritative lifecycle checkpoints.
 
             // Update UI for local player
             if (player.IsYourPlayer)
             {
                 try
                 {
-                    VFX_UI.HideTransitPanel();
-                    playerState.CriticalStateMainTimer?.Stop();
-                    playerState.CriticalStateMainTimer = null;
+                    if (applyFinalize)
+                    {
+                        VFX_UI.HideTransitPanel();
+                        playerState.CriticalStateMainTimer?.Stop();
+                        playerState.CriticalStateMainTimer = null;
 
-                    float dur = PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
-                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", dur);
+                        float dur = PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
+                        VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", dur);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -408,10 +421,20 @@ namespace KeepMeAlive.Fika
 
         private static void OnPlayerStateResetPacketReceived(PlayerStateResetPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendPlayerStateResetPacket(p.playerId, p.isDead, p.cooldownSeconds))) return;
-
             var playerState = RMSession.GetPlayerState(packet.playerId);
+            var prevState = playerState.State;
             RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
+            playerState.IsPlayingRevivalAnimation = false;
+            playerState.IsBeingRevived = false;
+            playerState.CurrentReviverId = string.Empty;
+            playerState.ReviveRequestedSource = 0;
+            playerState.BeingRevivedWatchdogTimer = 0f;
+            playerState.SelfRevivalKeyHoldDuration.Clear();
+            playerState.SelfReviveHoldTime = 0f;
+            playerState.SelfReviveCommitted = false;
+            playerState.SelfReviveAuthPending = false;
+            playerState.IsSelfReviving = false;
+            playerState.FinalizedReviveCycleId = -1;
 
             if (packet.isDead)
             {
@@ -431,10 +454,12 @@ namespace KeepMeAlive.Fika
                 playerState.CriticalTimer = 0f;
             }
 
+            LogStateTransition("PlayerStateResetPacket", packet.playerId, prevState, playerState.State,
+                $"| isDead={packet.isDead} cooldown={packet.cooldownSeconds:F2}");
+
             Player player = Utils.GetPlayerById(packet.playerId);
             if (player != null)
             {
-                MedicalAnimations.CleanupFakeItemsForRemotePlayer(player);
                 if (RevivalModSettings.GHOST_MODE.Value) GhostMode.ExitGhostMode(player);
                 GodMode.Disable(player);
 
@@ -448,8 +473,6 @@ namespace KeepMeAlive.Fika
         //====================[ Team Healing Packet Receivers ]====================
         private static void OnTeamHealPacketReceived(TeamHealPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendTeamHealPacket(p.patientId, p.healerId, p.itemId))) return;
-
             Plugin.LogSource.LogDebug($"[Packet] TeamHeal: {packet.healerId} healing {packet.patientId} with item {packet.itemId}");
 
             // Show notification on all machines.
@@ -484,7 +507,10 @@ namespace KeepMeAlive.Fika
                     return;
                 }
 
-                patient.HealthController.ApplyItem(healerItem, EBodyPart.Common);
+                if (!Utils.TryApplyItemLikeTeamHeal(patient, healerItem, "TeamHealPacket"))
+                {
+                    return;
+                }
                 VFX_UI.Text(Color.green, "You were healed!");
             }
             catch (Exception ex)
@@ -495,8 +521,6 @@ namespace KeepMeAlive.Fika
 
         private static void OnTeamHealCancelPacketReceived(TeamHealCancelPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, p => SendTeamHealCancelPacket(p.patientId, p.healerId))) return;
-
             Plugin.LogSource.LogDebug($"[Packet] TeamHealCancel: {packet.healerId} cancelled healing {packet.patientId}");
 
             try
@@ -510,12 +534,8 @@ namespace KeepMeAlive.Fika
             }
         }
 
-        private static void RelayResyncPacket(PlayerStateResyncPacket packet) => SendPacket(ref packet);
-
         private static void OnPlayerStateResyncPacketReceived(PlayerStateResyncPacket packet, NetPeer peer)
         {
-            if (TryRelayIfHeadless(packet, RelayResyncPacket)) return;
-
             // Authority guard - never overwrite local from resync
             var local = Utils.GetYourPlayer();
             if (local != null && local.ProfileId == packet.playerId) return;
@@ -523,6 +543,17 @@ namespace KeepMeAlive.Fika
             var st       = RMSession.GetPlayerState(packet.playerId);
             var incoming = (RMState)packet.state;
             var prev     = st.State;
+
+            // Ignore stale backwards transitions that would interrupt an in-progress revive.
+            if (prev is RMState.Reviving or RMState.Revived)
+            {
+                bool staleRegression = incoming == RMState.BleedingOut || incoming == RMState.Reviving;
+                if (staleRegression && incoming != prev)
+                {
+                    Plugin.LogSource.LogInfo($"[StateTrace:ResyncPacket] {packet.playerId}: ignored stale transition {prev} -> {incoming} | crit={packet.criticalTimer:F2} invul={packet.invulTimer:F2} cd={packet.cooldownTimer:F2} reviver='{packet.reviverId}' source={packet.reviveRequestedSource}");
+                    return;
+                }
+            }
 
             // Always update timers - time-sensitive even if state unchanged
             st.CriticalTimer         = packet.criticalTimer;
@@ -541,13 +572,14 @@ namespace KeepMeAlive.Fika
                 switch (incoming)
                 {
                     case RMState.BleedingOut:
+                        if (player != null) MedicalAnimations.EnsureFakeItemsForRemotePlayer(player);
+                        // fall-through to Reviving logic
+                        goto case RMState.Reviving;
                     case RMState.Reviving:
                         RMSession.AddToCriticalPlayers(packet.playerId);
                         st.KillOverride = false;
                         if (player != null)
                         {
-                            // Ensure fake items for late-joiners missing original BleedingOut packets
-                            MedicalAnimations.EnsureFakeItemsForRemotePlayer(player);
                             if (RevivalModSettings.GHOST_MODE.Value) GhostMode.EnterGhostModeById(packet.playerId);
                             if (RevivalModSettings.GOD_MODE.Value)   GodMode.Enable(player);
                         }
@@ -568,20 +600,21 @@ namespace KeepMeAlive.Fika
                             // so re-subscribing them on observers would double-hook or NRE.
                             if (player.IsYourPlayer)
                             {
-                                try { PostReviveEffects.Apply(player, (ReviveSource)packet.reviveRequestedSource, applyDebuffs: false); } catch { }
+                                bool applyFinalize = DownedStateController.TryCommitReviveFinalizeForCycle("ResyncRevived", packet.playerId, st);
+                                if (applyFinalize)
+                                {
+                                    try { PostReviveEffects.Apply(player, (ReviveSource)packet.reviveRequestedSource, applyDebuffs: false); } catch { }
+                                }
                                 try
                                 {
-                                    if (player.MovementContext != null)
+                                    if (applyFinalize && player.MovementContext != null)
                                     {
                                         player.MovementContext.IsInPronePose = false;
                                         player.MovementContext.SetPoseLevel(1f, true);
                                         player.MovementContext.EnableSprint(true);
+                                        // Re-attach movement hooks unsubscribed when player went down.
+                                        DownedMovementController.ReattachMovementHooks(player);
                                     }
-                                    // Re-attach movement hooks unsubscribed when player went down.
-                                    player.MovementContext.OnStateChanged -= player.method_17;
-                                    player.MovementContext.OnStateChanged += player.method_17;
-                                    player.MovementContext.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
-                                    player.MovementContext.PhysicalConditionChanged += player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
                                 }
                                 catch { }
                             }
@@ -604,7 +637,8 @@ namespace KeepMeAlive.Fika
                 Plugin.LogSource.LogWarning($"[Resync] Apply-state error for {packet.playerId}: {ex.Message}");
             }
 
-            Plugin.LogSource.LogInfo($"[Resync] {packet.playerId} state {prev} → {incoming}");
+            LogStateTransition("ResyncPacket", packet.playerId, prev, incoming,
+                $"| crit={packet.criticalTimer:F2} invul={packet.invulTimer:F2} cd={packet.cooldownTimer:F2} reviver='{packet.reviverId}' source={packet.reviveRequestedSource}");
         }
 
         //====================[ Registration / Init ]====================
