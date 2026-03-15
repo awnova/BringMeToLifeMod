@@ -63,12 +63,12 @@ namespace KeepMeAlive.Components
             if (playerCritical)
             {
                 // Patient is downed — Revive only, never Heal at the same time.
-                bool hasDefib = Utils.HasDefib(owner.Player);
+                bool canRevive = RevivalModSettings.NO_DEFIB_REQUIRED.Value || Utils.HasDefib(owner.Player);
                 actions.Actions.Add(new ActionsTypesClass
                 {
                     Action   = () => OnRevive(owner),
                     Name     = "Revive",
-                    Disabled = !hasDefib
+                    Disabled = !canRevive
                 });
             }
             else

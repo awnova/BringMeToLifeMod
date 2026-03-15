@@ -12,7 +12,7 @@ namespace KeepMeAlive.Features
     //====================[ DownedStateController ]====================
     // Slim state-machine coordinator. Domain logic lives in:
     //   BodyInteractableManager, DownedHealthAndEffectsManager,
-    //   DownedMovementController, PostRevivalController, SelfRevivalController
+    //   DownedMovementController, PostRevivalController, RevivalController
     internal static class DownedStateController
     {
 
@@ -232,8 +232,8 @@ private static void SafeCleanupFakeItems(Player player, MedicalAnimations.Surgic
                 if (st.CriticalStateMainTimer == null) TryLazyShowTransitTimer(player, st);
             }
 
-            SelfRevivalController.TickSelfRevival(player, st);
-            SelfRevivalController.ObserveRevivingState(player, st);
+            RevivalController.TickSelfRevival(player, st);
+            RevivalController.ObserveRevivingState(player, st);
 
             if (st.IsBeingRevived && st.State == RMState.BleedingOut && !string.IsNullOrEmpty(st.CurrentReviverId))
             {

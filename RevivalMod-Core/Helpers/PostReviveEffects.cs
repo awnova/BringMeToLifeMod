@@ -109,17 +109,31 @@ namespace KeepMeAlive.Helpers
         {
             try
             {
+                float pct = GetRestorePercent(part, isSelf);
                 bool isDestroyed = hc.IsBodyPartDestroyed(part);
+
+                // Non-destroyed parts with 0% target: nothing to heal.
+                if (!isDestroyed && pct <= 0f) return;
+
                 if (isDestroyed && !hc.FullRestoreBodyPart(part)) return;
 
                 var current = hc.GetBodyPartHealth(part);
-                float pct   = GetRestorePercent(part, isSelf);
-                float newHp = current.Maximum * pct;
+                // Destroyed parts always get at least 1 HP so vitals aren't left at zero.
+                float newHp = isDestroyed ? Math.Max(1f, current.Maximum * pct) : current.Maximum * pct;
                 float delta = newHp - current.Current;
 
-                // Only apply if it's giving us back health up to the target percentage
-                if (delta > 0.01f)
+                if (isDestroyed)
+                {
+                    // Part was destroyed and just fully restored — set to the configured percentage
+                    // (FullRestoreBodyPart sets it to max, so we need to reduce it to the target).
+                    if (Math.Abs(delta) > 0.01f)
+                        hc.ChangeHealth(part, delta, default);
+                }
+                else if (delta > 0.01f)
+                {
+                    // Part was not destroyed — only increase health up to the target percentage.
                     hc.ChangeHealth(part, delta, default);
+                }
 
                 // If the limb was utterly destroyed, we mimic a real CMS/SurvKit and wipe ALL negative effects
                 // on this specific limb right away. (If it wasn't destroyed, we leave it alone and let the
@@ -148,7 +162,8 @@ namespace KeepMeAlive.Helpers
         //====================[ Effect Removal ]====================
         /// <summary>
         /// Removes all active bleeds (light and heavy) from every body part.
-        /// Uses EFT's internal method_19 to wipe all subclasses of Bleeding PLUS 'Wound' (Fresh Wound).
+        /// Uses EFT's method_17 which filters on the Bleeding base class.
+        /// Note: Wound (Fresh Wound) is NOT a Bleeding subclass and is not removed here.
         /// </summary>
         private static void RemoveBleeds(Player player, bool isSelf)
         {
@@ -166,7 +181,9 @@ namespace KeepMeAlive.Helpers
         }
 
         /// <summary>
-        /// Removes fractures from limb body parts.
+        /// Removes fractures (and only fractures) from limb body parts.
+        /// Uses method_19 with GInterface342 (the fracture interface) so bleeds and other
+        /// negative effects on limbs are preserved when REMOVE_BLEEDS is disabled.
         /// </summary>
         private static void RemoveFractures(Player player, bool isSelf)
         {
@@ -174,11 +191,13 @@ namespace KeepMeAlive.Helpers
                 ? RevivalModSettings.SELF_REVIVE_REMOVE_FRACTURES.Value
                 : RevivalModSettings.TEAM_REVIVE_REMOVE_FRACTURES.Value;
 
+            if (!enabled) return;
+
             var hc = player.ActiveHealthController;
             if (hc == null) return;
 
             for (int i = 0; i < FractureBodyParts.Length; i++)
-                hc.RemoveNegativeEffects(FractureBodyParts[i]);
+                hc.method_19(FractureBodyParts[i], effect => effect is GInterface342);
         }
 
         //====================[ Post-Revival Debuffs ]====================

@@ -161,26 +161,58 @@ namespace KeepMeAlive.Helpers
                 return false;
             }
 
-            if (item is not MedsItemClass meds)
+            if (item is MedsItemClass meds)
             {
-                Plugin.LogSource.LogWarning($"[{label}] ApplyItem skipped: item is not MedsItemClass");
-                return false;
+                if (player.HealthController == null)
+                {
+                    Plugin.LogSource.LogWarning($"[{label}] ApplyItem skipped: HealthController missing for {player.ProfileId}");
+                    return false;
+                }
+
+                try
+                {
+                    player.HealthController.ApplyItem(meds, EBodyPart.Common);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Plugin.LogSource.LogError($"[{label}] ApplyItem failed: {ex.Message}");
+                    return false;
+                }
             }
 
-            if (player.HealthController == null)
-            {
-                Plugin.LogSource.LogWarning($"[{label}] ApplyItem skipped: HealthController missing for {player.ProfileId}");
-                return false;
-            }
+            // Non-MedsItemClass (e.g. defibrillator): remove from inventory directly.
+            return TryRemoveItemFromInventory(player, item, label);
+        }
 
+        /// <summary>
+        /// Removes a single item from the player's inventory grid.
+        /// Used to consume non-medical revival items (e.g. defibrillators).
+        /// </summary>
+        private static bool TryRemoveItemFromInventory(Player player, Item item, string label)
+        {
             try
             {
-                player.HealthController.ApplyItem(meds, EBodyPart.Common);
-                return true;
+                if (item.CurrentAddress == null)
+                {
+                    Plugin.LogSource.LogWarning($"[{label}] Item {item.Id} has no CurrentAddress, cannot remove");
+                    return false;
+                }
+
+                var result = item.CurrentAddress.RemoveWithoutRestrictions(item);
+                if (result.Succeeded)
+                {
+                    item.CurrentAddress = null;
+                    Plugin.LogSource.LogInfo($"[{label}] Removed item {item.Id} from inventory");
+                    return true;
+                }
+
+                Plugin.LogSource.LogWarning($"[{label}] RemoveWithoutRestrictions failed for {item.Id}: {result.Error}");
+                return false;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[{label}] ApplyItem failed: {ex.Message}");
+                Plugin.LogSource.LogError($"[{label}] Remove item failed: {ex.Message}");
                 return false;
             }
         }

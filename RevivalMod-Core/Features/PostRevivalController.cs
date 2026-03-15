@@ -44,6 +44,37 @@ namespace KeepMeAlive.Features
             }
         }
 
+        public static void BeginPostRevival(Player player, string playerId, RMPlayer st, bool applyFinalize)
+        {
+            st.State = RMState.Revived;
+            st.KillOverride = false;
+            RMSession.RemovePlayerFromCriticalPlayers(playerId);
+
+            st.IsPlayingRevivalAnimation = false;
+            st.IsBeingRevived = false;
+            st.IsSelfReviving = false;
+            st.CurrentReviverId = string.Empty;
+
+            if (player != null)
+            {
+                GodMode.ForceEnable(player);
+                try { GhostMode.ExitGhostMode(player); } catch { }
+
+                if (player.IsYourPlayer && applyFinalize)
+                {
+                    try { PostReviveEffects.Apply(player, (ReviveSource)st.ReviveRequestedSource); }
+                    catch (Exception ex) { Plugin.LogSource.LogError($"[PostRevival] PostReviveEffects error: {ex.Message}"); }
+                }
+
+                StartInvulnerabilityPeriod(player, st);
+            }
+            else
+            {
+                var source = (ReviveSource)st.ReviveRequestedSource;
+                st.InvulnerabilityTimer = PostReviveEffects.GetInvulnDuration(source);
+            }
+        }
+
         public static void StartInvulnerabilityPeriod(Player player, RMPlayer st)
         {
             try

@@ -242,7 +242,7 @@ namespace KeepMeAlive.Fika
                 playerState.RevivePromptTimer?.Stop();
                 playerState.RevivePromptTimer = null;
 
-                if (RevivalModSettings.SELF_REVIVAL_ENABLED.Value && Utils.HasDefib(reviveePlayer))
+                if (RevivalModSettings.SELF_REVIVAL_ENABLED.Value && (RevivalModSettings.NO_DEFIB_REQUIRED.Value || Utils.HasDefib(reviveePlayer)))
                 {
                     VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, $"Revive! [{RevivalModSettings.SELF_REVIVAL_KEY.Value}]");
                 }
@@ -355,58 +355,11 @@ namespace KeepMeAlive.Fika
             var playerState = RMSession.GetPlayerState(packet.playerId);
             bool applyFinalize = player.IsYourPlayer && DownedStateController.TryCommitReviveFinalizeForCycle("RevivedPacket", packet.playerId, playerState);
             var prevState = playerState.State;
-            playerState.State = RMState.Revived;
-            playerState.InvulnerabilityTimer = PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
-            playerState.KillOverride = false;
-            LogStateTransition("RevivedPacket", packet.playerId, prevState, playerState.State,
-                $"| reviver='{packet.reviverId}' invul={playerState.InvulnerabilityTimer:F2}");
             
-            // Remove from critical players list
-            RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
+            LogStateTransition("RevivedPacket", packet.playerId, prevState, RMState.Revived,
+                $"| reviver='{packet.reviverId}' invul={PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team):F2}");
 
-            // Enable protections
-            GodMode.ForceEnable(player);
-            GhostMode.ExitGhostMode(player);
-
-            // Restore body health ONLY on the player's own client to prevent HealthSync errors
-            if (player.IsYourPlayer)
-            {
-                try
-                {
-                    if (applyFinalize)
-                    {
-                        PostReviveEffects.Apply(player, isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Plugin.LogSource.LogWarning($"[Packet] PostReviveEffects error: {ex.Message}");
-                }
-            }
-
-            // Movement restoration belongs to StartInvulnerabilityPeriod/EndInvulnerability,
-            // which are the authoritative lifecycle checkpoints.
-
-            // Update UI for local player
-            if (player.IsYourPlayer)
-            {
-                try
-                {
-                    if (applyFinalize)
-                    {
-                        VFX_UI.HideTransitPanel();
-                        playerState.CriticalStateMainTimer?.Stop();
-                        playerState.CriticalStateMainTimer = null;
-
-                        float dur = PostReviveEffects.GetInvulnDuration(isSelfRevive ? ReviveSource.Self : ReviveSource.Team);
-                        VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", dur);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Plugin.LogSource.LogWarning($"[Packet] UI update error: {ex.Message}");
-                }
-            }
+            PostRevivalController.BeginPostRevival(player, packet.playerId, playerState, applyFinalize);
 
             try
             {
@@ -586,39 +539,12 @@ namespace KeepMeAlive.Fika
                         break;
 
                     case RMState.Revived:
-                        RMSession.RemovePlayerFromCriticalPlayers(packet.playerId);
-                        st.KillOverride = false;
-                        if (player != null)
+                        bool applyFinalize = false;
+                        if (player != null && player.IsYourPlayer)
                         {
-                            GodMode.ForceEnable(player);
-                            GhostMode.ExitGhostMode(player);
-                            // Only restore health and movement on the local player's machine.
-                            // ObservedPlayer MovementContext is driven by Fika's movement sync —
-                            // touching it here races with incoming packets and causes pose glitches.
-                            // The movement hooks (method_17, PhysicalConditionUpdated) were only
-                            // unsubscribed in ApplyRevivableState which runs for IsYourPlayer only,
-                            // so re-subscribing them on observers would double-hook or NRE.
-                            if (player.IsYourPlayer)
-                            {
-                                bool applyFinalize = DownedStateController.TryCommitReviveFinalizeForCycle("ResyncRevived", packet.playerId, st);
-                                if (applyFinalize)
-                                {
-                                    try { PostReviveEffects.Apply(player, (ReviveSource)packet.reviveRequestedSource, applyDebuffs: false); } catch { }
-                                }
-                                try
-                                {
-                                    if (applyFinalize && player.MovementContext != null)
-                                    {
-                                        player.MovementContext.IsInPronePose = false;
-                                        player.MovementContext.SetPoseLevel(1f, true);
-                                        player.MovementContext.EnableSprint(true);
-                                        // Re-attach movement hooks unsubscribed when player went down.
-                                        DownedMovementController.ReattachMovementHooks(player);
-                                    }
-                                }
-                                catch { }
-                            }
+                            applyFinalize = DownedStateController.TryCommitReviveFinalizeForCycle("ResyncRevived", packet.playerId, st);
                         }
+                        PostRevivalController.BeginPostRevival(player, packet.playerId, st, applyFinalize);
                         break;
 
                     case RMState.CoolDown:

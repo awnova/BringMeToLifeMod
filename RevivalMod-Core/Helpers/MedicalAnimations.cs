@@ -115,10 +115,9 @@ public static void CleanupFakeItems(Player player, SurgicalItemType? consumedIte
             {
                 if (consumedItem != SurgicalItemType.SurvKit)
                 {
-                    if (GetCached(state, SurgicalItemType.SurvKit) is { } survKit && survKit.Parent != null)
+                    if (GetCached(state, SurgicalItemType.SurvKit) is { } survKit && survKit.CurrentAddress != null)
                     {
-                        var parent = survKit.Parent;
-                        parent.RemoveWithoutRestrictions(survKit);
+                        survKit.CurrentAddress.RemoveWithoutRestrictions(survKit);
                         survKit.CurrentAddress = null;
                         SetCached(state, SurgicalItemType.SurvKit, null);
                     }
@@ -130,10 +129,9 @@ public static void CleanupFakeItems(Player player, SurgicalItemType? consumedIte
             {
                 if (consumedItem != SurgicalItemType.CMS)
                 {
-                    if (GetCached(state, SurgicalItemType.CMS) is { } cmsKit && cmsKit.Parent != null)
+                    if (GetCached(state, SurgicalItemType.CMS) is { } cmsKit && cmsKit.CurrentAddress != null)
                     {
-                        var parent = cmsKit.Parent;
-                        parent.RemoveWithoutRestrictions(cmsKit);
+                        cmsKit.CurrentAddress.RemoveWithoutRestrictions(cmsKit);
                         cmsKit.CurrentAddress = null;
                         SetCached(state, SurgicalItemType.CMS, null);
                     }
@@ -326,9 +324,7 @@ public static void CleanupFakeItems(Player player, SurgicalItemType? consumedIte
         private static bool IsItemReferenceUsable(Item item)
         {
             if (item == null) return false;
-
-            try { return item.Parent != null; }
-            catch { return false; }
+            return item.CurrentAddress != null;
         }
 
         private static bool IsItemDepleted(Item item)
