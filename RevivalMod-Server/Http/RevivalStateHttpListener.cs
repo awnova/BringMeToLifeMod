@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.IO.Compression;
 using Microsoft.AspNetCore.Http;
 using KeepMeAlive.Server.Models.Revival;
 using KeepMeAlive.Server.Services;
@@ -57,8 +58,32 @@ public class RevivalStateHttpListener(RevivalStateService stateService, HttpResp
 
         request.EnableBuffering();
         request.Body.Position = 0;
-        using var reader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
-        var body = await reader.ReadToEndAsync();
+
+        bool isCompressed = !request.Headers.TryGetValue("requestcompressed", out var cv) || cv != "0";
+        string body;
+
+        if (isCompressed)
+        {
+            try
+            {
+                await using var zlibStream = new ZLibStream(request.Body, CompressionMode.Decompress, leaveOpen: true);
+                using var zlibReader = new StreamReader(zlibStream, Encoding.UTF8);
+                body = await zlibReader.ReadToEndAsync();
+            }
+            catch
+            {
+                // Fallback to plain read if compression header is incorrect or payload is malformed.
+                request.Body.Position = 0;
+                using var plainReader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
+                body = await plainReader.ReadToEndAsync();
+            }
+        }
+        else
+        {
+            using var plainReader = new StreamReader(request.Body, Encoding.UTF8, leaveOpen: true);
+            body = await plainReader.ReadToEndAsync();
+        }
+
         request.Body.Position = 0;
         return string.IsNullOrEmpty(body) ? "{}" : body;
     }

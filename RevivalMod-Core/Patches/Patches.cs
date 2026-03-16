@@ -36,12 +36,6 @@ namespace KeepMeAlive.Patches
         {
             if (interactive is BodyInteractable body)
             {
-                if (body.Revivee == null || owner?.Player == null)
-                {
-                    Plugin.LogSource.LogError("AvailableActionsPatch: Revivee or Owner/Player is null");
-                    return true;
-                }
-                Plugin.LogSource.LogDebug($"BodyInteractable.Revivee is {body.Revivee.ProfileId}, interactor is {owner.Player.ProfileId}");
                 __result = body.GetActions(owner);
                 return false;
             }
@@ -249,6 +243,11 @@ namespace KeepMeAlive.Patches
                 );
 
                 var bodyInteractable = obj?.GetComponent<BodyInteractable>();
+                if (bodyInteractable != null)
+                {
+                    bodyInteractable.Revivee = player;
+                }
+
                 if (bodyInteractable?.Revivee == null)
                 {
                     Plugin.LogSource.LogError($"AttachBodyInteractable failed for {player.PlayerId}. Missing component or Revivee.");
