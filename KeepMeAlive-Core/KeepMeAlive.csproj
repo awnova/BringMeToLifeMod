@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>KeepMeAlive</AssemblyName>
+    <RootNamespace>KeepMeAlive</RootNamespace>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Deterministic>true</Deterministic>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <CoreRefDir>$(MSBuildThisFileDirectory)..\Build\Lib\Fika-Headless-1.4.11\References\</CoreRefDir>
+    <BepInExCoreDir>$(MSBuildThisFileDirectory)..\Build\Lib\spt-4.0.12\static-assets-csharp\BepInEx\core\</BepInExCoreDir>
+    <DecompLibDir>$(MSBuildThisFileDirectory)..\Build\Decomp\Assembly-CSharp\lib\</DecompLibDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\defib_cooldown.png" />
+    <EmbeddedResource Include="Resources\bleeding_out.png" />
+    <EmbeddedResource Include="Resources\reviving.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony" HintPath="$(BepInExCoreDir)0Harmony.dll" Private="false" />
+    <Reference Include="BepInEx" HintPath="$(BepInExCoreDir)BepInEx.dll" Private="false" />
+    <Reference Include="AnimationSystem.Types" HintPath="$(CoreRefDir)AnimationSystem.Types.dll" Private="false" />
+    <Reference Include="Assembly-CSharp" HintPath="$(CoreRefDir)hollowed.dll" Private="false" />
+    <Reference Include="bsg.componentace.compression.libs.zlib" HintPath="$(CoreRefDir)bsg.componentace.compression.libs.zlib.dll" Private="false" />
+    <Reference Include="bsg.console.core" HintPath="$(CoreRefDir)bsg.console.core.dll" Private="false" />
+    <Reference Include="BSG.Unity.Wires" HintPath="$(CoreRefDir)BSG.Unity.Wires.dll" Private="false" />
+    <Reference Include="Comfort" HintPath="$(CoreRefDir)Comfort.dll" Private="false" />
+    <Reference Include="Comfort.Unity" HintPath="$(CoreRefDir)Comfort.Unity.dll" Private="false" />
+    <Reference Include="CommonExtensions" HintPath="$(CoreRefDir)CommonExtensions.dll" Private="false" />
+    <Reference Include="DissonanceVoip" HintPath="$(CoreRefDir)DissonanceVoip.dll" Private="false" />
+    <Reference Include="Fika.Core" HintPath="$(CoreRefDir)Fika.Core.dll" Private="false" />
+    <Reference Include="ItemComponent.Types" HintPath="$(CoreRefDir)ItemComponent.Types.dll" Private="false" />
+    <Reference Include="ItemTemplate.Types" HintPath="$(DecompLibDir)ItemTemplate.Types.dll" Private="false" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(CoreRefDir)Newtonsoft.Json.dll" Private="false" />
+    <Reference Include="Sirenix.Serialization" HintPath="$(CoreRefDir)Sirenix.Serialization.dll" Private="false" />
+    <Reference Include="spt-common" HintPath="$(CoreRefDir)spt-common.dll" Private="false" />
+    <Reference Include="spt-core" HintPath="$(CoreRefDir)spt-core.dll" Private="false" />
+    <Reference Include="spt-custom" HintPath="$(CoreRefDir)spt-custom.dll" Private="false" />
+    <Reference Include="spt-debugging" HintPath="$(CoreRefDir)spt-debugging.dll" Private="false" />
+    <Reference Include="spt-reflection" HintPath="$(CoreRefDir)spt-reflection.dll" Private="false" />
+    <Reference Include="spt-singleplayer" HintPath="$(CoreRefDir)spt-singleplayer.dll" Private="false" />
+    <Reference Include="Unity.Postprocessing.Runtime" HintPath="$(CoreRefDir)Unity.Postprocessing.Runtime.dll" Private="false" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(CoreRefDir)Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(CoreRefDir)UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.AssetBundleModule" HintPath="$(DecompLibDir)UnityEngine.AssetBundleModule.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(DecompLibDir)UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(DecompLibDir)UnityEngine.ImageConversionModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(DecompLibDir)UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UIModule" HintPath="$(DecompLibDir)UnityEngine.UIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(DecompLibDir)UnityEngine.InputLegacyModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(DecompLibDir)UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(DecompLibDir)UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(CoreRefDir)UnityEngine.UI.dll" Private="false" />
+    <Reference Include="websocket-sharp" HintPath="$(CoreRefDir)websocket-sharp.dll" Private="false" />
+  </ItemGroup>
+
+</Project>

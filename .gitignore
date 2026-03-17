@@ -1,9 +1,9 @@
 # Build outputs
-RevivalMod-Core/bin/
-RevivalMod-Core/obj/
-RevivalMod-Server/build/
-RevivalMod-Server/node_modules/
-RevivalMod-Server/types/
+KeepMeAlive-Core/bin/
+KeepMeAlive-Core/obj/
+KeepMeAlive-Server/build/
+KeepMeAlive-Server/node_modules/
+KeepMeAlive-Server/types/
 
 # IDE files
 .vs/
@@ -18,4 +18,4 @@ build-config.json
 Build/
 
 # Deprecated/Old project files (merged into Core)
-RevivalMod-Fika/
+KeepMeAlive-Fika/

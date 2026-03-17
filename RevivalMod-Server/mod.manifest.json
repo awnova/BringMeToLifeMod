@@ -1,9 +1,0 @@
-{
-  "modId": "KeepMeAlive",
-  "name": "KeepMeAlive Server",
-  "author": "KaikiNoodles",
-  "version": "1.0.0",
-  "description": "Server-side authority and database hooks for KeepMeAlive.",
-  "sptVersion": "4.0.12",
-  "entryAssembly": "RevivalMod.Server.dll"
-}
