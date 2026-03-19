@@ -39,8 +39,8 @@ namespace KeepMeAlive.Features
         private static bool CanUseSelfRevive(Player player)
         {
             if (!RevivePolicy.IsEnabled(ReviveSource.Self)) return false;
-            if (KeepMeAliveSettings.NO_DEFIB_REQUIRED.Value) return true;
-            return Utils.HasDefib(player);
+            if (KeepMeAliveSettings.NO_REVIVE_ITEM_REQUIRED.Value) return true;
+            return Utils.HasReviveItem(player);
         }
 
         internal static void ShowSelfRevivePromptIfEligible(Player player)

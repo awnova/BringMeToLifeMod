@@ -231,7 +231,7 @@ namespace KeepMeAlive.Fika
             // Guard: if revival already started/finished, a late cancel cannot revert it.
             if (playerState.State is RMState.Reviving or RMState.Revived)
             {
-                Plugin.LogSource.LogWarning($"[Packet] TeamCancel: {packet.reviverId} cancel ignored — {packet.reviveeId} already in {playerState.State} state");
+                Plugin.LogSource.LogWarning($"[Packet] TeamCancel: {packet.reviverId} cancel ignored Ã¢â‚¬â€ {packet.reviveeId} already in {playerState.State} state");
                 return;
             }
             RMSession.SetPlayerState(packet.reviveeId, RMState.BleedingOut);
@@ -249,7 +249,7 @@ namespace KeepMeAlive.Fika
                 playerState.RevivePromptTimer?.Stop();
                 playerState.RevivePromptTimer = null;
 
-                if (RevivePolicy.IsEnabled(ReviveSource.Self) && (KeepMeAliveSettings.NO_DEFIB_REQUIRED.Value || Utils.HasDefib(reviveePlayer)))
+                if (RevivePolicy.IsEnabled(ReviveSource.Self) && (KeepMeAliveSettings.NO_REVIVE_ITEM_REQUIRED.Value || Utils.HasReviveItem(reviveePlayer)))
                 {
                     VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, $"Revive! [{KeepMeAliveSettings.SELF_REVIVAL_KEY.Value}]");
                 }
@@ -472,7 +472,7 @@ namespace KeepMeAlive.Fika
                 Plugin.LogSource.LogWarning($"[VFX_UI] TeamHeal notify failed: {ex.Message}");
             }
 
-            // Only the patient applies the item — same as UseLooseLoot's ApplyItem call.
+            // Only the patient applies the item Ã¢â‚¬â€ same as UseLooseLoot's ApplyItem call.
             // Fika's existing InventoryPacket broadcast handles draining HpResource on all machines.
             Player patient = Utils.GetPlayerById(packet.patientId);
             if (patient == null || !patient.IsYourPlayer) return;
@@ -492,7 +492,7 @@ namespace KeepMeAlive.Fika
                     return;
                 }
 
-                if (!Utils.TryApplyItemLikeTeamHeal(patient, healerItem, "TeamHealPacket"))
+                if (!Utils.TryApplyTeamHeal(patient, healerItem, "TeamHealPacket"))
                 {
                     return;
                 }

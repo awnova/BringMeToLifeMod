@@ -33,7 +33,7 @@ public class RevivalDatabasePatchService(ISptLogger<RevivalDatabasePatchService>
             }
 
             PatchTraderAssort(tables);
-            PatchDefibrillatorTemplate(tables);
+            PatchRevivalItemTemplate(tables);
             PatchSpecialSlotFilters(tables);
 
             logger.Info("[KeepMeAlive.Server] Applied database patches.");
@@ -73,7 +73,7 @@ public class RevivalDatabasePatchService(ISptLogger<RevivalDatabasePatchService>
         }
 
         // Create new assort item. SPT 4.0 uses strongly-typed models with Id, Tpl (PascalCase).
-        if (items.Count == 0) { logger.Warning("[KeepMeAlive.Server] Trader assort has no items; cannot add defib."); return; }
+        if (items.Count == 0) { logger.Warning("[KeepMeAlive.Server] Trader assort has no items; cannot add reviveItem."); return; }
         Type? itemType = items[0]?.GetType();
         if (itemType == null) return;
         var newItem = Activator.CreateInstance(itemType);
@@ -108,20 +108,20 @@ public class RevivalDatabasePatchService(ISptLogger<RevivalDatabasePatchService>
         trader.Assort.LoyalLevelItems[loyalKey] = 2;
 
         // Legacy parity: log the injected assort entry details for easier diagnostics.
-        logger.Info($"[KeepMeAlive.Server] Defibrillator injected into trader assort. Trader={traderId}, ItemId={TraderAssortItemId}, Price={price}");
+        logger.Info($"[KeepMeAlive.Server] Revive Item injected into trader assort. Trader={traderId}, ItemId={TraderAssortItemId}, Price={price}");
     }
 
-    private void PatchDefibrillatorTemplate(dynamic tables)
+    private void PatchRevivalItemTemplate(dynamic tables)
     {
         dynamic item = tables.Templates.Items[TraderConstants.RevivalItemTemplateId];
-        if (item == null) { logger.Warning("[KeepMeAlive.Server] Defibrillator template not found."); return; }
+        if (item == null) { logger.Warning("[KeepMeAlive.Server] Revive Item template not found."); return; }
 
         var props = GetFirstExistingPropertyValue(item, new[] { "Props", "_props" });
-        if (props == null) { logger.Warning("[KeepMeAlive.Server] Defibrillator template has no Props."); return; }
+        if (props == null) { logger.Warning("[KeepMeAlive.Server] Revive Item template has no Props."); return; }
 
         int price = Math.Max(1, configService.Config.RevivalItem.Trading.AmountRoubles);
         try { props.CreditsPrice = price; } catch { /* CreditsPrice may not exist */ }
-        try { props.Description = "A portable defibrillator used to revive yourself or others from critical condition. When in critical state, use your configured revive key to get a second chance."; } catch { }
+        try { props.Description = "A portable revive item used to revive yourself or others from critical condition. When in critical state, use your configured revive key to get a second chance."; } catch { }
         try { if (props.Width != null && props.Height != null) { props.Width = 2; props.Height = 1; } } catch { }
         try
         {
@@ -159,7 +159,7 @@ public class RevivalDatabasePatchService(ISptLogger<RevivalDatabasePatchService>
 
     //====================[ Slot Filter Helpers ]====================
     /// <summary>
-    /// Adds the defib template to slot filters. When <paramref name="slotSlotNameOrId"/> is set,
+    /// Adds the reviveItem template to slot filters. When <paramref name="slotSlotNameOrId"/> is set,
     /// only patches slots whose Id or Name contains that string (e.g. "SpecialSlot").
     /// </summary>
     /// <param name="slotsPropertyNames">Property names to try for slots array. Use ["Slots","slots"] for SpecialSlots; null for default.</param>
@@ -255,7 +255,7 @@ public class RevivalDatabasePatchService(ISptLogger<RevivalDatabasePatchService>
                     ? filterList.GetType().GetGenericArguments()[0]
                     : typeof(string);
                 filterList.Add(ConvertToTargetType(elementType, TraderConstants.RevivalItemTemplateId));
-                logger.Info($"[KeepMeAlive.Server] Added defib to {slotLabel} slot filter. Template={templateId}, SlotIndex={idx}");
+                logger.Info($"[KeepMeAlive.Server] Added reviveItem to {slotLabel} slot filter. Template={templateId}, SlotIndex={idx}");
             }
 
             idx++;

@@ -40,12 +40,12 @@ namespace KeepMeAlive.Helpers
             return Mathf.Max(3f, configured);
         }
 
-        public static bool ShouldConsumeDefib(ReviveSource source)
+        public static bool ShouldConsumeReviveItem(ReviveSource source)
         {
             return source switch
             {
-                ReviveSource.Self => KeepMeAliveSettings.CONSUME_DEFIB_ON_SELF_REVIVE.Value,
-                ReviveSource.Team => KeepMeAliveSettings.CONSUME_DEFIB_ON_TEAMMATE_REVIVE.Value,
+                ReviveSource.Self => KeepMeAliveSettings.CONSUME_REVIVE_ITEM_ON_SELF_REVIVE.Value,
+                ReviveSource.Team => KeepMeAliveSettings.CONSUME_REVIVE_ITEM_ON_TEAMMATE_REVIVE.Value,
                 _ => false
             };
         }

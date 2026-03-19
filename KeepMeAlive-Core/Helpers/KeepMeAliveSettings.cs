@@ -22,8 +22,8 @@ namespace KeepMeAlive.Helpers
         public static ConfigEntry<float> TEAM_REVIVE_HOLD_TIME;
         public static ConfigEntry<float> SELF_REVIVE_ANIMATION_DURATION;
         public static ConfigEntry<float> TEAMMATE_REVIVE_ANIMATION_DURATION;
-        public static ConfigEntry<bool> CONSUME_DEFIB_ON_SELF_REVIVE;
-        public static ConfigEntry<bool> CONSUME_DEFIB_ON_TEAMMATE_REVIVE;
+        public static ConfigEntry<bool> CONSUME_REVIVE_ITEM_ON_SELF_REVIVE;
+        public static ConfigEntry<bool> CONSUME_REVIVE_ITEM_ON_TEAMMATE_REVIVE;
         public static ConfigEntry<float> CRITICAL_STATE_TIME;
         // Self-Revive Post-Revival
         public static ConfigEntry<bool>  SELF_REVIVE_RESTORE_BODY_PARTS;
@@ -73,7 +73,7 @@ namespace KeepMeAlive.Helpers
         public static ConfigEntry<float> TEAM_HEAL_NUTRITION_MIN_DEFICIT;
 
         // Development
-        public static ConfigEntry<bool> NO_DEFIB_REQUIRED;
+        public static ConfigEntry<bool> NO_REVIVE_ITEM_REQUIRED;
         public static ConfigEntry<bool> ENABLE_DEBUG_LOGS;
         public static ConfigEntry<bool> DEBUG_REVIVE_FLOW;
         public static ConfigEntry<bool> DEBUG_NETWORK_TRACE;
@@ -110,14 +110,14 @@ namespace KeepMeAlive.Helpers
                 "2. Revival Mechanics",
                 "Revival Item ID",
                 "5c052e6986f7746b207bc3c9",
-                "The item template ID required for revival (default is defibrillator). Common IDs: Defibrillator='5c052e6986f7746b207bc3c9', CMS='5d02778e86f774203e7dedbe', Bandage='544fb25a4bdc2dfb738b4567'"
+                "The item template ID required for revival (default is revive item). Common IDs: Revive Item='5c052e6986f7746b207bc3c9', CMS='5d02778e86f774203e7dedbe', Bandage='544fb25a4bdc2dfb738b4567'"
             );
 
             SELF_REVIVAL_ENABLED = config.Bind(
                 "2. Revival Mechanics",
                 "Enable Self Revival",
                 true,
-                "When enabled, you can revive yourself with a defibrillator"
+                "When enabled, you can revive yourself with a revive item"
             );
 
             TEAM_REVIVE_ENABLED = config.Bind(
@@ -156,18 +156,18 @@ namespace KeepMeAlive.Helpers
                 "Duration (seconds) for teammate revive progress before completion"
             );
 
-            CONSUME_DEFIB_ON_SELF_REVIVE = config.Bind(
+            CONSUME_REVIVE_ITEM_ON_SELF_REVIVE = config.Bind(
                 "2. Revival Mechanics",
-                "Consume Defib on Self Revive",
+                "Consume Revive Item on Self Revive",
                 true,
-                "When enabled, the defibrillator will be consumed when self-reviving (disable to avoid risky inventory callback operations)"
+                "When enabled, the revive item will be consumed when self-reviving (disable to avoid risky inventory callback operations)"
             );
 
-            CONSUME_DEFIB_ON_TEAMMATE_REVIVE = config.Bind(
+            CONSUME_REVIVE_ITEM_ON_TEAMMATE_REVIVE = config.Bind(
                 "2. Revival Mechanics",
-                "Consume Defib on Teammate Revive",
+                "Consume Revive Item on Teammate Revive",
                 false,
-                "When enabled, the defibrillator will be consumed when reviving a teammate"
+                "When enabled, the revive item will be consumed when reviving a teammate"
             );
 
             CRITICAL_STATE_TIME = config.Bind(
@@ -486,11 +486,11 @@ namespace KeepMeAlive.Helpers
 
             #region Development Settings
 
-            NO_DEFIB_REQUIRED = config.Bind(
+            NO_REVIVE_ITEM_REQUIRED = config.Bind(
                 "5. Development",
-                "No Defib Required",
+                "No Revive Item Required",
                 false,
-                new ConfigDescription("Bypasses defibrillator requirement for all revivals (for testing only)", null, new ConfigurationManagerAttributes { IsAdvanced = true })
+                new ConfigDescription("Bypasses revive item requirement for all revivals (for testing only)", null, new ConfigurationManagerAttributes { IsAdvanced = true })
             );
 
             ENABLE_DEBUG_LOGS = config.Bind(

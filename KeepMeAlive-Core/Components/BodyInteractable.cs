@@ -194,7 +194,7 @@ namespace KeepMeAlive.Components
             {
                 if (!RevivePolicy.IsEnabled(ReviveSource.Team)) return actions;
 
-                bool canRevive = KeepMeAliveSettings.NO_DEFIB_REQUIRED.Value || Utils.HasDefib(owner.Player);
+                bool canRevive = KeepMeAliveSettings.NO_REVIVE_ITEM_REQUIRED.Value || Utils.HasReviveItem(owner.Player);
                 actions.Actions.Add(new ActionsTypesClass
                 {
                     Action = () => OnRevive(owner),

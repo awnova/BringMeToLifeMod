@@ -43,9 +43,9 @@ namespace KeepMeAlive
 
             KeepMeAliveSettings.Init(Config);
 
-            // Register DefibCooldown effect types into EFT's reflection-based type registries.
+            // Register ReviveItemCooldown effect types into EFT's reflection-based type registries.
             // Must run before any health controllers are instantiated.
-            RegisterDefibCooldownEffectTypes();
+            RegisterReviveItemCooldownEffectTypes();
 
             EnableCorePatches();
             EnableGhostModePatches();
@@ -64,8 +64,8 @@ namespace KeepMeAlive
             new DownedClientWeaponProceedBlockPatch().Enable();
             new DownedFikaWeaponProceedBlockPatch().Enable();
             new AvailableActionsPatch().Enable();
-            new SpecialSlotDefibPatch().Enable();
-            new DefibCooldownIconPatch().Enable();
+            new SpecialSlotReviveItemPatch().Enable();
+            new ReviveItemCooldownIconPatch().Enable();
             new FikaOverlayPatch().Enable();
             new InventoryScreenInputBlockPatch().Enable();
             new SilentInventoryCommandBlockPatch().Enable();
@@ -98,35 +98,35 @@ namespace KeepMeAlive
             }
         }
 
-        //====================[ DefibCooldown Type Registration ]====================
-        // Registers DefibCooldown effect types into EFT's three reflection-based registries
+        //====================[ ReviveItemCooldown Type Registration ]====================
+        // Registers ReviveItemCooldown effect types into EFT's three reflection-based registries
         // so the effect can be serialized/deserialized over Fika's health sync network.
-        private static void RegisterDefibCooldownEffectTypes()
+        private static void RegisterReviveItemCooldownEffectTypes()
         {
             try
             {
-                LogSource.LogInfo("[Plugin] Registering DefibCooldown effect types...");
-                RegisterEffectSenderType(typeof(DefibCooldownEffect));
-                RegisterEffectReceiverType(senderType: typeof(DefibCooldownEffect), receiverType: typeof(DefibCooldownNetworkEffect));
-                GClass3058.Dictionary_1[typeof(IDefibCooldown)] = "DefibCooldown";
+                LogSource.LogInfo("[Plugin] Registering ReviveItemCooldown effect types...");
+                RegisterEffectSenderType(typeof(ReviveItemCooldownEffect));
+                RegisterEffectReceiverType(senderType: typeof(ReviveItemCooldownEffect), receiverType: typeof(ReviveItemCooldownNetworkEffect));
+                GClass3058.Dictionary_1[typeof(IReviveItemCooldown)] = "ReviveItemCooldown";
 
                 // Verify
                 var dict0 = (Dictionary<string, byte>)AccessTools.Field(typeof(GClass3058.GClass3059), "Dictionary_0").GetValue(null);
                 var closedType = typeof(GClass3058.GClass3060<>).MakeGenericType(typeof(NetworkHealthControllerAbstractClass));
                 var recvDict = (Dictionary<string, Func<object>>)AccessTools.Field(closedType, "Dictionary_0").GetValue(null);
                 LogSource.LogInfo(
-                    $"[Plugin] DefibCooldown registered — sender: {dict0.ContainsKey(nameof(DefibCooldownEffect))}, " +
-                    $"receiver: {recvDict.ContainsKey(nameof(DefibCooldownEffect))}, " +
-                    $"interface: {GClass3058.Dictionary_1.ContainsKey(typeof(IDefibCooldown))}");
+                    $"[Plugin] ReviveItemCooldown registered Ã¢â‚¬â€ sender: {dict0.ContainsKey(nameof(ReviveItemCooldownEffect))}, " +
+                    $"receiver: {recvDict.ContainsKey(nameof(ReviveItemCooldownEffect))}, " +
+                    $"interface: {GClass3058.Dictionary_1.ContainsKey(typeof(IReviveItemCooldown))}");
             }
             catch (Exception ex)
             {
-                LogSource.LogError($"[Plugin] DefibCooldown type registration failed: {ex}");
+                LogSource.LogError($"[Plugin] ReviveItemCooldown type registration failed: {ex}");
             }
         }
 
         // GClass3059: Don't modify Type_0 (it contains only nested types from ActiveHealthController).
-        // Only add to the dictionaries — receiver side has explicit factories via RegisterEffectReceiverType.
+        // Only add to the dictionaries Ã¢â‚¬â€ receiver side has explicit factories via RegisterEffectReceiverType.
         private static void RegisterEffectSenderType(Type effectType)
         {
             var type3059   = typeof(GClass3058.GClass3059);
@@ -148,8 +148,8 @@ namespace KeepMeAlive
             dict1[newIndex] = effectType.Name;
         }
 
-        // GClass3060<NetworkHealthControllerAbstractClass>.Dictionary_0: name → factory.
-        // Key must be the SENDER type's name because GClass3059 resolves byte→senderName,
+        // GClass3060<NetworkHealthControllerAbstractClass>.Dictionary_0: name Ã¢â€ â€™ factory.
+        // Key must be the SENDER type's name because GClass3059 resolves byteÃ¢â€ â€™senderName,
         // then GClass3060 looks up that name to instantiate the receiver.
         private static void RegisterEffectReceiverType(Type senderType, Type receiverType)
         {

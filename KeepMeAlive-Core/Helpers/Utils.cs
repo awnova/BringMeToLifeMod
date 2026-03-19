@@ -102,7 +102,7 @@ namespace KeepMeAlive.Helpers
         }
 
         //====================[ Inventory / Item Utils ]====================
-        private static Item FindDefibItem(Player player)
+        private static Item FindReviveItem(Player player)
         {
             try
             {
@@ -123,41 +123,271 @@ namespace KeepMeAlive.Helpers
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"FindDefibItem error: {ex.Message}");
+                Plugin.LogSource.LogError($"FindReviveItem error: {ex.Message}");
             }
             
             return null;
         }
 
-        public static bool HasDefib(Player player)
+        public static bool HasReviveItem(Player player)
         {
             try
             {
-                return FindDefibItem(player) != null;
+                return FindReviveItem(player) != null;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"HasDefib error: {ex.Message}");
+                Plugin.LogSource.LogError($"HasReviveItem error: {ex.Message}");
                 return false;
             }
         }
 
-        public static Item GetDefib(Player player)
+        public static Item GetReviveItem(Player player)
         {
             try
             {
-                return FindDefibItem(player);
+                return FindReviveItem(player);
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"GetDefib error: {ex.Message}");
+                Plugin.LogSource.LogError($"GetReviveItem error: {ex.Message}");
                 return null;
             }
         }
 
-        // Shared ApplyItem helper used by both team-heal and downed revive flows.
-        // Keep owner-only execution here so authority remains on the local owner client.
-        public static bool TryApplyItemLikeTeamHeal(Player player, Item item, string contextLabel)
+        // Consume the configured revive item: try ApplyItem first, fall back to discard if that fails.
+        // This ensures any configured revive template is consumed, via whichever method works.
+        public static bool TryConsumeReviveItem(Player player, Item reviveItem, string contextLabel)
+        {
+            string label = string.IsNullOrEmpty(contextLabel) ? "ConsumeReviveItem" : contextLabel;
+
+            if (player == null || !player.IsYourPlayer)
+            {
+                return false;
+            }
+
+            if (reviveItem == null)
+            {
+                Plugin.LogSource.LogWarning($"[{label}] Revive item missing; nothing to consume.");
+                return false;
+            }
+
+            if (player.HealthController == null)
+            {
+                Plugin.LogSource.LogWarning($"[{label}] HealthController missing for {player.ProfileId}");
+                return false;
+            }
+
+            string templateId = KeepMeAliveSettings.REVIVAL_ITEM_ID.Value;
+            if (!string.Equals(reviveItem.TemplateId, templateId, StringComparison.Ordinal))
+            {
+                Plugin.LogSource.LogWarning($"[{label}] Refusing to consume item {reviveItem.Id} tpl={reviveItem.TemplateId}; expected tpl={templateId}");
+                return false;
+            }
+
+            // Try to consume via ApplyItem first (respects normal item usage).
+            try
+            {
+                bool applyStarted = player.HealthController.ApplyItem(reviveItem, EBodyPart.Common);
+                if (!applyStarted)
+                {
+                    Plugin.LogSource.LogWarning($"[{label}] ApplyItem returned false for {reviveItem.Id}");
+                    return TryRemoveItemFromInventory(player, reviveItem, label);
+                }
+
+                if (TryReadMedsControllerFailedToApply(player, out bool failedToApply) && failedToApply)
+                {
+                    Plugin.LogSource.LogWarning($"[{label}] FailedToApply became true for {reviveItem.Id}");
+                    return TryRemoveItemFromInventory(player, reviveItem, label);
+                }
+
+                StartReviveConsumeWatcher(player, reviveItem.Id, label);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[{label}] ApplyItem threw: {ex.Message}");
+                return TryRemoveItemFromInventory(player, reviveItem, label);
+            }
+        }
+
+        private static bool TryReadMedsControllerFailedToApply(Player player, out bool failed)
+        {
+            failed = false;
+
+            try
+            {
+                object medsController = null;
+                var playerType = player?.GetType();
+                if (playerType == null)
+                {
+                    return false;
+                }
+
+                var medsProp = playerType.GetProperty("MedsController", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (medsProp != null)
+                {
+                    medsController = medsProp.GetValue(player);
+                }
+
+                if (medsController == null)
+                {
+                    var medsField = playerType.GetField("MedsController_0", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    medsController = medsField?.GetValue(player);
+                }
+
+                if (medsController == null)
+                {
+                    return false;
+                }
+
+                var failedProp = medsController.GetType().GetProperty("FailedToApply", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (failedProp == null)
+                {
+                    return false;
+                }
+
+                object value = failedProp.GetValue(medsController);
+                if (value is bool b)
+                {
+                    failed = b;
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private static void StartReviveConsumeWatcher(Player player, string itemId, string label)
+        {
+            if (Plugin.StaticCoroutineRunner == null || player == null || string.IsNullOrEmpty(itemId))
+            {
+                return;
+            }
+
+            Plugin.StaticCoroutineRunner.StartCoroutine(WatchReviveItemUseAndEnsureConsumed(player, itemId, label));
+        }
+
+        private static IEnumerator WatchReviveItemUseAndEnsureConsumed(Player player, string itemId, string label)
+        {
+            while (player != null && !HasActiveUseEventForItem(player, itemId))
+            {
+                if (!ItemExistsInPlayerInventory(player, itemId))
+                {
+                    // Already consumed/removed before begin became visible.
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            if (player == null)
+            {
+                yield break;
+            }
+
+            while (player != null && HasActiveUseEventForItem(player, itemId))
+            {
+                yield return null;
+            }
+
+            if (player == null)
+            {
+                yield break;
+            }
+
+            if (ItemExistsInPlayerInventory(player, itemId))
+            {
+                Plugin.LogSource.LogWarning($"[{label}] Use finished but item still exists ({itemId}); forcing removal fallback.");
+                ForceRemoveByIdIfPresent(player, itemId, label);
+            }
+        }
+
+        private static bool HasActiveUseEventForItem(Player player, string itemId)
+        {
+            try
+            {
+                var inventoryController = player?.InventoryController as TraderControllerClass;
+                if (inventoryController?.List_0 == null)
+                {
+                    return false;
+                }
+
+                foreach (var activeEvent in inventoryController.List_0)
+                {
+                    if (activeEvent?.Item?.Id == itemId)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort observer only.
+            }
+
+            return false;
+        }
+
+        private static bool ItemExistsInPlayerInventory(Player player, string itemId)
+        {
+            try
+            {
+                var items = player?.Inventory?.AllRealPlayerItems;
+                if (items == null)
+                {
+                    return false;
+                }
+
+                foreach (var it in items)
+                {
+                    if (it?.Id == itemId)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort observer only.
+            }
+
+            return false;
+        }
+
+        private static void ForceRemoveByIdIfPresent(Player player, string itemId, string label)
+        {
+            try
+            {
+                var items = player?.Inventory?.AllRealPlayerItems;
+                if (items == null)
+                {
+                    return;
+                }
+
+                foreach (var it in items)
+                {
+                    if (it?.Id == itemId)
+                    {
+                        _ = TryRemoveItemFromInventory(player, it, label);
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogWarning($"[{label}] ForceRemoveByIdIfPresent failed for {itemId}: {ex.Message}");
+            }
+        }
+
+        // Apply a team-heal item via HealthController.ApplyItem.
+        // Does not force-discard on failure; meds remain in inventory if they could not be used.
+        public static bool TryApplyTeamHeal(Player player, Item item, string contextLabel)
         {
             string label = string.IsNullOrEmpty(contextLabel) ? "ApplyItem" : contextLabel;
 
@@ -174,29 +404,13 @@ namespace KeepMeAlive.Helpers
 
             try
             {
-                if (player.HealthController.ApplyItem(item, EBodyPart.Common))
-                {
-                    return true;
-                }
-
-                // Meds and food/drink should never be removed if ApplyItem fails.
-                // A false return means target state could not accept the item.
-                if (item is MedsItemClass || item is FoodDrinkItemClass)
-                {
-                    return false;
-                }
+                return player.HealthController.ApplyItem(item, EBodyPart.Common);
             }
             catch (Exception ex)
             {
                 Plugin.LogSource.LogError($"[{label}] ApplyItem failed: {ex.Message}");
-                if (item is MedsItemClass || item is FoodDrinkItemClass)
-                {
-                    return false;
-                }
+                return false;
             }
-
-            // Non-MedsItemClass (e.g. defibrillator): remove from inventory directly.
-            return TryRemoveItemFromInventory(player, item, label);
         }
 
         // Keep use-speed control available for real-item ApplyItem flows.
@@ -251,7 +465,7 @@ namespace KeepMeAlive.Helpers
 
         /// <summary>
         /// Removes a single item from the player's inventory grid.
-        /// Used to consume non-medical revival items (e.g. defibrillators).
+        /// Used to consume non-medical revival items (e.g. revive items).
         /// </summary>
         private static bool TryRemoveItemFromInventory(Player player, Item item, string label)
         {

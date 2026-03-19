@@ -15,7 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources\defib_cooldown.png" />
+    <EmbeddedResource Include="Resources\revive_item_cooldown.png" />
     <EmbeddedResource Include="Resources\bleeding_out.png" />
     <EmbeddedResource Include="Resources\reviving.png" />
   </ItemGroup>

@@ -103,12 +103,12 @@ namespace KeepMeAlive.Features
 
             if (allowed)
             {
-                if (!KeepMeAliveSettings.NO_DEFIB_REQUIRED.Value && RevivePolicy.ShouldConsumeDefib(ReviveSource.Team))
+                if (!KeepMeAliveSettings.NO_REVIVE_ITEM_REQUIRED.Value && RevivePolicy.ShouldConsumeReviveItem(ReviveSource.Team))
                 {
-                    var defib = Utils.GetDefib(reviver);
-                    if (defib != null && !Utils.TryApplyItemLikeTeamHeal(reviver, defib, "TeamReviveDefib"))
+                    var reviveItem = Utils.GetReviveItem(reviver);
+                    if (reviveItem != null && !Utils.TryConsumeReviveItem(reviver, reviveItem, "TeamReviveReviveItem"))
                     {
-                        Plugin.LogSource.LogWarning($"[TeamReviveDefib] ApplyItem did not consume defib for {reviver?.ProfileId}");
+                        Plugin.LogSource.LogWarning($"[TeamReviveReviveItem] Failed to consume reviveItem for {reviver?.ProfileId}");
                     }
                 }
 
@@ -130,7 +130,7 @@ namespace KeepMeAlive.Features
 
             try
             {
-                // Blur is independent of weapon state — apply immediately.
+                // Blur is independent of weapon state ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â apply immediately.
                 if (!st.IsSilentReviveBlurActive && CameraClass.Instance != null)
                 {
                     CameraClass.Instance.Blur(true);
@@ -147,7 +147,7 @@ namespace KeepMeAlive.Features
                     return;
                 }
 
-                // Hands are empty — temporarily allow the weapon-proceed block to pass through
+                // Hands are empty ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â temporarily allow the weapon-proceed block to pass through
                 // so SetFirstAvailableItem can actually equip something, then open once a firearm
                 // is really in hands.
                 st.AllowWeaponEquipForReviveAnim = true;
@@ -300,10 +300,10 @@ namespace KeepMeAlive.Features
             {
                 TraceSelfRevive(player, st, "KeyDown", $"| key={key}");
 
-                if (!KeepMeAliveSettings.NO_DEFIB_REQUIRED.Value && !Utils.HasDefib(player))
+                if (!KeepMeAliveSettings.NO_REVIVE_ITEM_REQUIRED.Value && !Utils.HasReviveItem(player))
                 {
-                    TraceSelfRevive(player, st, "BlockedNoDefib", "| NO_DEFIB_REQUIRED=false and defib missing");
-                    VFX_UI.Text(Color.red, "No defibrillator found! Unable to revive!");
+                    TraceSelfRevive(player, st, "BlockedNoReviveItem", "| NO_REVIVE_ITEM_REQUIRED=false and reviveItem missing");
+                    VFX_UI.Text(Color.red, "No revive item found! Unable to revive!");
                     return;
                 }
 
@@ -415,33 +415,33 @@ namespace KeepMeAlive.Features
 
             if (allowed)
             {
-                if (!KeepMeAliveSettings.NO_DEFIB_REQUIRED.Value)
+                if (!KeepMeAliveSettings.NO_REVIVE_ITEM_REQUIRED.Value)
                 {
-                    TraceSelfRevive(player, st, "DefibCheck", "| NO_DEFIB_REQUIRED=false");
-                    var defib = Utils.GetDefib(player);
-                    if (defib == null)
+                    TraceSelfRevive(player, st, "ReviveItemCheck", "| NO_REVIVE_ITEM_REQUIRED=false");
+                    var reviveItem = Utils.GetReviveItem(player);
+                    if (reviveItem == null)
                     {
                         st.SelfRevivalKeyHoldDuration.Remove(KeepMeAliveSettings.SELF_REVIVAL_KEY.Value);
                         st.SelfReviveAuthPending = false;
                         st.SelfReviveCommitted = false;
                         st.SelfReviveHoldTime = 0f;
                         st.IsSelfReviving = false;
-                        TraceSelfRevive(player, st, "DefibMissingAfterAuth", "| canceling self-revive");
-                        DownedStateController.CancelReviveState(player, st, "Defibrillator missing. Self-revive canceled.", Color.red);
+                        TraceSelfRevive(player, st, "ReviveItemMissingAfterAuth", "| canceling self-revive");
+                        DownedStateController.CancelReviveState(player, st, "Revive Item missing. Self-revive canceled.", Color.red);
                         yield break;
                     }
 
-                    if (RevivePolicy.ShouldConsumeDefib(ReviveSource.Self))
+                    if (RevivePolicy.ShouldConsumeReviveItem(ReviveSource.Self))
                     {
-                        TraceSelfRevive(player, st, "DefibApply", $"| itemId={defib.Id}");
-                        if (!Utils.TryApplyItemLikeTeamHeal(player, defib, "SelfReviveDefib"))
+                        TraceSelfRevive(player, st, "ReviveItemApply", $"| itemId={reviveItem.Id}");
+                        if (!Utils.TryConsumeReviveItem(player, reviveItem, "SelfReviveReviveItem"))
                         {
-                            Plugin.LogSource.LogWarning($"[SelfReviveDefib] ApplyItem did not consume defib for {player.ProfileId}");
+                            Plugin.LogSource.LogWarning($"[SelfReviveReviveItem] Failed to consume reviveItem for {player.ProfileId}");
                         }
                     }
                     else
                     {
-                        TraceSelfRevive(player, st, "DefibConsumeSkipped", "| CONSUME_DEFIB_ON_SELF_REVIVE=false");
+                        TraceSelfRevive(player, st, "ReviveItemConsumeSkipped", "| CONSUME_REVIVE_ITEM_ON_SELF_REVIVE=false");
                     }
                 }
 
@@ -571,7 +571,7 @@ namespace KeepMeAlive.Features
             st.ReviveProgressCoroutine = null;
 
             var msg = (ReviveSource)st.ReviveRequestedSource == ReviveSource.Self
-                ? "Defibrillator used successfully! You are temporarily invulnerable."
+                ? "Revive Item used successfully! You are temporarily invulnerable."
                 : "Revived by teammate! You are temporarily invulnerable.";
 
             string reviverId = (ReviveSource)st.ReviveRequestedSource == ReviveSource.Self ? string.Empty : (st.CurrentReviverId ?? string.Empty);
@@ -617,7 +617,7 @@ namespace KeepMeAlive.Features
         {
             var source = string.IsNullOrEmpty(reviverId) || reviverId == playerId ? ReviveSource.Self : ReviveSource.Team;
             var msg = source == ReviveSource.Self
-                ? "Defibrillator used successfully! You are temporarily invulnerable."
+                ? "Revive Item used successfully! You are temporarily invulnerable."
                 : "Revived by teammate! You are temporarily invulnerable.";
 
             FinishRevive(player, playerId, msg, "RevivedPacket", reviverId);

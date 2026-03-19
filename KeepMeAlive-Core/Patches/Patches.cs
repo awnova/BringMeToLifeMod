@@ -230,12 +230,12 @@ namespace KeepMeAlive.Patches
                 RMSession.GetPlayerState(Singleton<GameWorld>.Instance.MainPlayer.ProfileId);
                 Plugin.LogSource.LogDebug("Raid started - MainPlayer state initialized.");
 
-                // Inject defib icon eagerly so FikaHealthBar nameplates can show it.
+                // Inject reviveItem icon eagerly so FikaHealthBar nameplates can show it.
                 // FikaHealthBar.AddEffect() looks up effect.Type in _effectIcons at the
-                // moment EffectAddedEvent fires — if the icon isn't injected yet it's
+                // moment EffectAddedEvent fires ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â if the icon isn't injected yet it's
                 // silently skipped with no retry. OnGameStarted fires before any revival
                 // can occur, so injecting here guarantees it's ready in time.
-                DefibCooldownIconPatch.EnsureIconInjected();
+                ReviveItemCooldownIconPatch.EnsureIconInjected();
 
                 // Warm up UI panel references during raid load. This avoids first-use races
                 // where the first downed event lands before panel hierarchy is initialized.
@@ -353,8 +353,8 @@ namespace KeepMeAlive.Patches
         }
     }
 
-    //====================[ SpecialSlotDefibPatch ]====================
-    internal class SpecialSlotDefibPatch : ModulePatch
+    //====================[ SpecialSlotReviveItemPatch ]====================
+    internal class SpecialSlotReviveItemPatch : ModulePatch
     {
         //====================[ Patching ]====================
         protected override MethodBase GetTargetMethod() => AccessTools.Method(typeof(Slot), nameof(Slot.CheckCompatibility));
@@ -504,15 +504,15 @@ namespace KeepMeAlive.Features
         }
     }
 
-    //====================[ DefibCooldownIconPatch ]====================
-    // Injects the DefibCooldown icon sprite into EFT's EffectIcons registry on the
+    //====================[ ReviveItemCooldownIconPatch ]====================
+    // Injects the ReviveItemCooldown icon sprite into EFT's EffectIcons registry on the
     // first EffectsPanel.Show() call in-raid.
     //
     // WHY NOT OnAfterDeserialize: StaticIcons is deserialized during Unity's asset-loading
-    // phase, before BepInEx plugins load — the method has already fired by the time our
+    // phase, before BepInEx plugins load ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the method has already fired by the time our
     // patch is registered. EffectsPanel.Show() fires lazily in-raid and is always after
     // plugin startup, so we inject there once and cache _injected = true for all later calls.
-    internal class DefibCooldownIconPatch : ModulePatch
+    internal class ReviveItemCooldownIconPatch : ModulePatch
     {
         private static bool _injected;
         private static bool _hardSettingsLoadStarted;
@@ -523,9 +523,9 @@ namespace KeepMeAlive.Features
         {
             var method = AccessTools.Method(typeof(EffectsPanel), "Show");
             if (method == null)
-                Plugin.LogSource.LogError("[DefibCooldownIconPatch] Could not find EffectsPanel.Show.");
+                Plugin.LogSource.LogError("[ReviveItemCooldownIconPatch] Could not find EffectsPanel.Show.");
             else
-                Plugin.LogSource.LogDebug("[DefibCooldownIconPatch] Patch enabled on EffectsPanel.Show.");
+                Plugin.LogSource.LogDebug("[ReviveItemCooldownIconPatch] Patch enabled on EffectsPanel.Show.");
             return method;
         }
 
@@ -552,35 +552,35 @@ namespace KeepMeAlive.Features
                 var iconDict = EFTHardSettings.Instance?.StaticIcons?.EffectIcons?.EffectIcons;
                 if (iconDict == null)
                 {
-                    Plugin.LogSource.LogWarning("[DefibCooldownIconPatch] EffectIcons dict not yet available.");
+                    Plugin.LogSource.LogWarning("[ReviveItemCooldownIconPatch] EffectIcons dict not yet available.");
                     return; // Don't set _injected; retry on next EffectsPanel.Show()
                 }
 
                 if (_cachedSprite == null)
-                    _cachedSprite = LoadDefibSprite();
+                    _cachedSprite = LoadReviveItemSprite();
 
                 if (_cachedSprite == null)
                 {
-                    Plugin.LogSource.LogWarning("[DefibCooldownIconPatch] Custom sprite unavailable; using fallback.");
+                    Plugin.LogSource.LogWarning("[ReviveItemCooldownIconPatch] Custom sprite unavailable; using fallback.");
                     foreach (var s in iconDict.Values)
                         if (s != null) { _cachedSprite = s; break; }
                 }
 
                 if (_cachedSprite == null)
                 {
-                    Plugin.LogSource.LogError("[DefibCooldownIconPatch] No sprite available — icon will not show.");
+                    Plugin.LogSource.LogError("[ReviveItemCooldownIconPatch] No sprite available ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â icon will not show.");
                     _injected = true;
                     return;
                 }
 
-                iconDict[typeof(IDefibCooldown)] = _cachedSprite;
+                iconDict[typeof(IReviveItemCooldown)] = _cachedSprite;
                 Plugin.LogSource.LogInfo(
-                    $"[DefibCooldownIconPatch] DefibCooldown icon injected (dict size now {iconDict.Count}).");
+                    $"[ReviveItemCooldownIconPatch] ReviveItemCooldown icon injected (dict size now {iconDict.Count}).");
                 _injected = true;
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[DefibCooldownIconPatch] EnsureIconInjected error: {ex}");
+                Plugin.LogSource.LogError($"[ReviveItemCooldownIconPatch] EnsureIconInjected error: {ex}");
             }
         }
 
@@ -592,7 +592,7 @@ namespace KeepMeAlive.Features
             if (Plugin.StaticCoroutineRunner == null)
             {
                 Plugin.LogSource.LogWarning(
-                    "[DefibCooldownIconPatch] Coroutine runner unavailable; deferring EFTHardSettings.Load.");
+                    "[ReviveItemCooldownIconPatch] Coroutine runner unavailable; deferring EFTHardSettings.Load.");
                 return;
             }
 
@@ -608,7 +608,7 @@ namespace KeepMeAlive.Features
 
             if (loadTask.IsFaulted || loadTask.IsCanceled)
             {
-                Plugin.LogSource.LogError("[DefibCooldownIconPatch] EFTHardSettings.Load failed or was canceled.");
+                Plugin.LogSource.LogError("[ReviveItemCooldownIconPatch] EFTHardSettings.Load failed or was canceled.");
                 _hardSettingsLoadStarted = false;
                 yield break;
             }
@@ -617,18 +617,18 @@ namespace KeepMeAlive.Features
             EnsureIconInjected();
         }
 
-        private static Sprite LoadDefibSprite()
+        private static Sprite LoadReviveItemSprite()
         {
             try
             {
                 var asm = Assembly.GetExecutingAssembly();
-                const string resource = "KeepMeAlive.Resources.defib_cooldown.png";
+                const string resource = "KeepMeAlive.Resources.revive_item_cooldown.png";
 
                 using var stream = asm.GetManifestResourceStream(resource);
                 if (stream == null)
                 {
                     Plugin.LogSource.LogWarning(
-                        $"[DefibCooldownIconPatch] Embedded resource '{resource}' not found.");
+                        $"[ReviveItemCooldownIconPatch] Embedded resource '{resource}' not found.");
                     return null;
                 }
 
@@ -639,12 +639,12 @@ namespace KeepMeAlive.Features
                 var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                 if (!tex.LoadImage(bytes))
                 {
-                    Plugin.LogSource.LogWarning("[DefibCooldownIconPatch] Texture2D.LoadImage returned false.");
+                    Plugin.LogSource.LogWarning("[ReviveItemCooldownIconPatch] Texture2D.LoadImage returned false.");
                     return null;
                 }
 
                 Plugin.LogSource.LogDebug(
-                    $"[DefibCooldownIconPatch] Loaded defib PNG: {tex.width}x{tex.height}");
+                    $"[ReviveItemCooldownIconPatch] Loaded reviveItem PNG: {tex.width}x{tex.height}");
                 return Sprite.Create(
                     tex,
                     new Rect(0f, 0f, tex.width, tex.height),
@@ -653,7 +653,7 @@ namespace KeepMeAlive.Features
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[DefibCooldownIconPatch] LoadDefibSprite error: {ex}");
+                Plugin.LogSource.LogError($"[ReviveItemCooldownIconPatch] LoadReviveItemSprite error: {ex}");
                 return null;
             }
         }
@@ -752,7 +752,7 @@ namespace KeepMeAlive.Features
 
         private void LateUpdate()
         {
-            // Healthbar destroyed — clean up.
+            // Healthbar destroyed ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â clean up.
             if (_healthBar == null)
             {
                 Destroy(this);
@@ -780,7 +780,7 @@ namespace KeepMeAlive.Features
             }
 
             // If Fika's plate root is inactive (occlusion, ADS, distance, nameplate toggle)
-            // then our overlay must also stay hidden — no through-wall artifacts.
+            // then our overlay must also stay hidden ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no through-wall artifacts.
             if (_scalarScreen == null || !_scalarScreen.activeSelf ||
                 _playerPlate == null || !_playerPlate.gameObject.activeSelf)
             {

@@ -6,10 +6,10 @@ using KeepMeAlive.Components;
 
 namespace KeepMeAlive.Helpers
 {
-    //====================[ DefibCooldown Effect Types ]====================
-    internal interface IDefibCooldown : IEffect { }
-    internal class DefibCooldownEffect : ActiveHealthController.GClass3008, IDefibCooldown { }
-    internal class DefibCooldownNetworkEffect : NetworkHealthControllerAbstractClass.NetworkBodyEffectsAbstractClass, IDefibCooldown { }
+    //====================[ ReviveItemCooldown Effect Types ]====================
+    internal interface IReviveItemCooldown : IEffect { }
+    internal class ReviveItemCooldownEffect : ActiveHealthController.GClass3008, IReviveItemCooldown { }
+    internal class ReviveItemCooldownNetworkEffect : NetworkHealthControllerAbstractClass.NetworkBodyEffectsAbstractClass, IReviveItemCooldown { }
 
     //====================[ PostReviveEffects ]====================
     // Single entry point for everything that happens to a player the moment revival completes.
@@ -17,7 +17,7 @@ namespace KeepMeAlive.Helpers
     // packet handlers (OnRevivedPacket / resync) for remote-player / edge-case paths.
     internal static class PostReviveEffects
     {
-        // Fractures only ever attach to limbs — Head/Chest/Stomach never fracture in EFT.
+        // Fractures only ever attach to limbs â€” Head/Chest/Stomach never fracture in EFT.
         private static readonly EBodyPart[] FractureBodyParts =
         {
             EBodyPart.LeftArm, EBodyPart.RightArm,
@@ -127,14 +127,14 @@ namespace KeepMeAlive.Helpers
 
                 if (isDestroyed)
                 {
-                    // Part was destroyed and just fully restored — set to the configured percentage
+                    // Part was destroyed and just fully restored â€” set to the configured percentage
                     // (FullRestoreBodyPart sets it to max, so we need to reduce it to the target).
                     if (Math.Abs(delta) > 0.01f)
                         hc.ChangeHealth(part, delta, default);
                 }
                 else if (delta > 0.01f)
                 {
-                    // Part was not destroyed — only increase health up to the target percentage.
+                    // Part was not destroyed â€” only increase health up to the target percentage.
                     hc.ChangeHealth(part, delta, default);
                 }
 
@@ -255,7 +255,7 @@ namespace KeepMeAlive.Helpers
 
         //====================[ Cooldown Effect ]====================
         /// <summary>
-        /// Applies the DefibCooldown status effect icon for the given cooldown duration.
+        /// Applies the ReviveItemCooldown status effect icon for the given cooldown duration.
         /// AddEffect fires EffectStartedEvent on the local health controller, which Fika
         /// intercepts and broadcasts as a health sync packet so all peers show the icon too.
         /// Must only be called on the local player (IsYourPlayer).
@@ -270,14 +270,14 @@ namespace KeepMeAlive.Helpers
             try
             {
                 RevivalDebugLog.LogDebug(
-                    $"[PostReviveEffects] Applying DefibCooldown effect: hc={player.ActiveHealthController.GetType().Name}, workTime={cooldownDuration}");
-                var effect = player.ActiveHealthController.AddEffect<DefibCooldownEffect>(
+                    $"[PostReviveEffects] Applying ReviveItemCooldown effect: hc={player.ActiveHealthController.GetType().Name}, workTime={cooldownDuration}");
+                var effect = player.ActiveHealthController.AddEffect<ReviveItemCooldownEffect>(
                     EBodyPart.Chest,
                     delayTime: null,
                     workTime: cooldownDuration,
                     residueTime: 3f);
                 RevivalDebugLog.LogDebug(
-                    $"[PostReviveEffects] DefibCooldown applied: {effect?.GetType().Name}, Type={effect?.Type?.Name}, State={effect?.State}");
+                    $"[PostReviveEffects] ReviveItemCooldown applied: {effect?.GetType().Name}, Type={effect?.Type?.Name}, State={effect?.State}");
             }
             catch (Exception ex)
             {

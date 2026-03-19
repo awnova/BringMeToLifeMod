@@ -1,11 +1,11 @@
-# KeepMeAlive for SPT-AKI 🚑
+# KeepMeAlive for SPT-AKI Ã°Å¸Å¡â€˜
 
 ## Overview
-KeepMeAlive adds a second-chance mechanic to Single Player Tarkov. Instead of immediately dying when taking lethal damage, you'll enter a critical state and can use a defibrillator to revive yourself and continue your raid.
+KeepMeAlive adds a second-chance mechanic to Single Player Tarkov. Instead of immediately dying when taking lethal damage, you'll enter a critical state and can use a revive item to revive yourself and continue your raid.
 
 ## Features
 - **Critical State System**: Enter a weakened state instead of dying immediately
-- **Defibrillator Revival**: Press F5 while in critical state to revive using your defibrillator
+- **Revive Item Revival**: Press F5 while in critical state to revive using your revive item
 - **Post-Revival Protection**: Temporary invulnerability period after revival to get to safety
 - **AI Behavior Modification**: Bots ignore players in critical state
 - **Multiplayer Compatible**: Works with Fika Co-op mod
@@ -22,9 +22,9 @@ KeepMeAlive adds a second-chance mechanic to Single Player Tarkov. Instead of im
 3. The mod will be automatically loaded when you start the game
 
 ## How To Use
-1. **Preparation**: Make sure you have a defibrillator (ID: 60540bddd93c884912009818) in your inventory
+1. **Preparation**: Make sure you have a revive item (ID: 60540bddd93c884912009818) in your inventory
 2. **Critical State**: When you would normally die, you'll enter critical state instead
-3. **Revival**: Press F5 to use your defibrillator while in critical state
+3. **Revival**: Press F5 to use your revive item while in critical state
 4. **Recovery**: After revival, you'll have temporary invulnerability but reduced movement speed
 5. **Cooldown**: There's a 3-minute cooldown between uses of the revival system
 
@@ -33,7 +33,7 @@ You can modify settings using BepInEx's built-in configuration system. After run
 `BepInEx/config/com.kobethuy.BringMeToLifeMod.cfg`
 
 Key configurable settings include:
-- **Revival Item ID**: Which item triggers revival (default: Defibrillator "5c052e6986f7746b207bc3c9")
+- **Revival Item ID**: Which item triggers revival (default: Revive Item "5c052e6986f7746b207bc3c9")
 - **Self Revival Key**: Key to trigger self-revival (default: F)
 - **Give Up Key**: Key to die immediately in critical state (default: Backspace)
 - **Critical State Duration**: How long you can be in critical state (default: 180 seconds)
@@ -41,7 +41,7 @@ Key configurable settings include:
 - **Downed Movement Speed**: Movement speed percentage when downed (default: 50%)
 - **Restore Destroyed Body Parts**: Automatically restore destroyed limbs after revival
 - **Animation Durations**: Self-revive and teammate revive animation times
-- **No Defib Required**: Bypasses defibrillator requirement (testing only)
+- **No Revive Item Required**: Bypasses revive item requirement (testing only)
 - **Debug Keybinds**: Enables F3/F4/F7/F8 debug hotkeys (testing only)
 - **Free Team Healing**: Allows team healing without items (testing only)
 
@@ -49,14 +49,14 @@ Key configurable settings include:
 When using the Fika Co-op mod, KeepMeAlive will synchronize player states:
 - All players will see when someone enters critical state
 - Revival status is shared between players
-- Defibrillator item requirements are checked server-side
+- Revive Item item requirements are checked server-side
 
 ## Known Issues
 - Visual effects may occasionally flicker or not display properly
 - Some interactions between revival state and certain game mechanics may cause unexpected behavior
 
 ## Troubleshooting
-- **Revival not working**: Ensure you have a defibrillator in your inventory
+- **Revival not working**: Ensure you have a revive item in your inventory
 - **Still dying instantly**: Check logs for errors and make sure the mod is properly installed
 - **Performance issues**: The mod has minimal performance impact, but disable if experiencing problems
 
