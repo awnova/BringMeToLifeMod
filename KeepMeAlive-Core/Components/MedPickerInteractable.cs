@@ -94,7 +94,7 @@ namespace KeepMeAlive.Components
 
                 actions.Actions.Add(new ActionsTypesClass
                 {
-                    Name     = "Cancel",
+                    Name     = PlayerFacingMessages.Interaction.CancelAction,
                     Disabled = false,
                     Action   = Close
                 });

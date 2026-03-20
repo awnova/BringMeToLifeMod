@@ -53,11 +53,6 @@ namespace KeepMeAlive.Features
                     return;
                 }
 
-                if (player.IsAI || player.AIData?.IsAI == true)
-                {
-                    return;
-                }
-
                 // The new AttachToPlayer is handled dynamically and directly on the Neck.
                 BodyInteractable.AttachToPlayer(player);
                 Plugin.LogSource.LogInfo($"Initiated BodyInteractable attachment routine for PlayerId {player.Id}");

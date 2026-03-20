@@ -2,6 +2,8 @@
 using Comfort.Common;
 using EFT;
 using EFT.InventoryLogic;
+using Fika.Core.Main.Components;
+using Fika.Core.Main.Players;
 using Newtonsoft.Json;
 using SPT.Common.Http;
 using System;
@@ -67,6 +69,26 @@ namespace KeepMeAlive.Helpers
         }
 
         //====================[ Player Lookups ]====================
+        public static bool IsRemoteFikaPlayer(Player player)
+        {
+            if (player is not ObservedPlayer)
+            {
+                Plugin.LogSource.LogWarning($"[IsRemoteFikaPlayer] REJECT: player {player?.Id} ({player?.GetType().Name}) is not ObservedPlayer");
+                return false;
+            }
+            if (!CoopHandler.TryGetCoopHandler(out var coopHandler))
+            {
+                Plugin.LogSource.LogWarning($"[IsRemoteFikaPlayer] REJECT: CoopHandler not available for player {player.Id}");
+                return false;
+            }
+            bool inList = coopHandler.HumanPlayers.Contains((FikaPlayer)player);
+            if (!inList)
+                Plugin.LogSource.LogWarning($"[IsRemoteFikaPlayer] REJECT: player {player.Id} ({player.Profile?.Nickname}) not in HumanPlayers (count={coopHandler.HumanPlayers.Count})");
+            else
+                Plugin.LogSource.LogInfo($"[IsRemoteFikaPlayer] PASS: player {player.Id} ({player.Profile?.Nickname}) is remote Fika human");
+            return inList;
+        }
+
         public static Player GetYourPlayer()
         {
             if (!Singleton<GameWorld>.Instantiated)

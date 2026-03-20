@@ -43,7 +43,7 @@ namespace KeepMeAlive.Features
                 if (player.IsYourPlayer)
                 {
                     DownedUiBlocker.SetBlocked(false);
-                    VFX_UI.Text(Color.green, "Revival cooldown ended - you can now be revived");
+                    VFX_UI.Text(Color.green, PlayerFacingMessages.PostRevive.CooldownEnded);
                 }
             }
         }
@@ -95,19 +95,17 @@ namespace KeepMeAlive.Features
                 var source = (ReviveSource)st.ReviveRequestedSource;
                 st.InvulnerabilityTimer = PostReviveEffects.GetInvulnDuration(source);
 
+                // Release input blocks, then restore movement (clears prone, re-enables sprint, restores walk speed).
+                DownedMovementController.ReleaseProne(player);
+                DownedMovementController.ReleaseEmptyHands(player);
+                PlayerRestorations.RestorePlayerMovement(player, forceStandingPose: true);
+                DownedMovementController.ReattachMovementHooks(player);
+
+                // Then clamp to the invulnerability-period speed cap.
                 if (st.OriginalMovementSpeed > 0)
                 {
                     float invulnSpeed = st.OriginalMovementSpeed * PostReviveEffects.GetInvulnSpeedMultiplier(source);
                     player.Physical.WalkSpeedLimit = invulnSpeed;
-                }
-
-                if (player.MovementContext != null)
-                {
-                    var mc = player.MovementContext;
-                    mc.IsInPronePose = false;
-                    mc.SetPoseLevel(1f, true);
-                    mc.EnableSprint(true);
-                    DownedMovementController.ReattachMovementHooks(player);
                 }
 
                 if (player.IsYourPlayer)
@@ -115,7 +113,7 @@ namespace KeepMeAlive.Features
                     DownedUiBlocker.SetBlocked(false);
                     VFX_UI.HideTransitPanel();
                     st.CriticalStateMainTimer?.Stop(); st.CriticalStateMainTimer = null;
-                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, "Invulnerable {0:F1}", PostReviveEffects.GetInvulnDuration(source));
+                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, PlayerFacingMessages.PostRevive.InvulnerableObjective, PostReviveEffects.GetInvulnDuration(source));
                 }
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[PostRevival] StartInvulnerabilityPeriod error: {ex.Message}"); }
@@ -129,6 +127,8 @@ namespace KeepMeAlive.Features
 
             GodMode.Disable(player);
             DownedHealthAndEffectsManager.RemoveRevivableState(player);
+            DownedMovementController.ReleaseProne(player);
+            DownedMovementController.ReleaseEmptyHands(player);
 
             if (player.IsYourPlayer)
             {
@@ -147,7 +147,7 @@ namespace KeepMeAlive.Features
                 FikaBridge.SendPlayerStateResetPacket(player.ProfileId, isDead: false, cd);
                 st.ResyncCooldown = -1f;
                 VFX_UI.HideObjectivePanel();
-                VFX_UI.Text(Color.cyan, $"Invulnerability ended. Revival cooldown: {cd:F0}s");
+                VFX_UI.Text(Color.cyan, PlayerFacingMessages.PostRevive.InvulnerabilityEnded(cd));
                 PostReviveEffects.ApplyCooldownEffect(player, cd);
             }
 

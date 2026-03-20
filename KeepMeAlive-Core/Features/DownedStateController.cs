@@ -49,7 +49,7 @@ namespace KeepMeAlive.Features
             if (!CanUseSelfRevive(player)) return;
 
             KeyCode key = KeepMeAliveSettings.SELF_REVIVAL_KEY.Value;
-            VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, $"Revive! [{key}]");
+            VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, PlayerFacingMessages.NetworkRevive.RevivePrompt(key));
         }
 
         private static void HideAllPanelsAndStop(RMPlayer st)
@@ -146,6 +146,7 @@ namespace KeepMeAlive.Features
                 st.SelfReviveAuthPending = false;
                 st.SelfReviveAttemptId = 0;
                 st.CurrentReviverId = string.Empty;
+                st.LastObservedState = st.State;
 
                 BodyInteractableRuntime.ForceClosePicker(id);
                 RMSession.AddToCriticalPlayers(id);
@@ -156,7 +157,7 @@ namespace KeepMeAlive.Features
 
                 if (player.IsYourPlayer)
                 {
-                    DownedUiBlocker.SetBlocked(true);
+                    if (KeepMeAliveSettings.BLOCK_UI_WHEN_DOWNED.Value) DownedUiBlocker.SetBlocked(true);
                     FikaBridge.SendBleedingOutPacket(id, st.CriticalTimer);
                     RevivalAuthority.NotifyBeginCritical(id);
                     st.ResyncCooldown = -1f;
@@ -199,6 +200,7 @@ namespace KeepMeAlive.Features
             st.CurrentReviverId = string.Empty;
             st.ReviveRequestedSource = 0;
             st.FinalizedReviveCycleId = -1;
+            st.LastObservedState = st.State;
             HideAllPanelsAndStop(st);
 
             if (player.IsYourPlayer)
@@ -209,6 +211,8 @@ namespace KeepMeAlive.Features
             st.InvulnerabilityTimer = 0f;
             GodMode.Disable(player);
             DownedHealthAndEffectsManager.RemoveRevivableState(player);
+            DownedMovementController.ReleaseProne(player);
+            DownedMovementController.ReleaseEmptyHands(player);
             PlayerRestorations.RestorePlayerMovement(player);
             st.OriginalMovementSpeed = -1f;
             PlayerRestorations.RestorePlayerWeapon(player);
@@ -220,6 +224,17 @@ namespace KeepMeAlive.Features
         public static void TickDowned(Player player)
         {
             var st = RMSession.GetPlayerState(player.ProfileId);
+
+            if (st.State != st.LastObservedState)
+            {
+                if (st.State == RMState.Reviving)
+                {
+                    RevivalController.StartRevive(player, st, "StateTransition");
+                }
+
+                st.LastObservedState = st.State;
+            }
+
             if (!st.IsCritical)
             {
                 if (player.IsYourPlayer && DownedUiBlocker.IsBlocked)
@@ -230,9 +245,6 @@ namespace KeepMeAlive.Features
             }
 
             ReviveDebug.Log("TickDowned_Enter", player.ProfileId, player.IsYourPlayer, $"state={st.State}");
-            PlayerRestorations.StoreOriginalMovementSpeed(player);
-            DownedMovementController.ApplyDownedMovementSpeed(player, st);
-            DownedMovementController.ApplyDownedMovementRestrictions(player, st);
 
             st.CriticalStateMainTimer?.Update();
             st.RevivePromptTimer?.Update();
@@ -248,7 +260,6 @@ namespace KeepMeAlive.Features
             }
 
             RevivalController.TickSelfRevival(player, st);
-            RevivalController.ObserveRevivingState(player, st);
 
             if (st.IsBeingRevived && st.State == RMState.BleedingOut && !string.IsNullOrEmpty(st.CurrentReviverId))
             {
@@ -257,7 +268,7 @@ namespace KeepMeAlive.Features
                 {
                     Plugin.LogSource.LogWarning($"[Downed] Reviver watchdog expired for {player.ProfileId}; clearing IsBeingRevived");
                     st.CurrentReviverId = string.Empty;
-                    CancelReviveState(player, st, "Reviver disconnected or timed out.", Color.yellow);
+                    CancelReviveState(player, st, PlayerFacingMessages.Downed.ReviverTimedOut, Color.yellow);
                 }
             }
 
@@ -291,8 +302,8 @@ namespace KeepMeAlive.Features
             if (!player.IsYourPlayer) return;
             try
             {
-                VFX_UI.Text(Color.red, "DOWNED");
-                st.CriticalStateMainTimer = VFX_UI.TransitPanel(VFX_UI.Gradient(Color.red, Color.black), VFX_UI.Position.MiddleCenter, "BLEEDING OUT", KeepMeAliveSettings.CRITICAL_STATE_TIME.Value);
+                VFX_UI.Text(Color.red, PlayerFacingMessages.Downed.DownedBanner);
+                st.CriticalStateMainTimer = VFX_UI.TransitPanel(VFX_UI.Gradient(Color.red, Color.black), VFX_UI.Position.MiddleCenter, PlayerFacingMessages.Downed.BleedingOut, KeepMeAliveSettings.CRITICAL_STATE_TIME.Value);
                 ShowSelfRevivePromptIfEligible(player);
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedStateController] ShowCriticalStateUI error: {ex.Message}"); }
@@ -302,7 +313,7 @@ namespace KeepMeAlive.Features
         {
             if (!player.IsYourPlayer) return;
             if (st.CriticalTimer <= 0.5f) return;
-            st.CriticalStateMainTimer = VFX_UI.TransitPanel(VFX_UI.Gradient(Color.red, Color.black), VFX_UI.Position.MiddleCenter, "BLEEDING OUT", st.CriticalTimer);
+            st.CriticalStateMainTimer = VFX_UI.TransitPanel(VFX_UI.Gradient(Color.red, Color.black), VFX_UI.Position.MiddleCenter, PlayerFacingMessages.Downed.BleedingOut, st.CriticalTimer);
         }
 
         //====================[ Queries ]====================

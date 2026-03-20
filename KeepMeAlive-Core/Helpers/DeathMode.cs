@@ -86,14 +86,14 @@ namespace KeepMeAlive.Helpers
             {
                 Plugin.LogSource.LogInfo($"[DeathMode] Hardcore headshot spared (roll {roll:F1}). Enter critical.");
                 NotificationManagerClass.DisplayMessageNotification(
-                    "Headshot – critical",
+                    PlayerFacingMessages.Death.HeadshotCritical,
                     ENotificationDurationType.Default, ENotificationIconType.Alert, Color.green);
                 return false;
             }
 
             Plugin.LogSource.LogInfo("[DeathMode] Hardcore headshot: killed instantly.");
             NotificationManagerClass.DisplayMessageNotification(
-                "Headshot – killed instantly",
+                PlayerFacingMessages.Death.HeadshotKilled,
                 ENotificationDurationType.Default, ENotificationIconType.Alert, Color.red);
             return true;
         }
@@ -122,7 +122,7 @@ namespace KeepMeAlive.Helpers
 
                 VFX_UI.HideTransitPanel();
                 VFX_UI.HideObjectivePanel();
-                VFX_UI.Text(Color.black, "You died");
+                VFX_UI.Text(Color.black, PlayerFacingMessages.Death.YouDied);
 
                 RMSession.RemovePlayerFromCriticalPlayers(id);
                 RevivalAuthority.NotifyReset(id);

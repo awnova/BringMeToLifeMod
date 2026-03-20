@@ -466,12 +466,12 @@ namespace KeepMeAlive.Features
 
                 if (healer.CurrentState is not IdleStateClass)
                 {
-                    VFX_UI.Text(Color.yellow, "You can't heal while moving");
+                    VFX_UI.Text(Color.yellow, PlayerFacingMessages.TeamHeal.CannotHealWhileMoving);
                     onComplete?.Invoke(false);
                     return;
                 }
 
-                VFX_UI.ObjectivePanel(Color.green, VFX_UI.Position.Default, "Healing teammate {0:F1}", HEAL_HOLD_TIME);
+                VFX_UI.ObjectivePanel(Color.green, VFX_UI.Position.Default, PlayerFacingMessages.TeamHeal.HealingObjective, HEAL_HOLD_TIME);
 
                 var handler = new HealCompleteHandler
                 {
@@ -511,7 +511,7 @@ namespace KeepMeAlive.Features
                 if (!result)
                 {
                     FikaBridge.SendTeamHealCancelPacket(patientId, healerId);
-                    VFX_UI.Text(Color.yellow, "Healing cancelled!");
+                    VFX_UI.Text(Color.yellow, PlayerFacingMessages.TeamHeal.HealingCancelled);
                     onComplete?.Invoke(false);
                     return;
                 }
@@ -519,12 +519,12 @@ namespace KeepMeAlive.Features
                 // Validate patient is still alive and reachable.
                 if (patient == null || patient.HealthController == null || !patient.HealthController.IsAlive)
                 {
-                    VFX_UI.Text(Color.yellow, "Patient is no longer available");
+                    VFX_UI.Text(Color.yellow, PlayerFacingMessages.TeamHeal.PatientUnavailable);
                     onComplete?.Invoke(true); // Close the UI
                     return;
                 }
 
-                VFX_UI.Text(Color.green, "Healing teammate...");
+                VFX_UI.Text(Color.green, PlayerFacingMessages.TeamHeal.HealingTeammate);
 
                 // Broadcast to all machines — the patient calls ApplyItem on their side.
                 FikaBridge.SendTeamHealPacket(patientId, healerId, selectedItem.Id);

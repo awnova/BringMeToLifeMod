@@ -339,20 +339,6 @@ namespace KeepMeAlive.Patches
         }
     }
 
-    //====================[ OnPlayerCreatedPatch ]====================
-    internal class OnPlayerCreatedPatch : ModulePatch
-    {
-        //====================[ Patching ]====================
-        protected override MethodBase GetTargetMethod() => AccessTools.Property(typeof(Player), nameof(Player.PlayerId)).GetSetMethod();
-
-        [PatchPostfix]
-        private static void Postfix(Player __instance)
-        {
-            if (__instance?.gameObject == null || __instance.IsAI || __instance is FikaBot) return;
-            BodyInteractableRuntime.AttachToPlayer(__instance);
-        }
-    }
-
     //====================[ SpecialSlotReviveItemPatch ]====================
     internal class SpecialSlotReviveItemPatch : ModulePatch
     {
@@ -489,9 +475,8 @@ namespace KeepMeAlive.Features
                     if (enter) GhostMode.EnterGhostModeById(player.ProfileId);
                     else GhostMode.ExitGhostModeById(player.ProfileId);
 
-                    string stateStr = enter ? "Entered (F7)" : "Exited (F8)";
                     NotificationManagerClass.DisplayMessageNotification(
-                        $"GhostMode: {stateStr}", ENotificationDurationType.Default, ENotificationIconType.Default, Color.cyan);
+                        PlayerFacingMessages.GhostMode.State(enter), ENotificationDurationType.Default, ENotificationIconType.Default, Color.cyan);
                 }
 
                 ToggleGhost(KeyCode.F7, true);

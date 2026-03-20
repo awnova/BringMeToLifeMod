@@ -59,6 +59,7 @@ namespace KeepMeAlive.Helpers
         public static ConfigEntry<bool> STUN_EFFECT;
         public static ConfigEntry<float> MEDICAL_RANGE;
         public static ConfigEntry<float> DOWNED_MOVEMENT_SPEED;
+        public static ConfigEntry<bool> BLOCK_UI_WHEN_DOWNED;
         // Hardcore Mode
         public static ConfigEntry<bool> DEATH_BLOCK_IN_CRITICAL;
         public static ConfigEntry<bool> GOD_MODE;
@@ -203,6 +204,13 @@ namespace KeepMeAlive.Helpers
                 "Downed Movement Speed",
                 50f,
                 "Movement speed percentage when downed (0-100, default is 50% of normal speed)"
+            );
+
+            BLOCK_UI_WHEN_DOWNED = config.Bind(
+                "2. Revival Mechanics",
+                "Block UI When Downed",
+                true,
+                "When enabled, prevents opening inventory and other UI while in the downed state"
             );
 
             #endregion

@@ -24,6 +24,18 @@ public record RevivalStateEntry
 public record RevivalAuthorityResponse
 {
     public bool Success { get; init; }
+    public RevivalDeniedCode DenialCode { get; init; } = RevivalDeniedCode.None;
     public string Reason { get; init; } = string.Empty;
     public RevivalStateEntry? State { get; init; }
+}
+
+//====================[ RevivalDeniedCode ]====================
+public enum RevivalDeniedCode
+{
+    None = 0,
+    Cooldown = 1,
+    InvalidState = 2,
+    NotDowned = 3,
+    CompleteInvalidState = 4,
+    ServerError = 5
 }

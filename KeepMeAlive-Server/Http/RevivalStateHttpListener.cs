@@ -40,10 +40,12 @@ public class RevivalStateHttpListener(RevivalStateService stateService, HttpResp
         }
         catch (Exception ex)
         {
+            _ = ex;
             json = JsonSerializer.Serialize(new RevivalAuthorityResponse
             {
                 Success = false,
-                Reason = ex.Message
+                DenialCode = RevivalDeniedCode.ServerError,
+                Reason = "Server error"
             });
         }
 

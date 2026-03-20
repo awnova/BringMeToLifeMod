@@ -23,6 +23,7 @@ namespace KeepMeAlive.Helpers
         private sealed class AuthorityResponse
         {
             public bool Success { get; set; }
+            public int DenialCode { get; set; }
             public string Reason { get; set; } = string.Empty;
         }
 
@@ -41,7 +42,7 @@ namespace KeepMeAlive.Helpers
                 Source = source
             }, out var response);
 
-            reason = ok ? (response?.Reason ?? string.Empty) : string.Empty;
+            reason = ok ? MapDenyReason(response) : string.Empty;
             return ok ? (response?.Success ?? true) : true;
         }
 
@@ -87,6 +88,34 @@ namespace KeepMeAlive.Helpers
                 RevivalDebugLog.LogDebug($"[RevivalAuthority] Route {route} unavailable: {ex.Message}");
                 return false;
             }
+        }
+
+        private static string MapDenyReason(AuthorityResponse response)
+        {
+            if (response == null || response.Success)
+            {
+                return string.Empty;
+            }
+
+            switch (response.DenialCode)
+            {
+                case 1:
+                    return PlayerFacingMessages.ReviveDenied.Cooldown;
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                    return string.Empty;
+            }
+
+            // Backward-compatible fallback for older servers that do not provide DenialCode.
+            string raw = response.Reason ?? string.Empty;
+            if (raw.StartsWith("Player on cooldown", StringComparison.OrdinalIgnoreCase))
+            {
+                return PlayerFacingMessages.ReviveDenied.Cooldown;
+            }
+
+            return string.Empty;
         }
     }
 }

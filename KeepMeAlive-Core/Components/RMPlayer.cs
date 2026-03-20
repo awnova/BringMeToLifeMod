@@ -23,6 +23,7 @@ namespace KeepMeAlive.Components
     {
         //====================[ State ]====================
         public RMState State { get; set; } = RMState.None;
+        public RMState LastObservedState { get; set; } = RMState.None;
 
         //====================[ Derived Flags ]====================
         public bool IsCritical => State is RMState.BleedingOut or RMState.Reviving;

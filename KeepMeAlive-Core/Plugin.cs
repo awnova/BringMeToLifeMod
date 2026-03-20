@@ -57,7 +57,6 @@ namespace KeepMeAlive
         private static void EnableCorePatches()
         {
             new RevivalFeatures().Enable();
-            new OnPlayerCreatedPatch().Enable();
             new GameStartedPatch().Enable();
             new DeathPatch().Enable();
             new DownedWeaponProceedBlockPatch().Enable();

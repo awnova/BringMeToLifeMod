@@ -157,17 +157,17 @@ namespace KeepMeAlive.Components
 
             if (!RevivePolicy.IsEnabled(ReviveSource.Team))
             {
-                VFX_UI.Text(Color.yellow, "Team revive is disabled");
+                VFX_UI.Text(Color.yellow, PlayerFacingMessages.Interaction.TeamReviveDisabled);
                 return;
             }
 
             if (owner.Player.CurrentState is not IdleStateClass)
             {
-                VFX_UI.Text(Color.yellow, "You can't revive a player while moving");
+                VFX_UI.Text(Color.yellow, PlayerFacingMessages.Interaction.CannotReviveWhileMoving);
                 return;
             }
 
-            VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.Default, "Reviving {0:F1}", ReviveHoldTime);
+            VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.Default, PlayerFacingMessages.Interaction.RevivingObjective, ReviveHoldTime);
 
             var handler = new ReviveCompleteHandler
             {
@@ -198,7 +198,7 @@ namespace KeepMeAlive.Components
                 actions.Actions.Add(new ActionsTypesClass
                 {
                     Action = () => OnRevive(owner),
-                    Name = "Revive",
+                    Name = PlayerFacingMessages.Interaction.ReviveAction,
                     Disabled = !canRevive
                 });
             }
@@ -235,7 +235,7 @@ namespace KeepMeAlive.Components
 
                 // Spawn MedPicker with same bounds as the full body collider
                 var pickerGo = InteractableBuilder<MedPickerInteractable>.Build(
-                    "Med Picker", 
+                    PlayerFacingMessages.Interaction.MedPickerName,
                     Vector3.zero, 
                     new Vector3(0.8f, 1.8f, 0.8f), 
                     transform, 
@@ -285,11 +285,11 @@ namespace KeepMeAlive.Components
         {
             return cat switch
             {
-                MedCategory.Bleeds => "Medic Bleeds",
-                MedCategory.Breaks => "Medic Breaks",
-                MedCategory.Health => "Medic Health",
-                MedCategory.Comfort => "Medic Comfort",
-                MedCategory.Nutrition => "Medic Nutrition",
+                MedCategory.Bleeds => PlayerFacingMessages.Interaction.MedicBleeds,
+                MedCategory.Breaks => PlayerFacingMessages.Interaction.MedicBreaks,
+                MedCategory.Health => PlayerFacingMessages.Interaction.MedicHealth,
+                MedCategory.Comfort => PlayerFacingMessages.Interaction.MedicComfort,
+                MedCategory.Nutrition => PlayerFacingMessages.Interaction.MedicNutrition,
                 _ => cat.ToString()
             };
         }
@@ -314,7 +314,7 @@ namespace KeepMeAlive.Components
                     if (reviveeState.State != RMState.BleedingOut)
                     {
                         FikaBridge.SendTeamCancelPacket(targetId, reviverId);
-                        VFX_UI.Text(Color.yellow, "Revive no longer possible");
+                        VFX_UI.Text(Color.yellow, PlayerFacingMessages.Interaction.ReviveNoLongerPossible);
                         return;
                     }
 
@@ -330,7 +330,7 @@ namespace KeepMeAlive.Components
                 else
                 {
                     FikaBridge.SendTeamCancelPacket(targetId, reviverId);
-                    VFX_UI.Text(Color.yellow, "Revive cancelled!");
+                    VFX_UI.Text(Color.yellow, PlayerFacingMessages.Interaction.ReviveCancelled);
                 }
             }
         }

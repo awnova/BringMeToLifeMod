@@ -63,7 +63,7 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
 
             if (entry.State == RevivalState.CoolDown && entry.CooldownUntilUnixSeconds > now)
             {
-                return Denied("Player on cooldown", entry);
+                return Denied(RevivalDeniedCode.Cooldown, "Player on cooldown", entry);
             }
 
             // Allow a self-revive to restart if the previous attempt left the server in
@@ -82,7 +82,7 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
                 }
                 else
                 {
-                    return Denied($"Invalid state for revive start: {entry.State}", entry);
+                    return Denied(RevivalDeniedCode.InvalidState, $"Invalid state for revive start: {entry.State}", entry);
                 }
             }
 
@@ -94,7 +94,7 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
                 entry.State != RevivalState.Reviving   &&
                 entry.State != RevivalState.None)
             {
-                return Denied($"Player is not downed: {entry.State}", entry);
+                return Denied(RevivalDeniedCode.NotDowned, $"Player is not downed: {entry.State}", entry);
             }
 
             if (entry.State == RevivalState.None)
@@ -117,7 +117,7 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
         {
             if (entry.State != RevivalState.Reviving)
             {
-                return Denied($"Cannot complete revive from {entry.State}", entry);
+                return Denied(RevivalDeniedCode.CompleteInvalidState, $"Cannot complete revive from {entry.State}", entry);
             }
 
             entry.State = RevivalState.Revived;
@@ -163,6 +163,6 @@ public class RevivalStateService(ISptLogger<RevivalStateService> logger, Revival
     private static RevivalAuthorityResponse Allowed(RevivalStateEntry state) =>
         new() { Success = true, State = state };
 
-    private static RevivalAuthorityResponse Denied(string reason, RevivalStateEntry state) =>
-        new() { Success = false, Reason = reason, State = state };
+    private static RevivalAuthorityResponse Denied(RevivalDeniedCode code, string reason, RevivalStateEntry state) =>
+        new() { Success = false, DenialCode = code, Reason = reason, State = state };
 }

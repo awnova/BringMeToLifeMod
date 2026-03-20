@@ -1,7 +1,10 @@
 //====================[ Imports ]====================
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
 using EFT;
+using EFT.InputSystem;
 using KeepMeAlive.Components;
 using KeepMeAlive.Helpers;
 using UnityEngine;
@@ -11,19 +14,161 @@ namespace KeepMeAlive.Features
     //====================[ DownedMovementController ]====================
     internal static class DownedMovementController
     {
+        //====================[ Ignored-Command Infrastructure ]====================
+        private static HashSet<ECommand> _ignoredCommands;
+        private static bool _reflectionFailed;
+
+        //====================[ Stance Commands ]====================
+        private static readonly ECommand[] StanceCommands =
+        {
+            ECommand.ToggleDuck,
+            ECommand.ToggleProne,
+            ECommand.NextWalkPose,
+            ECommand.PreviousWalkPose,
+            ECommand.Jump,
+            ECommand.RestorePose
+        };
+
+        //====================[ Weapon-Select Commands ]====================
+        private static readonly ECommand[] WeaponSelectCommands =
+        {
+            ECommand.SelectFirstPrimaryWeapon,
+            ECommand.SelectSecondPrimaryWeapon,
+            ECommand.SelectSecondaryWeapon,
+            ECommand.SelectKnife,
+            ECommand.QuickSelectSecondaryWeapon,
+            ECommand.SelectFastSlot4,
+            ECommand.SelectFastSlot5,
+            ECommand.SelectFastSlot6,
+            ECommand.SelectFastSlot7,
+            ECommand.SelectFastSlot8,
+            ECommand.SelectFastSlot9,
+            ECommand.SelectFastSlot0,
+            ECommand.QuickKnifeKick
+        };
+
+        //====================[ Reflection Accessor ]====================
+        private static HashSet<ECommand> GetIgnoredCommands()
+        {
+            if (_ignoredCommands != null) return _ignoredCommands;
+            if (_reflectionFailed) return null;
+
+            try
+            {
+                var field = typeof(PlayerOwner).GetField("ignoredCommands",
+                    BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
+                if (field == null)
+                {
+                    Plugin.LogSource.LogError("[DownedMovement] ignoredCommands field not found via reflection");
+                    _reflectionFailed = true;
+                    return null;
+                }
+                _ignoredCommands = field.GetValue(null) as HashSet<ECommand>;
+                if (_ignoredCommands == null)
+                {
+                    Plugin.LogSource.LogError("[DownedMovement] ignoredCommands field was null");
+                    _reflectionFailed = true;
+                }
+                return _ignoredCommands;
+            }
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[DownedMovement] ignoredCommands reflection error: {ex.Message}");
+                _reflectionFailed = true;
+                return null;
+            }
+        }
+
+        private static void AddIgnored(ECommand[] commands)
+        {
+            var set = GetIgnoredCommands();
+            if (set == null) return;
+            for (int i = 0; i < commands.Length; i++) set.Add(commands[i]);
+        }
+
+        private static void RemoveIgnored(ECommand[] commands)
+        {
+            var set = GetIgnoredCommands();
+            if (set == null) return;
+            for (int i = 0; i < commands.Length; i++) set.Remove(commands[i]);
+        }
+
         //====================[ Public API ]====================
-        // Force the player into a revivable state: prone, no sprint, empty hands, and unhooked movement listeners.
-        public static void ApplyRevivableState(Player player)
+
+        /// <summary>
+        /// One-shot: set player prone, then block all stance-changing inputs so the player cannot stand up.
+        /// </summary>
+        public static void ForceProne(Player player)
         {
             try
             {
-                PlayerRestorations.SetAwarenessZero(player);
-                Plugin.StaticCoroutineRunner.StartCoroutine(DeferredSetEmptyHands(player));
+                if (player?.MovementContext == null) return;
 
                 var mc = player.MovementContext;
                 mc.EnableSprint(false);
                 mc.SetPoseLevel(0f, true);
                 mc.IsInPronePose = true;
+
+                AddIgnored(StanceCommands);
+
+                Plugin.LogSource.LogInfo($"[DownedMovement] ForceProne applied for {player.ProfileId}");
+            }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedMovement] ForceProne error: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// Undo ForceProne: remove the stance-blocking commands from the ignore list.
+        /// Does NOT change pose — caller is responsible for restoring pose if needed.
+        /// </summary>
+        public static void ReleaseProne(Player player)
+        {
+            try
+            {
+                RemoveIgnored(StanceCommands);
+                Plugin.LogSource.LogInfo($"[DownedMovement] ReleaseProne applied for {player?.ProfileId}");
+            }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedMovement] ReleaseProne error: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// One-shot: set hands empty, then block all weapon-select inputs so the player cannot draw weapons.
+        /// </summary>
+        public static void ForceEmptyHands(Player player)
+        {
+            try
+            {
+                if (player == null) return;
+
+                player.SetEmptyHands(null);
+                AddIgnored(WeaponSelectCommands);
+
+                Plugin.LogSource.LogInfo($"[DownedMovement] ForceEmptyHands applied for {player.ProfileId}");
+            }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedMovement] ForceEmptyHands error: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// Undo ForceEmptyHands: remove weapon-select commands from the ignore list.
+        /// Does NOT equip a weapon — caller is responsible for that.
+        /// </summary>
+        public static void ReleaseEmptyHands(Player player)
+        {
+            try
+            {
+                RemoveIgnored(WeaponSelectCommands);
+                Plugin.LogSource.LogInfo($"[DownedMovement] ReleaseEmptyHands applied for {player?.ProfileId}");
+            }
+            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedMovement] ReleaseEmptyHands error: {ex.Message}"); }
+        }
+
+        //====================[ Legacy Public API ]====================
+        // Full downed-entry orchestration: prone, empty hands, unhook events, vocalize, release turrets.
+        public static void ApplyRevivableState(Player player)
+        {
+            try
+            {
+                ForceProne(player);
+                ForceEmptyHands(player);
 
                 if (player.ShouldVocalizeDeath(player.LastDamagedBodyPart))
                 {
@@ -31,6 +176,7 @@ namespace KeepMeAlive.Features
                     try { player.Speaker.Play(trig, player.HealthStatus, true, null); } catch { }
                 }
 
+                var mc = player.MovementContext;
                 mc.ReleaseDoorIfInteractingWithOne();
                 mc.OnStateChanged -= player.method_17;
                 mc.PhysicalConditionChanged -= player.ProceduralWeaponAnimation.PhysicalConditionUpdated;
@@ -73,41 +219,6 @@ namespace KeepMeAlive.Features
                 player.Physical.WalkSpeedLimit = frozen ? 0f : Mathf.Max(0.1f, baseSpd * (KeepMeAliveSettings.DOWNED_MOVEMENT_SPEED.Value / 100f));
             }
             catch (Exception ex) { Plugin.LogSource.LogError($"[DownedMovement] ApplyDownedMovementSpeed error: {ex.Message}"); }
-        }
-
-        // Enforce prone pose and clear hands when needed (gated to avoid per-frame spam).
-        public static void ApplyDownedMovementRestrictions(Player player, RMPlayer st)
-        {
-            try
-            {
-                if (player.MovementContext == null) return;
-
-                bool shouldSetProne = false;
-                if (player.MovementContext.PoseLevel > 0.01f || !player.MovementContext.IsInPronePose)
-                {
-                    player.MovementContext.SetPoseLevel(0f, true);
-                    player.MovementContext.IsInPronePose = true;
-                    shouldSetProne = true;
-                }
-
-                player.ActiveHealthController.SetStaminaCoeff(1f);
-
-                if (shouldSetProne && st.State != RMState.Reviving && !st.IsBeingRevived && !st.IsSelfReviving)
-                {
-                    if (player.HandsController != null && player.HandsController.Item != null)
-                    {
-                        player.SetEmptyHands(null);
-                    }
-                }
-            }
-            catch (Exception ex) { Plugin.LogSource.LogError($"[DownedMovement] ApplyDownedMovementRestrictions error: {ex.Message}"); }
-        }
-
-        //====================[ Private Helpers ]====================
-        private static IEnumerator DeferredSetEmptyHands(Player player)
-        {
-            yield return null;
-            try { player?.SetEmptyHands(null); } catch (Exception ex) { Plugin.LogSource.LogWarning($"[DownedMovement] DeferredSetEmptyHands warn: {ex.Message}"); }
         }
     }
 }

@@ -1,64 +1,52 @@
-# KeepMeAlive for SPT-AKI Ã°Å¸Å¡â€˜
+# KeepMeAlive for SPT-AKI
 
 ## Overview
-KeepMeAlive adds a second-chance mechanic to Single Player Tarkov. Instead of immediately dying when taking lethal damage, you'll enter a critical state and can use a revive item to revive yourself and continue your raid.
+KeepMeAlive adds a second-chance mechanic to SPT. Instead of immediately dying to lethal damage, your PMC can enter a critical (downed) state and recover through the revive system.
 
 ## Features
-- **Critical State System**: Enter a weakened state instead of dying immediately
-- **Revive Item Revival**: Press F5 while in critical state to revive using your revive item
-- **Post-Revival Protection**: Temporary invulnerability period after revival to get to safety
-- **AI Behavior Modification**: Bots ignore players in critical state
-- **Multiplayer Compatible**: Works with Fika Co-op mod
-- **Visual Indicators**: Clear notifications and visual effects for critical state and revival
-- **Balance Features**: Movement limitations during critical state and cooldown between revivals
+- Critical/downed state instead of immediate death in supported cases.
+- Self revive flow with configurable keybind, hold time, and revive item requirement.
+- Teammate revive flow for co-op sessions.
+- Configurable post-revive effects (health restore percentages, invulnerability window, optional status effects).
+- Movement limits while downed, plus optional hardcore/death-mode toggles.
+- Optional debug switches for testing and diagnosis.
 
 ## Requirements
-- SPT-AKI (Latest version)
-- BepInEx
+- SPT-AKI
+- Fika (required by this plugin build)
 
 ## Installation
-1. Download the latest release ZIP from the Releases section
-2. Extract the contents to your SPT-AKI installation directory
-3. The mod will be automatically loaded when you start the game
+1. Download the latest release files.
+2. Extract them into your SPT root folder
+3. Start the game once to generate config files.
 
-## How To Use
-1. **Preparation**: Make sure you have a revive item (ID: 60540bddd93c884912009818) in your inventory
-2. **Critical State**: When you would normally die, you'll enter critical state instead
-3. **Revival**: Press F5 to use your revive item while in critical state
-4. **Recovery**: After revival, you'll have temporary invulnerability but reduced movement speed
-5. **Cooldown**: There's a 3-minute cooldown between uses of the revival system
+## Quick Start
+1. Carry your configured revive item (default template ID: `5c052e6986f7746b207bc3c9`).
+2. Enter raid normally.
+3. If you enter critical state, hold the self-revive key (default: `F`) or wait for teammate to revive you.
+4. Use give-up key (default: `Backspace`) if you want to forfeit immediately.
 
 ## Configuration
-You can modify settings using BepInEx's built-in configuration system. After running the mod once, settings can be found in:
-`BepInEx/config/com.kobethuy.BringMeToLifeMod.cfg`
+After first launch, configure values in:
+`BepInEx/config/com.KeepMeAlive.cfg`
 
-Key configurable settings include:
-- **Revival Item ID**: Which item triggers revival (default: Revive Item "5c052e6986f7746b207bc3c9")
-- **Self Revival Key**: Key to trigger self-revival (default: F)
-- **Give Up Key**: Key to die immediately in critical state (default: Backspace)
-- **Critical State Duration**: How long you can be in critical state (default: 180 seconds)
-- **Revival Cooldown**: Time between revivals (default: 180 seconds)
-- **Downed Movement Speed**: Movement speed percentage when downed (default: 50%)
-- **Restore Destroyed Body Parts**: Automatically restore destroyed limbs after revival
-- **Animation Durations**: Self-revive and teammate revive animation times
-- **No Revive Item Required**: Bypasses revive item requirement (testing only)
-- **Debug Keybinds**: Enables F3/F4/F7/F8 debug hotkeys (testing only)
-- **Free Team Healing**: Allows team healing without items (testing only)
+Common settings:
+- `Self Revival Key` (default `F`)
+- `Give Up Key` (default `Backspace`)
+- `Revival Item ID`
+- `Critical State Duration` (default `180` seconds)
+- `Self Revive Hold Time` and `Team Revive Hold Time`
+- `Self Revive Progress Duration` and `Teammate Revive Progress Duration`
+- `Self: Revival Cooldown` (default `240` seconds)
+- `Downed Movement Speed` (default `50`)
+- `Consume Revive Item on Self Revive` / `Consume Revive Item on Teammate Revive`
+- `Enable Team Revive`, `No Revive Item Required`, `Debug` toggles
 
-## Multiplayer Support
-When using the Fika Co-op mod, KeepMeAlive will synchronize player states:
-- All players will see when someone enters critical state
-- Revival status is shared between players
-- Revive Item item requirements are checked server-side
-
-## Known Issues
-- Visual effects may occasionally flicker or not display properly
-- Some interactions between revival state and certain game mechanics may cause unexpected behavior
 
 ## Troubleshooting
-- **Revival not working**: Ensure you have a revive item in your inventory
-- **Still dying instantly**: Check logs for errors and make sure the mod is properly installed
-- **Performance issues**: The mod has minimal performance impact, but disable if experiencing problems
+- Revive does not trigger: verify revive item ID and keybind in the config.
+- Dying instantly: check whether hardcore/death settings are enabled.
+- Unexpected behavior in co-op: ensure all players are on matching mod/plugin versions.
 
 ## Credits
 - Developed by KaiKiNoodles

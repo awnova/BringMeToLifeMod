@@ -197,7 +197,12 @@ namespace KeepMeAlive.Fika
             {
                 string reviverName = Utils.GetPlayerDisplayName(packet.reviverId);
                 string reviveeName = Utils.GetPlayerDisplayName(packet.reviveeId);
-                VFX_UI.Text(Color.cyan, $"{reviverName} is helping {reviveeName}");
+                PlayerMessageRouter.Notify(
+                    Color.cyan,
+                    PlayerFacingMessages.NetworkRevive.TeamHelpedBy(reviverName, reviveeName),
+                    MessageAudience.InvolvedPlayers,
+                    packet.reviverId,
+                    packet.reviveeId);
 
                 // Replace the local revivee's self-revive prompt with a "being revived" indicator
                 Player reviveePlayer = Utils.GetPlayerById(packet.reviveeId);
@@ -213,7 +218,7 @@ namespace KeepMeAlive.Fika
                     VFX_UI.HideObjectivePanel();
                     playerState.RevivePromptTimer?.Stop();
                     playerState.RevivePromptTimer = null;
-                    VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.BottomCenter, $"{reviverName} is reviving you...");
+                    VFX_UI.ObjectivePanel(Color.cyan, VFX_UI.Position.BottomCenter, PlayerFacingMessages.NetworkRevive.RevivingYou(reviverName));
                 }
             }
             catch (Exception ex)
@@ -251,14 +256,19 @@ namespace KeepMeAlive.Fika
 
                 if (RevivePolicy.IsEnabled(ReviveSource.Self) && (KeepMeAliveSettings.NO_REVIVE_ITEM_REQUIRED.Value || Utils.HasReviveItem(reviveePlayer)))
                 {
-                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, $"Revive! [{KeepMeAliveSettings.SELF_REVIVAL_KEY.Value}]");
+                    VFX_UI.ObjectivePanel(Color.blue, VFX_UI.Position.BottomCenter, PlayerFacingMessages.NetworkRevive.RevivePrompt(KeepMeAliveSettings.SELF_REVIVAL_KEY.Value));
                 }
             }
 
             try
             {
                 string reviverName = Utils.GetPlayerDisplayName(packet.reviverId);
-                VFX_UI.Text(Color.yellow, $"{reviverName} cancelled revival");
+                PlayerMessageRouter.Notify(
+                    Color.yellow,
+                    PlayerFacingMessages.NetworkRevive.TeamCancelledBy(reviverName),
+                    MessageAudience.InvolvedPlayers,
+                    packet.reviverId,
+                    packet.reviveeId);
             }
             catch (Exception ex)
             {
@@ -306,7 +316,12 @@ namespace KeepMeAlive.Fika
             try
             {
                 string display = Utils.GetPlayerDisplayName(packet.playerId);
-                VFX_UI.Text(Color.cyan, $"{display} is self-reviving");
+                PlayerMessageRouter.Notify(
+                    Color.cyan,
+                    PlayerFacingMessages.NetworkRevive.SelfReviving(display),
+                    MessageAudience.InvolvedPlayers,
+                    packet.playerId,
+                    packet.playerId);
             }
             catch (Exception ex)
             {
@@ -349,7 +364,12 @@ namespace KeepMeAlive.Fika
             {
                 string reviverName = Utils.GetPlayerDisplayName(packet.reviverId);
                 string reviveeName = Utils.GetPlayerDisplayName(packet.reviveeId);
-                VFX_UI.Text(Color.cyan, $"{reviverName} is reviving {reviveeName}");
+                PlayerMessageRouter.Notify(
+                    Color.cyan,
+                    PlayerFacingMessages.NetworkRevive.TeamReviving(reviverName, reviveeName),
+                    MessageAudience.InvolvedPlayers,
+                    packet.reviverId,
+                    packet.reviveeId);
             }
             catch (Exception ex)
             {
@@ -393,10 +413,18 @@ namespace KeepMeAlive.Fika
 
             RevivalController.FinalizeRevivalFromPacket(player, packet.playerId, packet.reviverId);
 
+            string localPlayerId = Utils.GetYourPlayer()?.ProfileId;
+            if (string.Equals(localPlayerId, packet.playerId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
             try
             {
                 string display = Utils.GetPlayerDisplayName(packet.playerId);
-                VFX_UI.Text(Color.green, isSelfRevive ? $"{display} self-revived" : $"{display} was revived");
+                var source = isSelfRevive ? ReviveSource.Self : ReviveSource.Team;
+                string msg = PlayerFacingMessages.ReviveComplete.ObserverBySource(display, source);
+                PlayerMessageRouter.Notify(Color.green, msg, MessageAudience.InvolvedPlayers, packet.reviverId, packet.playerId);
             }
             catch (Exception ex)
             {
@@ -465,7 +493,12 @@ namespace KeepMeAlive.Fika
             {
                 string healerDisplay  = Utils.GetPlayerDisplayName(packet.healerId);
                 string patientDisplay = Utils.GetPlayerDisplayName(packet.patientId);
-                VFX_UI.Text(Color.green, $"{healerDisplay} is healing {patientDisplay}");
+                PlayerMessageRouter.Notify(
+                    Color.green,
+                    PlayerFacingMessages.TeamHeal.StartedBy(healerDisplay, patientDisplay),
+                    MessageAudience.InvolvedPlayers,
+                    packet.healerId,
+                    packet.patientId);
             }
             catch (Exception ex)
             {
@@ -496,7 +529,7 @@ namespace KeepMeAlive.Fika
                 {
                     return;
                 }
-                VFX_UI.Text(Color.green, "You were healed!");
+                VFX_UI.Text(Color.green, PlayerFacingMessages.TeamHeal.YouWereHealed);
             }
             catch (Exception ex)
             {
@@ -511,7 +544,12 @@ namespace KeepMeAlive.Fika
             try
             {
                 string healerDisplay = Utils.GetPlayerDisplayName(packet.healerId);
-                VFX_UI.Text(Color.yellow, $"{healerDisplay} cancelled healing");
+                PlayerMessageRouter.Notify(
+                    Color.yellow,
+                    PlayerFacingMessages.TeamHeal.CancelledBy(healerDisplay),
+                    MessageAudience.InvolvedPlayers,
+                    packet.healerId,
+                    packet.patientId);
             }
             catch (Exception ex)
             {
@@ -613,8 +651,34 @@ namespace KeepMeAlive.Fika
             managerCreatedEvent.Manager.RegisterPacket<PlayerStateResyncPacket, NetPeer>(OnPlayerStateResyncPacketReceived);
         }
 
-        public static void InitOnPluginEnabled() =>
+        //====================[ Raid Started — Attach Body Interactables ]====================
+        private static void OnRaidStarted(FikaRaidStartedEvent e)
+        {
+            if (!global::Fika.Core.Main.Components.CoopHandler.TryGetCoopHandler(out var coopHandler))
+            {
+                Plugin.LogSource.LogWarning("[OnRaidStarted] CoopHandler not available");
+                return;
+            }
+
+            Plugin.LogSource.LogInfo($"[OnRaidStarted] HumanPlayers count={coopHandler.HumanPlayers.Count}");
+            foreach (var player in coopHandler.HumanPlayers)
+            {
+                if (player is not global::Fika.Core.Main.Players.ObservedPlayer)
+                {
+                    Plugin.LogSource.LogInfo($"[OnRaidStarted] SKIP local player {player.Id} ({player.GetType().Name})");
+                    continue;
+                }
+
+                Plugin.LogSource.LogInfo($"[OnRaidStarted] Attaching to remote player {player.Id} ({player.Profile?.Nickname})");
+                BodyInteractableRuntime.AttachToPlayer(player);
+            }
+        }
+
+        public static void InitOnPluginEnabled()
+        {
             FikaEventDispatcher.SubscribeEvent<FikaNetworkManagerCreatedEvent>(OnFikaNetManagerCreated);
+            FikaEventDispatcher.SubscribeEvent<FikaRaidStartedEvent>(OnRaidStarted);
+        }
 
         // HealthRestored packet removed: restoration inferred from state transitions
     }
